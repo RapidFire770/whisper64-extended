@@ -29,6 +29,7 @@ void mouse_get_position(unsigned char *x, unsigned char *y);
 unsigned char mouse_is_enabled(void);
 void mouse_enable(void);
 void mouse_disable(void);
+char mouse_read_key(void);
 
 // Mouse position helpers
 unsigned char mouse_in_edit_area(void);

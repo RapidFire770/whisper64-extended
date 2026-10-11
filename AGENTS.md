@@ -2,7 +2,7 @@
 
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
-**Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, and renumber work. Tokenized BASIC PRG load/save does not. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse mode is a 1351 pointer in 40-column mode only. Open work is `docs/Todo-List.md`.
+**Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, and renumber work. Tokenized BASIC PRG load/save does not. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse mode is a 1351 or a port-1 joystick pointer, visible in 40-column mode only. Open work is `docs/Todo-List.md`.
 **Last Updated:** October 11, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
@@ -71,7 +71,7 @@ CMakeLists.txt
 | `file_ops.c` | Directory, load, save, drive select, new file |
 | `basic.c` | Line-number parse and renumber of the current page |
 | `reu.c` | REU detect, size probe, page DMA |
-| `mouse.c` | 1351 on control port 1 |
+| `mouse.c` | 1351 and joystick on control port 1 |
 | `search.c` `clipboard.c` `undo.c` `goto.c` `help.c` | Find/replace, mark/copy/paste, one-line undo, goto, help |
 
 Shared constants live in `include/whisper64.h`. KERNAL I/O goes through `cbm_k_*` (`cbm.h`). Hardware poking uses the `POKE` / `PEEK` macros.
@@ -84,9 +84,9 @@ The current link (`build/whisper64.map`, regenerated on each build) is approxima
 |---|---|
 | `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
 | `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$AC19`–`$C2A3` | BSS. `lines[]` is the big object: 48 × 80 = 3840 bytes |
-| `$C2A3` | Heap start |
-| `$D000` | Software stack (`__stack`). Grows down. About 3.4KB between heap and stack |
+| about `$B1F0`–`$C87C` | BSS. `lines[]` is the big object: 48 × 80 = 3840 bytes |
+| `$C87C` | Heap start |
+| `$D000` | Software stack (`__stack`). Grows down. About 1.9KB between heap and stack |
 | `$0100`–`$01FF` | 6502 hardware stack, still in use |
 | `$0400`–`$07E7` | 40-column screen RAM |
 | `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
@@ -141,11 +141,15 @@ Renumber walks the current page only. It maps line numbers to 10, 20, 30, ... an
 
 ## Mouse
 
-CTRL+J toggles mouse mode. `mouse.c` reads a 1351 on control port 1: movement from SID pots `$D419` / `$D41A`, left button from CIA1 `$DC01` bit 4 (active low). The pointer is screen code 94 written into `$0400`. Coordinates are capped at 40×25. A click in the edit area calls `mouse_to_editor_pos`, which assumes a 3-column gutter and a 40-column screen.
+CTRL+J toggles mouse mode. `mouse.c` reads a 1351 on control port 1: movement from SID pots `$D419` / `$D41A`, left button from CIA1 `$DC01` bit 4 (active low). The same port's bits 0–3 are the joystick (up, down, left, right), also active low. A new direction steps one cell immediately. The same direction repeats every 4 jiffies (`$A2`). The read writes `$FF` to `$DC00` with IRQs off so a keyboard column is not a direction. Do not sample port A (`$DC00`) as a joystick. That port shares the keyboard columns. Port 2 will drop or ghost keys in this loop.
 
-In 80-column mode that pointer is invisible, because VIC is no longer showing `$0400`, and the hit test is still in 40-column coordinates. `MOUSE_BTN_RIGHT` is unused. On a 1351 the right button is usually the joystick UP line (port 1 bit 0).
+The pointer is screen code 94 written into `$0400`. Coordinates are capped at 40×25. A click in the edit area calls `mouse_to_editor_pos`, which assumes a 3-column gutter and a 40-column screen. Fire is the existing left-button edge.
 
-The main loop is not synced to the raster. It polls the mouse, then calls `GETIN`, and repeats. A held joystick line would fire on every pass unless movement is rate-limited.
+A 1351 right button is the joystick UP line (port 1 bit 0). With mouse mode on, a right-click steps the pointer up. `MOUSE_BTN_RIGHT` is unused. Do not plug a 1351 and a joystick into port 1 together.
+
+Those five lines are also the keyboard rows. While one is held, the KERNAL scan queues a character (often `3`, `5`, `7`, or `9` from column 0, sometimes a cursor or function key). `mouse_read_key` clears the keyboard count at `$C6` for the hold and for 8 jiffies after release. `cgetc` and the main loop both use it, so a stick does not type into the buffer or answer a prompt. A key pressed in that window is discarded with the ghost.
+
+In 80-column mode that pointer is invisible, because VIC is no longer showing `$0400`, and the hit test is still in 40-column coordinates. A bitmap cursor is a separate change.
 
 ## Style
 
@@ -164,16 +168,17 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 - `insert_char` splits the buffer at `edit_width`. That corrupts a BASIC logical line.
 - Keyword lists in `editor_state.c` and `basic.c` already disagree. A tokenizer needs one V2 table, shared with the highlighter.
 - `tools/c64u.py` only understands the 40-column screen.
+- Do not read joystick port 2 (`$DC00`) from the main loop. Port 1 is `$DC01`. A 1351 right-click is UP.
 
 ## Todo-List feasibility
 
-Two open items in `docs/Todo-List.md` remain: tokenized PRG load/save, and joystick mouse movement. 80-column BASIC highlighting is done. Neither remaining item needs a new linker layout, a new crate, or a different editor buffer. Keep the buffer as PETSCII text. That is already the right model. The sibling BASIC-IDE project used the same model and still spent its complexity on token edge cases, not on a second copy of the text.
+One open item in `docs/Todo-List.md` remains: tokenized PRG load/save. 80-column BASIC highlighting and the port-1 joystick pointer are done. The PRG work does not need a new linker layout, a new crate, or a different editor buffer. Keep the buffer as PETSCII text. That is already the right model. The sibling BASIC-IDE project used the same model and still spent its complexity on token edge cases, not on a second copy of the text.
 
 ### 80-column BASIC highlighting — done
 
 The rules live in the Screen modes section. Do not widen `basic_keywords[]` as part of a color tweak. The full V2 list belongs with the tokenizer, and both highlighters must keep using the one table in `editor_state.c`.
 
-### Load and save tokenized BASIC PRG — feasible, the largest of the three
+### Load and save tokenized BASIC PRG — feasible, the remaining item
 
 SEQ load/save stays. PRG is a second format on the same text buffer.
 
@@ -187,7 +192,7 @@ On-disk BASIC V2, after the 2-byte load address (normally `$01 $08`):
 
 Load: keep the data-channel read. If the file is PRG and the first records look like BASIC (load address, rising links, `00` line ends, a final `00 00`), detokenize each line into `"10 PRINT ..."` text and feed the existing pager. If it does not look like BASIC, say so and do not dump tokens into the buffer. Do not `LOAD` over the editor.
 
-Save, when the user asks for a BASIC program: tokenize one source line into a small stack buffer (a 79-character source line only gets shorter), emit the link pointer from a running address that starts at `$0801`, then the binary line number, tokens, and `00`. Finish with `00 00`. Write `name,P,W` (overwrite `@0:name,P,W`). The overwrite probe has to look for the PRG, not only the SEQ. Stream straight to disk. There is not enough free RAM to assemble a whole program (the heap/stack gap is about 3KB).
+Save, when the user asks for a BASIC program: tokenize one source line into a small stack buffer (a 79-character source line only gets shorter), emit the link pointer from a running address that starts at `$0801`, then the binary line number, tokens, and `00`. Finish with `00 00`. Write `name,P,W` (overwrite `@0:name,P,W`). The overwrite probe has to look for the PRG, not only the SEQ. Stream straight to disk. There is not enough free RAM to assemble a whole program (the heap/stack gap is about 1.9KB).
 
 A line with no leading line number cannot be part of a PRG. Report it and skip or abort that save. Do not invent a number.
 
@@ -200,14 +205,6 @@ Do this in the same change, or PRG files will not round-trip:
 
 Out of scope unless the user asks: running the program in place, abbreviation entry (`P` + shifted `R`), and BASIC extensions beyond V2. `?` as `PRINT` is a small optional match because the C64 cruncher accepts it.
 
-### Joystick moves the mouse cursor — feasible, small, 40-column only
+### Joystick moves the mouse cursor — done
 
-The pointer is already a software cursor with its own x/y. A joystick only has to nudge those and reuse the existing click path. No new sprite.
-
-Read control port 1 (`$DC01`, active low, bits 0–3 = up, down, left, right, bit 4 = fire). That port is already an input for the 1351 button, so the keyboard scan can stay alone. Port 2 (`$DC00`) shares CIA1 port A with the keyboard and will drop or ghost keys if it is polled in this tight loop. The C64 Ultimate can map a USB pad onto port 1.
-
-Rate-limit the repeat. The main loop is not a frame tick. Without a delay counter a held direction pins the cursor to the edge immediately. Fire on port 1 is the same bit the 1351 left button uses, so the existing click handler is enough.
-
-A 1351 right button pulls UP. If both devices are not plugged in together, treating bit 0 as UP is correct for a joystick. Document that a 1351 right-click can nudge the pointer up while mouse mode is on.
-
-This does not make the pointer visible in 80-column mode. That needs a bitmap cursor and an 80-column hit test in `mouse_to_editor_pos`. It is a separate change from reading the joystick.
+The rules live in the Mouse section. Port 1 only, 4-jiffy repeat, fire reuses the left-button click. A 1351 right-click steps the pointer up. An 80-column bitmap pointer, and an 80-column hit test in `mouse_to_editor_pos`, are still a separate change. The C64 Ultimate can map a USB pad onto port 1.

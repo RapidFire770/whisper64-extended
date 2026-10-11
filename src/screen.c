@@ -16,7 +16,7 @@ void clrscr() {
 
 char cgetc() {
     char c;
-    while (!(c = cbm_k_getin()));
+    while (!(c = mouse_read_key()));
     return c;
 }
 

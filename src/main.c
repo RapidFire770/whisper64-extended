@@ -87,7 +87,7 @@ int main(void) {
         }
         
         // Check for keyboard input (non-blocking)
-        c = cbm_k_getin();
+        c = mouse_read_key();
         if (c == 0) continue;  // No key pressed, loop again
         
         // Hide mouse cursor while processing keyboard
@@ -121,7 +121,7 @@ int main(void) {
                 show_message("MOUSE OFF", COL_RED);
             } else {
                 mouse_enable();
-                show_message("MOUSE ON - CLICK TO POSITION CURSOR", COL_GREEN);
+                show_message("MOUSE ON - STICK OR CLICK", COL_GREEN);
             }
             continue;
         }

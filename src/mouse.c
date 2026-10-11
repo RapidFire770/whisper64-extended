@@ -3,19 +3,30 @@
 #include "screen.h"
 #include <stdio.h>
 
-// CIA1 and SID registers
-#define CIA1_PRA (*(unsigned char*)0xDC00)
-#define CIA1_PRB (*(unsigned char*)0xDC01)
-#define CIA1_DDRA (*(unsigned char*)0xDC02)
-#define CIA1_DDRB (*(unsigned char*)0xDC03)
-#define SID_POTX (*(unsigned char*)0xD419)
-#define SID_POTY (*(unsigned char*)0xD41A)
+// CIA1 and SID registers. Volatile so the port-A write stays ahead of the port-B read.
+#define CIA1_PRA (*(volatile unsigned char*)0xDC00)
+#define CIA1_PRB (*(volatile unsigned char*)0xDC01)
+#define CIA1_DDRA (*(volatile unsigned char*)0xDC02)
+#define CIA1_DDRB (*(volatile unsigned char*)0xDC03)
+#define SID_POTX (*(volatile unsigned char*)0xD419)
+#define SID_POTY (*(volatile unsigned char*)0xD41A)
+
+/* Port 1 ($DC01) is active low. Bit 0 is also the 1351 right button.
+   The main loop is not a frame, so a held direction repeats every 4 jiffies. */
+#define JOY_UP     0x01
+#define JOY_DOWN   0x02
+#define JOY_LEFT   0x04
+#define JOY_RIGHT  0x08
+#define JOY_REPEAT 4
+/* Port 1 pulls a keyboard row low. SCNKEY will queue that row's key.
+   Swallow the buffer while a line is down, and for a few jiffies after
+   it rises, so the key queued on the way up is dropped too. */
+#define JOY_KEY_GUARD 8
+#define KBD_COUNT (*(volatile unsigned char*)0x00C6)
+#define JIFFY_LO (*(volatile unsigned char*)0x00A2)
 
 // Mouse cursor character
 #define MOUSE_CURSOR 94
-
-// Which port? 1 = control port 1 (left), 2 = control port 2 (right)
-#define MOUSE_PORT 1
 
 // Mouse sensitivity (higher = slower). Try values between 16-32
 #define MOUSE_DIVISOR 24
@@ -30,6 +41,66 @@ static unsigned char old_y = 0;
 // Previous POT values for delta calculation
 static unsigned char oldpotx = 0;
 static unsigned char oldpoty = 0;
+static unsigned char joy_held = 0;
+static unsigned char joy_stamp = 0;
+static unsigned char joy_guard_on = 0;
+static unsigned char joy_guard_stamp = 0;
+
+/* Drive port A high around the read so a keyboard column is not a direction.
+   Do not sample port A. It shares the keyboard columns. */
+static unsigned char read_port1(void) {
+    unsigned char prb;
+
+    __asm__ volatile ("sei" ::: "memory");
+    CIA1_PRA = 0xFF;
+    prb = CIA1_PRB;
+    __asm__ volatile ("cli" ::: "memory");
+    return prb;
+}
+
+static unsigned char poll_port1(void) {
+    unsigned char prb, dir, now;
+    int x, y;
+
+    prb = read_port1();
+    mouse.prev_button = mouse.button;
+    mouse.button = (prb & 0x10) ? MOUSE_BTN_NONE : MOUSE_BTN_LEFT;
+
+    /* Directions and fire are keyboard rows. Remember the jiffy so typed
+       ghosts from this line can be dropped after it is released. */
+    if ((prb & 0x1F) != 0x1F) {
+        joy_guard_on = 1;
+        joy_guard_stamp = JIFFY_LO;
+    }
+
+    dir = (unsigned char)(~prb) & 0x0F;
+    if (dir == 0) {
+        joy_held = 0;
+        return 0;
+    }
+
+    now = JIFFY_LO;
+    if (dir == joy_held && (unsigned char)(now - joy_stamp) < JOY_REPEAT)
+        return 0;
+
+    joy_held = dir;
+    joy_stamp = now;
+    x = mouse.x;
+    y = mouse.y;
+    if (dir & JOY_LEFT) x--;
+    if (dir & JOY_RIGHT) x++;
+    if (dir & JOY_UP) y--;
+    if (dir & JOY_DOWN) y++;
+    if (x < 0) x = 0;
+    if (x >= SCREEN_WIDTH) x = SCREEN_WIDTH - 1;
+    if (y < 0) y = 0;
+    if (y >= SCREEN_HEIGHT) y = SCREEN_HEIGHT - 1;
+    if (x == mouse.x && y == mouse.y)
+        return 0;
+    mouse.x = (unsigned char)x;
+    mouse.y = (unsigned char)y;
+    return 1;
+}
 
 void mouse_init(void) {
     mouse.enabled = 0;
@@ -39,6 +110,9 @@ void mouse_init(void) {
     mouse.prev_button = MOUSE_BTN_NONE;
     oldpotx = 0;
     oldpoty = 0;
+    joy_held = 0;
+    joy_stamp = 0;
+    joy_guard_on = 0;
     mouse_visible = 0;
     old_x = 0;
     old_y = 0;
@@ -116,6 +190,9 @@ void mouse_update(void) {
         }
     }
     
+    if (poll_port1())
+        moved = 1;
+
     // If mouse moved, we need to redraw it
     if (moved && mouse_visible) {
         // Restore old position first
@@ -137,15 +214,6 @@ void mouse_update(void) {
     // Update stored values
     oldpotx = newpotx;
     oldpoty = newpoty;
-    
-    // Read button state - Port 1 uses PRB
-    mouse.prev_button = mouse.button;
-    
-    if (!(CIA1_PRB & 0x10)) {
-        mouse.button = MOUSE_BTN_LEFT;
-    } else {
-        mouse.button = MOUSE_BTN_NONE;
-    }
 }
 
 void mouse_hide_cursor(void) {
@@ -203,12 +271,32 @@ unsigned char mouse_is_enabled(void) {
     return mouse.enabled;
 }
 
+char mouse_read_key(void) {
+    unsigned char now;
+
+    if (!mouse.enabled || !joy_guard_on)
+        return cbm_k_getin();
+
+    now = JIFFY_LO;
+    if ((unsigned char)(now - joy_guard_stamp) >= JOY_KEY_GUARD)
+        joy_guard_on = 0;
+
+    /* Drop whatever SCNKEY queued from the grounded row. The count is
+       cleared with IRQs off so the scan cannot refill it first. */
+    __asm__ volatile ("sei" ::: "memory");
+    KBD_COUNT = 0;
+    __asm__ volatile ("cli" ::: "memory");
+    return 0;
+}
+
 void mouse_enable(void) {
     unsigned int i;
     volatile unsigned char temp;
     
-    // Configure CIA1 DDR for Port 1 (PRB bit 4 as input for fire button)
-    CIA1_DDRB &= ~0x10;  // Set bit 4 as input
+    /* Port 1 directions and fire are inputs. Bit 0 is also the 1351 right button. */
+    CIA1_DDRB &= (unsigned char)~0x1F;
+    joy_held = 0;
+    joy_guard_on = 0;
     
     // Long delay to let POT values completely stabilize
     for (i = 0; i < 5000; i++) {
@@ -230,10 +318,17 @@ void mouse_enable(void) {
     mouse_visible = 0;
     
     mouse.enabled = 1;
+
+    /* The settle loop above is long enough for SCNKEY to queue a ghost
+       if the stick was already over. Drop it before the next read. */
+    __asm__ volatile ("sei" ::: "memory");
+    KBD_COUNT = 0;
+    __asm__ volatile ("cli" ::: "memory");
 }
 
 void mouse_disable(void) {
     mouse.enabled = 0;
+    joy_guard_on = 0;
     if (mouse_visible) {
         mouse_hide_cursor();
     }

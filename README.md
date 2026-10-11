@@ -14,7 +14,7 @@ A text editor for the Commodore 64.
 - **Copy/Paste**: Visual mark mode for selecting and copying text
 - **Undo/Redo**: One-level undo and redo
 - **Goto Line**: Jump to any line number
-- **Mouse Support**: 1351 mouse on Control Port 1
+- **Mouse Support**: 1351 mouse or a joystick on Control Port 1 (CTRL+J). A 1351 right-click steps the pointer up.
 - **40-column mode**: 37x23 editing area with line numbers
 - **80-column mode**: 77x23 editing area with line numbers
 
@@ -74,7 +74,7 @@ For REU support, ensure the REU is connected before starting.
 | **CTRL+C** | Copy marked text |
 | **CTRL+D** | Toggle 40/80 column mode |
 | **CTRL+G** | Goto line |
-| **CTRL+J** | Toggle mouse on/off |
+| **CTRL+J** | Toggle the port-1 mouse / joystick pointer |
 | **CTRL+K** | Toggle mark mode |
 | **CTRL+V** | Paste text |
 | **CTRL+W** | New file (clear buffer) |

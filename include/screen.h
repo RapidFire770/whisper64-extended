@@ -7,6 +7,7 @@
 unsigned char mouse_is_enabled(void);
 void mouse_hide_cursor(void);
 void mouse_draw_cursor(void);
+char mouse_read_key(void);
 
 // Basic screen functions
 void clrscr(void);
