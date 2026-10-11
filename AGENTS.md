@@ -84,9 +84,9 @@ The current link (`build/whisper64.map`, regenerated on each build) is approxima
 |---|---|
 | `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
 | `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$B1F0`–`$C87C` | BSS. `lines[]` is the big object: 48 × 80 = 3840 bytes |
-| `$C87C` | Heap start |
-| `$D000` | Software stack (`__stack`). Grows down. About 1.9KB between heap and stack |
+| about `$B260`–`$C8EE` | BSS. `lines[]` is the big object: 48 × 80 = 3840 bytes |
+| `$C8EE` | Heap start |
+| `$D000` | Software stack (`__stack`). Grows down. About 1.8KB between heap and stack |
 | `$0100`–`$01FF` | 6502 hardware stack, still in use |
 | `$0400`–`$07E7` | 40-column screen RAM |
 | `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
@@ -141,13 +141,13 @@ Renumber walks the current page only. It maps line numbers to 10, 20, 30, ... an
 
 ## Mouse
 
-CTRL+J toggles mouse mode. `mouse.c` reads a 1351 on control port 1: movement from SID pots `$D419` / `$D41A`, left button from CIA1 `$DC01` bit 4 (active low). The same port's bits 0–3 are the joystick (up, down, left, right), also active low. A new direction steps one cell immediately. The same direction repeats every 4 jiffies (`$A2`). The read writes `$FF` to `$DC00` with IRQs off so a keyboard column is not a direction. Do not sample port A (`$DC00`) as a joystick. That port shares the keyboard columns. Port 2 will drop or ghost keys in this loop.
+CTRL+J toggles mouse mode. `mouse.c` reads a 1351 on control port 1: movement from SID pots `$D419` / `$D41A`, left button from CIA1 `$DC01` bit 4 (active low). The same port's bits 0–3 are the joystick (up, down, left, right), also active low. A new direction steps one cell immediately. The same direction repeats every 4 jiffies (`$A2`). The read writes `$FF` to `$DC00` with IRQs off so a keyboard column is not a direction, then puts the previous value back before CLI. Bits 6 and 7 of that register are the SID pot mux, and leaving `$FF` there selects neither port. Do not sample port A (`$DC00`) as a joystick. That port shares the keyboard columns. Port 2 will drop or ghost keys in this loop.
 
 The pointer is screen code 94 written into `$0400`. Coordinates are capped at 40×25. A click in the edit area calls `mouse_to_editor_pos`, which assumes a 3-column gutter and a 40-column screen. Fire is the existing left-button edge.
 
 A 1351 right button is the joystick UP line (port 1 bit 0). With mouse mode on, a right-click steps the pointer up. `MOUSE_BTN_RIGHT` is unused. Do not plug a 1351 and a joystick into port 1 together.
 
-Those five lines are also the keyboard rows. While one is held, the KERNAL scan queues a character (often `3`, `5`, `7`, or `9` from column 0, sometimes a cursor or function key). `mouse_read_key` clears the keyboard count at `$C6` for the hold and for 8 jiffies after release. `cgetc` and the main loop both use it, so a stick does not type into the buffer or answer a prompt. A key pressed in that window is discarded with the ghost.
+Those five lines are also the keyboard rows. While one is held, the KERNAL scan queues a character (often `3`, `5`, `7`, or `9` from column 0, sometimes a cursor or function key). `mouse_read_key` reads port 1 itself, so a prompt that blocks in `cgetc` still sees the stick. It clears the keyboard count at `$C6` for the whole hold and for 8 jiffies after release. A key pressed in that window is discarded with the ghost.
 
 In 80-column mode that pointer is invisible, because VIC is no longer showing `$0400`, and the hit test is still in 40-column coordinates. A bitmap cursor is a separate change.
 
@@ -192,7 +192,7 @@ On-disk BASIC V2, after the 2-byte load address (normally `$01 $08`):
 
 Load: keep the data-channel read. If the file is PRG and the first records look like BASIC (load address, rising links, `00` line ends, a final `00 00`), detokenize each line into `"10 PRINT ..."` text and feed the existing pager. If it does not look like BASIC, say so and do not dump tokens into the buffer. Do not `LOAD` over the editor.
 
-Save, when the user asks for a BASIC program: tokenize one source line into a small stack buffer (a 79-character source line only gets shorter), emit the link pointer from a running address that starts at `$0801`, then the binary line number, tokens, and `00`. Finish with `00 00`. Write `name,P,W` (overwrite `@0:name,P,W`). The overwrite probe has to look for the PRG, not only the SEQ. Stream straight to disk. There is not enough free RAM to assemble a whole program (the heap/stack gap is about 1.9KB).
+Save, when the user asks for a BASIC program: tokenize one source line into a small stack buffer (a 79-character source line only gets shorter), emit the link pointer from a running address that starts at `$0801`, then the binary line number, tokens, and `00`. Finish with `00 00`. Write `name,P,W` (overwrite `@0:name,P,W`). The overwrite probe has to look for the PRG, not only the SEQ. Stream straight to disk. There is not enough free RAM to assemble a whole program (the heap/stack gap is about 1.8KB).
 
 A line with no leading line number cannot be part of a PRG. Report it and skip or abort that save. Do not invent a number.
 

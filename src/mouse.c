@@ -49,11 +49,16 @@ static unsigned char joy_guard_stamp = 0;
 /* Drive port A high around the read so a keyboard column is not a direction.
    Do not sample port A. It shares the keyboard columns. */
 static unsigned char read_port1(void) {
-    unsigned char prb;
+    unsigned char pra, prb;
 
+    /* $FF deselects every keyboard column for the read. Put the old
+       value back: bits 6 and 7 of $DC00 are the SID pot mux, and $FF
+       selects neither control port. */
     __asm__ volatile ("sei" ::: "memory");
+    pra = CIA1_PRA;
     CIA1_PRA = 0xFF;
     prb = CIA1_PRB;
+    CIA1_PRA = pra;
     __asm__ volatile ("cli" ::: "memory");
     return prb;
 }
@@ -272,14 +277,31 @@ unsigned char mouse_is_enabled(void) {
 }
 
 char mouse_read_key(void) {
-    unsigned char now;
+    unsigned char prb, now;
 
-    if (!mouse.enabled || !joy_guard_on)
+    if (!mouse.enabled)
         return cbm_k_getin();
 
+    /* Sample here too. cgetc never calls mouse_update, so a stick held
+       across a prompt would otherwise outlive the guard and type. */
+    prb = read_port1();
     now = JIFFY_LO;
-    if ((unsigned char)(now - joy_guard_stamp) >= JOY_KEY_GUARD)
+    if ((prb & 0x1F) != 0x1F) {
+        joy_guard_on = 1;
+        joy_guard_stamp = now;
+    } else if (joy_guard_on &&
+               (unsigned char)(now - joy_guard_stamp) >= JOY_KEY_GUARD) {
         joy_guard_on = 0;
+        /* Last flush. The row has been up for the guard, so the next
+           scan will not queue another ghost from it. */
+        __asm__ volatile ("sei" ::: "memory");
+        KBD_COUNT = 0;
+        __asm__ volatile ("cli" ::: "memory");
+        return 0;
+    }
+
+    if (!joy_guard_on)
+        return cbm_k_getin();
 
     /* Drop whatever SCNKEY queued from the grounded row. The count is
        cleared with IRQs off so the scan cannot refill it first. */
