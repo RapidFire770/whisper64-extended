@@ -10,7 +10,6 @@ This file defines how coding agents should work on the project. It exists to kee
 **IMPORTANT:**
 
 - Always check available skills and invoke them when relevant to the user's request.
-- If adding a new crate explain to the user why it is needed or should be used compared to what it will take to do the work without it and give them the option to say yes or no to its inclusion.
 - Delete dead or obsolete code, unreachable code, or functions that are never called.
 - Code must look hand-written for this repository. Changes that read like generic AI-generated code will be rejected automatically: unnecessary helper layers, vague names, boilerplate comments, defensive branches without a real failure mode, broad rewrites, or code that ignores the local style.
 - For small one file changes, they can be performed on the main git branch.
