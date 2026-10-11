@@ -53,27 +53,97 @@ int is_basic_keyword(const char *word) {
     return 0;
 }
 
-void draw_line_number(int screen_row, int line_num) {
-    if (line_num < num_lines) {
-        char buf[4];
-        buf[0] = (line_num / 10) + '0';
-        buf[1] = (line_num % 10) + '0';
-        buf[2] = ':';
-        buf[3] = '\0';
+static int column_marked(int line_num, int col, int len) {
+    int start_y, end_y;
 
-        if (screen_mode == MODE_80COL) {
-            cputc_at_80(0, screen_row, buf[0], COL_CYAN);
-            cputc_at_80(1, screen_row, buf[1], COL_CYAN);
-            cputc_at_80(2, screen_row, buf[2], COL_CYAN);
-        } else {
-            int pos = screen_row * SCREEN_WIDTH;
-            SCREEN_RAM[pos] = buf[0];
-            SCREEN_RAM[pos + 1] = buf[1];
-            SCREEN_RAM[pos + 2] = buf[2];
-            COLOR_RAM[pos] = COL_CYAN;
-            COLOR_RAM[pos + 1] = COL_CYAN;
-            COLOR_RAM[pos + 2] = COL_CYAN;
+    if (!mark_active)
+        return 0;
+
+    start_y = mark_start_y < mark_end_y ? mark_start_y : mark_end_y;
+    end_y = mark_start_y < mark_end_y ? mark_end_y : mark_start_y;
+    if (line_num < start_y || line_num > end_y)
+        return 0;
+
+    if (start_y == end_y) {
+        int start_x = mark_start_x < mark_end_x ? mark_start_x : mark_end_x;
+        int end_x = mark_start_x < mark_end_x ? mark_end_x : mark_start_x;
+        return col >= start_x && col < end_x;
+    }
+    if (line_num == start_y)
+        return col >= (line_num == mark_start_y ? mark_start_x : 0);
+    if (line_num == end_y)
+        return col < (line_num == mark_end_y ? mark_end_x : len);
+    return 1;
+}
+
+/* Two 4px glyphs share a hires cell. Purple beats yellow beats white. */
+static uint8_t cell_rank(uint8_t color) {
+    if (color == COL_PURPLE) return 3;
+    if (color == COL_YELLOW) return 2;
+    if (color == COL_WHITE) return 1;
+    return 0;
+}
+
+static void paint_cell(uint8_t *cell_color, int screen_col, uint8_t color) {
+    int cell;
+
+    if (screen_col < 0 || screen_col >= 80)
+        return;
+    cell = screen_col >> 1;
+    if (cell_rank(color) >= cell_rank(cell_color[cell]))
+        cell_color[cell] = color;
+}
+
+static void paint_line_colors(int line_num, int len, uint8_t *cell_color) {
+    char word[20];
+    int word_len = 0;
+    int keyword_start = -1;
+    int i, j, n;
+
+    n = len;
+    if (n > edit_width)
+        n = edit_width;
+
+    for (i = 0; i < n; i++) {
+        char c = lines[line_num][i];
+
+        if (column_marked(line_num, i, len))
+            paint_cell(cell_color, 3 + i, COL_YELLOW);
+
+        if (basic_mode && (isupper(c) || c == '$' || c == '%')) {
+            if (word_len == 0)
+                keyword_start = i;
+            if (word_len < 19)
+                word[word_len++] = c;
+        } else if (word_len > 0) {
+            word[word_len] = '\0';
+            if (basic_mode && is_basic_keyword(word)) {
+                for (j = 0; j < word_len; j++)
+                    paint_cell(cell_color, 3 + keyword_start + j, COL_PURPLE);
+            }
+            word_len = 0;
         }
+    }
+
+    if (word_len > 0) {
+        word[word_len] = '\0';
+        if (basic_mode && is_basic_keyword(word)) {
+            for (j = 0; j < word_len; j++)
+                paint_cell(cell_color, 3 + keyword_start + j, COL_PURPLE);
+        }
+    }
+}
+
+void draw_line_number(int screen_row, int line_num) {
+    int pos = screen_row * SCREEN_WIDTH;
+
+    if (line_num < num_lines) {
+        SCREEN_RAM[pos] = (line_num / 10) + '0';
+        SCREEN_RAM[pos + 1] = (line_num % 10) + '0';
+        SCREEN_RAM[pos + 2] = ':';
+        COLOR_RAM[pos] = COL_CYAN;
+        COLOR_RAM[pos + 1] = COL_CYAN;
+        COLOR_RAM[pos + 2] = COL_CYAN;
     } else {
         cputc_at(0, screen_row, ' ', COL_WHITE);
         cputc_at(1, screen_row, ' ', COL_WHITE);
@@ -85,9 +155,12 @@ void draw_text_line(int screen_row, int line_num) {
     int ew = edit_width;
 
     if (screen_mode == MODE_80COL) {
-        // Fast path: build 80-char buffer, render entire row at once
         char rowbuf[80];
+        uint8_t cell_color[40];
         int i, len;
+
+        for (i = 0; i < 40; i++)
+            cell_color[i] = COL_WHITE;
 
         if (line_num < num_lines) {
             rowbuf[0] = (line_num / 10) + '0';
@@ -98,11 +171,14 @@ void draw_text_line(int screen_row, int line_num) {
                 rowbuf[3 + i] = lines[line_num][i];
             for (; i < ew; i++)
                 rowbuf[3 + i] = ' ';
+            if (basic_mode || mark_active)
+                paint_line_colors(line_num, len, cell_color);
+            cell_color[0] = COL_CYAN;
         } else {
             memset(rowbuf, ' ', 3 + ew);
         }
 
-        render_line_80(screen_row, rowbuf, 3 + ew, 0, 80, COL_WHITE);
+        render_line_80(screen_row, rowbuf, 3 + ew, cell_color);
         return;
     }
 
@@ -120,26 +196,7 @@ void draw_text_line(int screen_row, int line_num) {
 
             for (i = 0; i < ew; i++) {
                 color = COL_WHITE;
-                is_marked = 0;
-
-                if (mark_active) {
-                    int start_y = mark_start_y < mark_end_y ? mark_start_y : mark_end_y;
-                    int end_y = mark_start_y < mark_end_y ? mark_end_y : mark_start_y;
-
-                    if (line_num >= start_y && line_num <= end_y) {
-                        if (start_y == end_y) {
-                            int start_x = mark_start_x < mark_end_x ? mark_start_x : mark_end_x;
-                            int end_x = mark_start_x < mark_end_x ? mark_end_x : mark_start_x;
-                            is_marked = (i >= start_x && i < end_x);
-                        } else if (line_num == start_y) {
-                            is_marked = (i >= (line_num == mark_start_y ? mark_start_x : 0));
-                        } else if (line_num == end_y) {
-                            is_marked = (i < (line_num == mark_end_y ? mark_end_x : len));
-                        } else {
-                            is_marked = 1;
-                        }
-                    }
-                }
+                is_marked = column_marked(line_num, i, len);
 
                 if (i < len) {
                     char c = lines[line_num][i];

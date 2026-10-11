@@ -134,21 +134,18 @@ void cputs_at_80(int x, int y, const char *s, uint8_t color) {
     screen80_end_draw();
 }
 
-// Fast bulk renderer: draw an entire screen row (all 80 columns) into bitmap
-// Caller must pass a pre-built 80-char buffer (line number + text + padding)
-// Always cell-aligned for maximum speed - no per-char function calls
+// Fast bulk renderer: draw an entire screen row (all 80 columns) into bitmap.
+// Caller passes a pre-built buffer (line number + text + padding) and one
+// foreground color per hires cell. Both glyphs in a cell use that color.
 void render_line_80(int screen_row, const char *buf, int buf_len,
-                    int start_col, int num_cols, uint8_t color) {
+                    const uint8_t *cell_color) {
     uint8_t *bmp;
     uint8_t *col_row;
     int cell;
     const uint8_t *lfnt, *rfnt;
-    uint8_t colbyte;
     int fi;
 
-    // Set color for this row
     col_row = SCREEN_RAM_80 + (uint16_t)screen_row * 40;
-    colbyte = color << 4;
 
     // Ensure ROM is banked out for bitmap writes
     screen80_begin_draw();
@@ -175,8 +172,8 @@ void render_line_80(int screen_row, const char *buf, int buf_len,
         if (fi >= 96) fi = 0;
         rfnt = &font_4x8[fi * 8];
 
-        // Set color for this cell
-        col_row[cell] = colbyte;
+        // High nibble is the color of set pixels. The pair shares it.
+        col_row[cell] = cell_color[cell] << 4;
 
         // Write both chars at once - no read-modify-write needed
         bmp[0] = (lfnt[0] & 0xF0) | (rfnt[0] >> 4);

@@ -2,7 +2,7 @@
 
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
-**Status:** Editing, paging, SEQ load/save, 40-column BASIC highlighting, and renumber work. Tokenized BASIC PRG load/save does not. 80-column mode draws text but does not color keywords. Mouse mode is a 1351 pointer in 40-column mode only. Open work is `docs/Todo-List.md`.
+**Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, and renumber work. Tokenized BASIC PRG load/save does not. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse mode is a 1351 pointer in 40-column mode only. Open work is `docs/Todo-List.md`.
 **Last Updated:** October 11, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
@@ -67,8 +67,8 @@ CMakeLists.txt
 | `main.c` | Loop: mouse poll, then `cbm_k_getin`, then key dispatch |
 | `editor.c` | Insert, delete, return, page swap |
 | `editor_state.c` | Globals: buffer, cursor, filename, BASIC flag, keyword list |
-| `screen.c` | 40-column draw, keyword coloring, cursor, status line. Dispatches to 80-column |
-| `screen80.c` | VIC bank 3 bitmap mode, 4x8 font |
+| `screen.c` | Draw, keyword and mark colors, cursor, status line. Dispatches the bitmap to 80-column |
+| `screen80.c` | VIC bank 3 bitmap mode, 4x8 font, per-cell color |
 | `file_ops.c` | Directory, load, save, drive select, new file |
 | `basic.c` | Line-number parse and renumber of the current page |
 | `reu.c` | REU detect, size probe, page DMA |
@@ -118,7 +118,7 @@ The cyan gutter (`00:`) is the row index inside the current page, two digits, no
 
 40-column mode writes screen RAM `$0400` and color RAM `$D800` directly. `draw_text_line` scans the line, and when `basic_mode` is set it colors a completed word purple if `is_basic_keyword` matches. Marked text is yellow. The keyword table in `editor_state.c` is a short subset (PRINT, FOR, GOTO, ...). It is not the BASIC V2 token list. A second, different list lives inside `replace_line_number` in `basic.c`.
 
-80-column mode is VIC bank 3 (`$DD00` bits 0–1 = 0), bitmap at `$E000`, video matrix at `$D800` (`$D018 = $68`), hires bitmap enabled. The font is the 4x8 SCREEN-80 glyph set in `include/font_4x8.h` (96 glyphs, ASCII 32–127, pixels in the high nibble). Two glyphs share one 8x8 cell, so they share one foreground color. `render_line_80` paints a whole row in a single color. `draw_text_line` uses that fast path and passes `COL_WHITE`, which is why BASIC highlighting and the cyan gutter disappear in 80-column mode. Background is black (low nybble 0).
+80-column mode is VIC bank 3 (`$DD00` bits 0–1 = 0), bitmap at `$E000`, video matrix at `$D800` (`$D018 = $68`), hires bitmap enabled. The font is the 4x8 SCREEN-80 glyph set in `include/font_4x8.h` (96 glyphs, ASCII 32–127, pixels in the high nibble). Two glyphs share one 8x8 cell, so they share one foreground color. `draw_text_line` fills a 40-byte cell-color array and `render_line_80` stores `color << 4` in that cell. The background nybble stays 0 (black). Cell 0, the two gutter digits, is forced cyan. The colon sits in cell 1 with the first text character and takes that character's color. Keyword purple outranks mark yellow, which outranks white, so a keyword or a mark on either half colors both glyphs. The scan matches 40-column mode: `is_basic_keyword` against the short list in `editor_state.c`, quote-blind, and a finished keyword is painted purple even when that span is also marked. Typing goes through `draw_text_line`. `cputc_at_80` still paints a whole cell one color; the title and status strings use that.
 
 The cursor in 80-column mode XORs the glyph's nibble in the bitmap. In 40-column mode it sets reverse video on the screen code.
 
@@ -157,7 +157,7 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 - Do not `LOAD` a user program into memory while the editor is running. The editor occupies `$0801` upward.
 - Do not call the KERNAL between `screen80_begin_draw` and `screen80_end_draw`.
 - Do not treat `$D800` in 80-column mode as color SRAM. The video matrix is RAM under I/O. Writes with I/O mapped in go to the wrong chip.
-- Two 4-pixel characters share one color. Per-character highlighting is not possible. Per-cell coloring is.
+- Two 4-pixel characters share one color. Per-character highlighting is not possible. Per-cell coloring is. On 80-column text lines, keyword purple beats mark yellow, which beats white, and cell 0 (the gutter digits) is forced cyan. The colon shares cell 1 with the first text character.
 - `reu_get_size` destroys byte 0 of each REU bank. Do not run it after pages have been saved.
 - REU DMA needs the `DMA_BARRIER()` already in `reu.c`, or the compiler will delete the transfers.
 - Temp-file paging and REU paging must stay in lockstep. Save and load already re-`CHKOUT` after each page reload because opening the temp file disturbs the output channel.
@@ -168,17 +168,11 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 
 ## Todo-List feasibility
 
-All three open items in `docs/Todo-List.md` can be done in this program. None of them needs a new linker layout, a new crate, or a different editor buffer. Keep the buffer as PETSCII text. That is already the right model. The sibling BASIC-IDE project used the same model and still spent its complexity on token edge cases, not on a second copy of the text.
+Two open items in `docs/Todo-List.md` remain: tokenized PRG load/save, and joystick mouse movement. 80-column BASIC highlighting is done. Neither remaining item needs a new linker layout, a new crate, or a different editor buffer. Keep the buffer as PETSCII text. That is already the right model. The sibling BASIC-IDE project used the same model and still spent its complexity on token edge cases, not on a second copy of the text.
 
-### 80-column BASIC highlighting — feasible, small
+### 80-column BASIC highlighting — done
 
-40-column mode already does this in `draw_text_line`. 80-column mode throws the color away by calling `render_line_80` with one color for the row.
-
-Give that renderer a per-cell color (40 bytes, one per pair of characters) and build it with the same `is_basic_keyword` scan the 40-column path uses. Also color the gutter cells cyan. Typing already goes through `draw_text_line`, so the fast path picks this up without a second draw implementation.
-
-Accept the hardware limit: columns 0–1 share a cell, 2–3 share a cell, and so on. The colon in the gutter shares a cell with the first text character. A keyword that starts on an odd column colors the character before it as well. Mark-mode yellow has the same limit and should use the same cell-color pass, or 80-column mark will stay white.
-
-Widening `basic_keywords[]` to the full V2 set is optional for this feature and worth doing only once, as the table the tokenizer also uses. Until then, 80-column highlighting should match today's 40-column list, not a new one.
+The rules live in the Screen modes section. Do not widen `basic_keywords[]` as part of a color tweak. The full V2 list belongs with the tokenizer, and both highlighters must keep using the one table in `editor_state.c`.
 
 ### Load and save tokenized BASIC PRG — feasible, the largest of the three
 

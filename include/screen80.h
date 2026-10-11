@@ -5,11 +5,10 @@
 #include <stdint.h>
 
 // 80-column mode uses VIC-II Bank 3 ($C000-$FFFF)
-// Bitmap at $E000 (8000 bytes), screen/color RAM at $C400
-// Bitmap at $E000 (8KB, under Kernal ROM - VIC sees RAM here)
+// Bitmap at $E000 (8KB, under Kernal ROM). VIC sees that RAM.
 #define BITMAP_BASE     ((uint8_t *)0xE000)
-// Video matrix at $D800 - uses the VIC color RAM hardware
-// This avoids conflicting with program BSS which extends to ~$C430
+// Video matrix at $D800. VIC bank 3 reads the DRAM under I/O, not color SRAM.
+// screen80_begin_draw maps I/O out so writes land in that RAM.
 #define SCREEN_RAM_80   ((uint8_t *)0xD800)
 
 // 80-col layout: 4px wide chars, 80 columns, 25 rows
@@ -37,8 +36,9 @@ void clrscr_80(void);
 void cputc_at_80(int x, int y, char c, uint8_t color);
 void cputs_at_80(int x, int y, const char *s, uint8_t color);
 
-// Fast bulk line renderer - processes entire row at once
+// Fast bulk line renderer. cell_color is 40 foreground colors, one per
+// hires cell. Two 4px glyphs share a cell. Background nybble stays black.
 void render_line_80(int screen_row, const char *text, int text_len,
-                    int start_col, int num_cols, uint8_t color);
+                    const uint8_t *cell_color);
 
 #endif
