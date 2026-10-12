@@ -2,7 +2,7 @@
 
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
-**Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, and current-page renumber. Tokenized BASIC V2 SEQ/PRG conversion is `w64conv.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse mode is a 1351 or a port-1 joystick pointer, visible in 40-column mode only. Open work is `docs/Todo-List.md`.
+**Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, current-page renumber, and display wrap. Tokenized BASIC V2 SEQ/PRG conversion is `w64conv.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is `docs/Todo-List.md`.
 **Last Updated:** October 12, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
@@ -64,7 +64,7 @@ CMakeLists.txt
 
 | Module | Role |
 |---|---|
-| `main.c` | Loop: mouse poll, then `cbm_k_getin`, then key dispatch |
+| `main.c` | Loop: `cbm_k_getin`, then key dispatch |
 | `editor.c` | Insert, delete, return, page swap |
 | `editor_state.c` | Globals: buffer, cursor, filename, BASIC flag, keyword list |
 | `screen.c` | Draw, keyword and mark colors, cursor, status line. Dispatches the bitmap to 80-column |
@@ -72,7 +72,6 @@ CMakeLists.txt
 | `file_ops.c` | Directory, load, save, drive select, new file |
 | `basic.c` | Line-number parse and renumber of the current page |
 | `reu.c` | REU detect, size probe, page DMA |
-| `mouse.c` | 1351 and joystick on control port 1 |
 | `search.c` `clipboard.c` `undo.c` `goto.c` `help.c` | Find/replace, mark/copy/paste, one-line undo, goto, help |
 
 Shared constants live in `include/whisper64.h`. KERNAL I/O goes through `cbm_k_*` (`cbm.h`). Hardware poking uses the `POKE` / `PEEK` macros.
@@ -85,9 +84,9 @@ The current link (`build/whisper64.map`, regenerated on each build) is approxima
 |---|---|
 | `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
 | `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$B260`–`$C8EE` | BSS. `lines[]` is the big object: 48 × 80 = 3840 bytes |
-| `$C8EE` | Heap start |
-| `$D000` | Software stack (`__stack`). Grows down. About 1.8KB between heap and stack |
+| about `$B0FD`–`$C781` | BSS. `lines[]` is at `$B819`: 48 × 80 = 3840 bytes |
+| `$C781` | Heap start |
+| `$D000` | Software stack (`__stack`). Grows down. About 2.1KB between heap and stack |
 | `$0100`–`$01FF` | 6502 hardware stack, still in use |
 | `$0400`–`$07E7` | 40-column screen RAM |
 | `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
@@ -106,7 +105,7 @@ One page is `lines[LINES_PER_PAGE][MAX_LINE_LENGTH]` with `LINES_PER_PAGE` 48 an
 
 Other pages live in the REU when one is present, otherwise in drive temp files `$W$.P0`, `$W$.P1`, ... as SEQ. `page_modified` gates the write. REU pages start at offset 256. Each page is a 4-byte header (`magic` `$C64E`, line count) plus the raw `lines` array. Page size is about 3844 bytes. A 512KB REU holds about 136 pages. The C64 Ultimate's REU is larger. The size probe in `reu_get_size` writes one byte at address 0 of every 64KB bank. Call it only at startup, before any page is saved.
 
-There is no horizontal scroll. `draw_text_line` shows `edit_width` characters from column 0. `edit_width` is 37 in 40-column mode and 77 in 80-column mode. `insert_char` hard-splits the buffer at `edit_width` once the cursor reaches that column. That split is a real extra editor line, not a display wrap. A BASIC logical line broken this way will not survive a tokenized save.
+There is no horizontal scroll. A line stays one editor line, up to 79 characters. `edit_width` is 37 in 40-column mode and 77 in 80-column mode. The screen draws that many characters per row and continues the same line on the next screen row, with a blank gutter. Return is what starts a new editor line. Do not split the buffer at `edit_width`. That used to leave the tail unnumbered, so a tokenized save dropped it.
 
 The cyan gutter (`00:`) is the row index inside the current page, two digits, not a BASIC line number and not a file-wide line number. The title bar's `line:col` is the file-wide row (`page * 48 + row`). BASIC line numbers, when present, are decimal text at the start of the line. `extract_line_number` requires digits then a space or end of line.
 
@@ -122,7 +121,7 @@ The cyan gutter (`00:`) is the row index inside the current page, two digits, no
 
 The cursor in 80-column mode XORs the glyph's nibble in the bitmap. In 40-column mode it sets reverse video on the screen code.
 
-`redraw_screen` rebuilds the title, every visible line, and the status row. `update_current_line` rebuilds the title position, the current line, and the cursor. Typing uses the fast path. Arrow keys use the full redraw.
+`redraw_screen` rebuilds the title, every visible line, and the status row. A line longer than `edit_width` takes more than one screen row, and the cursor row follows that. `update_current_line` rebuilds the title position, the current line, and the cursor while the line fits on one row. A wrap uses the full redraw. Arrow keys use the full redraw.
 
 Directory, help, and the save prompt are laid out for 40 columns. In 80-column mode `cputs_at` still draws them, on the left side of the bitmap.
 
@@ -140,17 +139,9 @@ F4 sets `basic_mode`, which only affects highlighting and the status tag. F4 aga
 
 Renumber walks the current page only. It maps line numbers to 10, 20, 30, ... and rewrites a following number after `GOTO`, `GOSUB`, `GO TO`, `GO SUB`, `THEN`, and `ELSE`. It does not see other pages, `ON ... GOTO` lists beyond a single number, or numbers written without the keyword patterns above. `line_mappings[]` is 128 entries. A page holds at most 48 numbered lines, so the cap is not the bug. The single-page walk is.
 
-## Mouse
+## Pointer
 
-CTRL+J toggles mouse mode. `mouse.c` reads a 1351 on control port 1: movement from SID pots `$D419` / `$D41A`, left button from CIA1 `$DC01` bit 4 (active low). The same port's bits 0–3 are the joystick (up, down, left, right), also active low. A new direction steps one cell immediately. The same direction repeats every 4 jiffies (`$A2`). The read writes `$FF` to `$DC00` with IRQs off so a keyboard column is not a direction, then puts the previous value back before CLI. Bits 6 and 7 of that register are the SID pot mux, and leaving `$FF` there selects neither port. Do not sample port A (`$DC00`) as a joystick. That port shares the keyboard columns. Port 2 will drop or ghost keys in this loop.
-
-The pointer is screen code 94 written into `$0400`. Coordinates are capped at 40×25. A click in the edit area calls `mouse_to_editor_pos`, which assumes a 3-column gutter and a 40-column screen. Fire is the existing left-button edge.
-
-A 1351 right button is the joystick UP line (port 1 bit 0). With mouse mode on, a right-click steps the pointer up. `MOUSE_BTN_RIGHT` is unused. Do not plug a 1351 and a joystick into port 1 together.
-
-Those five lines are also the keyboard rows. While one is held, the KERNAL scan queues a character (often `3`, `5`, `7`, or `9` from column 0, sometimes a cursor or function key). `mouse_read_key` reads port 1 itself, so a prompt that blocks in `cgetc` still sees the stick. It clears the keyboard count at `$C6` for the whole hold and for 8 jiffies after release. A key pressed in that window is discarded with the ghost.
-
-In 80-column mode that pointer is invisible, because VIC is no longer showing `$0400`, and the hit test is still in 40-column coordinates. A bitmap cursor is a separate change.
+The 1351 and the port-1 joystick pointer were removed so display wrap fits under `$D000`. CTRL+J is not a command. Do not put `src/mouse.c` back unless a later link still leaves slack between `__bss_end` and `__stack`. If it comes back, sample port 1 (`$DC01`) only. Port 2 (`$DC00`) shares the keyboard columns. A 1351 right button is the joystick UP line.
 
 ## Style
 
@@ -166,22 +157,27 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 - REU DMA needs the `DMA_BARRIER()` already in `reu.c`, or the compiler will delete the transfers.
 - Temp-file paging and REU paging must stay in lockstep. Save and load already re-`CHKOUT` after each page reload because opening the temp file disturbs the output channel.
 - The gutter, the title-bar line, and the BASIC line number in the text are three different numbers.
-- `insert_char` splits the buffer at `edit_width`. That corrupts a BASIC logical line.
+- Do not split a line at `edit_width`. Display wrap is a screen row only. The gutter number stays on the first row of that editor line.
 - The editor highlight list is a short subset. The V2 token table lives only in `src/conv/token.c`. Do not merge them back into the editor.
 - `tools/c64u.py` only understands the 40-column screen.
-- Do not read joystick port 2 (`$DC00`) from the main loop. Port 1 is `$DC01`. A 1351 right-click is UP.
+- Do not divide or take a remainder by `edit_width`. The width is a runtime value, so `/` and `%` pull in `__udiv` / `__divmod` / `__mul`. A subtract loop is rewritten into that divide. Wrap uses two compares. A 79-character line is at most three screen rows. LTO stores `edit_width` and `screen_width` as a one-byte mode flag (0 = 40-column, 1 = 80-column). Readers turn that into 37/77 and 40/80. Do not poke 37 into `edit_width`.
+- Do not restore the mouse or joystick without checking that slack. The main loop does not read `$DC00` or `$DC01`.
 
 ## Todo-List feasibility
 
-80-column BASIC highlighting and the port-1 joystick pointer are done. SEQ/PRG conversion is `w64conv`, not an editor feature. Open items are line wrap, garbled 40-column characters, and choosing the joystick port.
+80-column BASIC highlighting and display wrap are done. SEQ/PRG conversion is `w64conv`, not an editor feature. The mouse and the joystick pointer were removed for size. Open items are garbled 40-column characters, REM highlighting, the leftover help text on the title line, full V2 colors, full-file renumber, and the BASIC line-length limit.
 
 ### 80-column BASIC highlighting — done
 
 The rules live in the Screen modes section. The editor list stays the short subset. Do not copy the V2 token table into `editor_state.c`.
 
-### Joystick moves the mouse cursor — done
+### Display wrap — done
 
-The rules live in the Mouse section. Port 1 only, 4-jiffy repeat, fire reuses the left-button click. A 1351 right-click steps the pointer up. An 80-column bitmap pointer, and an 80-column hit test in `mouse_to_editor_pos`, are still a separate change. The C64 Ultimate can map a USB pad onto port 1.
+The rules live in "How the editor stores text". One editor line, up to 79 characters. The screen continues it on the next row with a blank gutter. Return is the only new editor line. A file that was already split at column 37 stays split until Delete at the start of the continuation.
+
+### Mouse and joystick — removed
+
+Removed so wrap fits under `$D000`. The port-select item is moot. Do not put the pointer back without a size check.
 
 ## W64CONV
 
@@ -193,4 +189,4 @@ A 1541 has one data channel. The converter reads the input to completion, holds 
 
 The token table in `src/conv/token.c` is V2 token order and is separate from the editor's highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host byte checks are `tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. Do not treat a VICE run as that test.
 
-Do not move the tokenizer back into the editor. The uncommitted attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. After this restore, `__bss_end` is `$C8EE` and `__stack` is `$D000`.
+Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current link, with display wrap and without the mouse, has `__bss_end` at `$C781` and `__stack` at `$D000`.

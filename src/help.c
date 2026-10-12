@@ -27,9 +27,7 @@ void show_help() {
     cputs_at(2, 20, "ARROWS - MOVE CURSOR", COL_WHITE);
     
     cputs_at(0, 21, "BASIC MODE (F4)", COL_CYAN);
-    cputs_at(0, 22, "MOUSE (CTRL+J)", COL_CYAN);
-    cputs_at(2, 23, "PORT 1 STICK MOVES POINTER", COL_WHITE);
-    cputs_at(2, 24, "1351 RIGHT-CLICK STEPS UP", COL_WHITE);
+    cputs_at(2, 22, "CTRL+D - 40/80 COLUMNS", COL_WHITE);
 
     cgetc();
     update_cursor();

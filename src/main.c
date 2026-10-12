@@ -18,18 +18,14 @@
 #include "help.h"
 #include "undo.h"
 #include "goto.h"
-#include "mouse.h"
 #include "reu.h"
 #include "screen80.h"
 
 int main(void) {
     char c;
-    unsigned char click;
-    unsigned char clicked_line, clicked_col;
 
     init_editor();
     reu_init();
-    mouse_init();
     screen80_init();  // Generate 4x8 font from ROM (always, cheap to do)
     update_cursor();
 
@@ -40,60 +36,11 @@ int main(void) {
         cgetc();
     }
     
-    show_message("F1=LOAD F2=SAVE F4=BASIC CTRL+J=MOUSE", COL_CYAN);
+    show_message("F1=LOAD F2=SAVE F4=BASIC CTRL+D=80COL", COL_CYAN);
     
     while (1) {
-        // Always update mouse if enabled
-        if (mouse_is_enabled()) {
-            mouse_update();
-            
-            // Check for mouse clicks
-            click = mouse_get_click();
-            if (click == MOUSE_BTN_LEFT) {
-                // Left click - position cursor
-                if (mouse_in_edit_area()) {
-                    // Hide mouse cursor during screen update
-                    mouse_hide_cursor();
-                    
-                    mouse_to_editor_pos(&clicked_line, &clicked_col);
-                    
-                    // Validate the line number
-                    if (clicked_line >= num_lines) {
-                        clicked_line = num_lines - 1;
-                    }
-                    
-                    // Update cursor position
-                    cursor_y = clicked_line;
-                    cursor_x = clicked_col;
-                    
-                    // Ensure cursor is within line bounds
-                    if (cursor_x > strlen(lines[cursor_y])) {
-                        cursor_x = strlen(lines[cursor_y]);
-                    }
-                    
-                    // Adjust scroll if needed
-                    if (cursor_y < scroll_offset) {
-                        scroll_offset = cursor_y;
-                    } else if (cursor_y >= scroll_offset + EDIT_HEIGHT) {
-                        scroll_offset = cursor_y - EDIT_HEIGHT + 1;
-                    }
-                    
-                    update_cursor();
-                }
-            }
-            
-            // Draw mouse cursor
-            mouse_draw_cursor();
-        }
-        
-        // Check for keyboard input (non-blocking)
-        c = mouse_read_key();
-        if (c == 0) continue;  // No key pressed, loop again
-        
-        // Hide mouse cursor while processing keyboard
-        if (mouse_is_enabled()) {
-            mouse_hide_cursor();
-        }
+        c = cbm_k_getin();
+        if (c == 0) continue;
         
         // Toggle 80-column mode with Ctrl+D (4)
         if (c == 4) {
@@ -114,19 +61,6 @@ int main(void) {
             continue;
         }
 
-        // Toggle mouse with Ctrl+J (10)
-        if (c == 10) {
-            if (mouse_is_enabled()) {
-                mouse_disable();
-                show_message("MOUSE OFF", COL_RED);
-            } else {
-                mouse_enable();
-                show_message("MOUSE ON - STICK OR CLICK", COL_GREEN);
-            }
-            continue;
-        }
-
-        
         // Function keys
         if (c == KEY_F1) {
             show_directory();
@@ -188,9 +122,20 @@ int main(void) {
             new_line();
             update_cursor();
         } else if (c == KEY_DELETE) {
+            int at_break = (cursor_x == 0 && cursor_y > 0);
+            int wrapped = 0;
+
+            if (cursor_y < num_lines) {
+                int len = strlen(lines[cursor_y]);
+                /* A full row, or the blank row past it, has to be rebuilt. */
+                wrapped = (len >= edit_width || cursor_x >= edit_width);
+            }
             save_undo_state();
             delete_char();
-            update_current_line();
+            if (at_break || wrapped)
+                update_cursor();
+            else
+                update_current_line();
         } else if (c == KEY_LEFT) {
             if (cursor_x > 0) {
                 cursor_x--;

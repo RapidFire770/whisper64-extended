@@ -16,7 +16,7 @@ void clrscr() {
 
 char cgetc() {
     char c;
-    while (!(c = mouse_read_key()));
+    while (!(c = cbm_k_getin()));
     return c;
 }
 
@@ -94,21 +94,30 @@ static void paint_cell(uint8_t *cell_color, int screen_col, uint8_t color) {
         cell_color[cell] = color;
 }
 
-static void paint_line_colors(int line_num, int len, uint8_t *cell_color) {
+static void paint_span(uint8_t *cell_color, int start, int word_len, int off) {
+    int j;
+    int ew = edit_width;
+
+    for (j = 0; j < word_len; j++) {
+        int src = start + j;
+        if (src >= off && src < off + ew)
+            paint_cell(cell_color, 3 + src - off, COL_PURPLE);
+    }
+}
+
+/* off is the first buffer column drawn on this screen row. */
+static void paint_line_colors(int line_num, int len, int off, uint8_t *cell_color) {
     char word[20];
     int word_len = 0;
     int keyword_start = -1;
-    int i, j, n;
+    int i, ew;
 
-    n = len;
-    if (n > edit_width)
-        n = edit_width;
-
-    for (i = 0; i < n; i++) {
+    ew = edit_width;
+    for (i = 0; i < len; i++) {
         char c = lines[line_num][i];
 
-        if (column_marked(line_num, i, len))
-            paint_cell(cell_color, 3 + i, COL_YELLOW);
+        if (i >= off && i < off + ew && column_marked(line_num, i, len))
+            paint_cell(cell_color, 3 + i - off, COL_YELLOW);
 
         if (basic_mode && (isupper(c) || c == '$' || c == '%')) {
             if (word_len == 0)
@@ -117,20 +126,16 @@ static void paint_line_colors(int line_num, int len, uint8_t *cell_color) {
                 word[word_len++] = c;
         } else if (word_len > 0) {
             word[word_len] = '\0';
-            if (basic_mode && is_basic_keyword(word)) {
-                for (j = 0; j < word_len; j++)
-                    paint_cell(cell_color, 3 + keyword_start + j, COL_PURPLE);
-            }
+            if (basic_mode && is_basic_keyword(word))
+                paint_span(cell_color, keyword_start, word_len, off);
             word_len = 0;
         }
     }
 
     if (word_len > 0) {
         word[word_len] = '\0';
-        if (basic_mode && is_basic_keyword(word)) {
-            for (j = 0; j < word_len; j++)
-                paint_cell(cell_color, 3 + keyword_start + j, COL_PURPLE);
-        }
+        if (basic_mode && is_basic_keyword(word))
+            paint_span(cell_color, keyword_start, word_len, off);
     }
 }
 
@@ -151,98 +156,211 @@ void draw_line_number(int screen_row, int line_num) {
     }
 }
 
-void draw_text_line(int screen_row, int line_num) {
+/* edit_width is 37 or 77. A line is at most 79, so three rows is the cap.
+   Subtract instead of dividing: the compiler's divide helpers do not fit. */
+static int text_rows(int len) {
+    int limit = edit_width;
+
+    if (len <= limit)
+        return 1;
+    limit += edit_width;
+    if (len <= limit)
+        return 2;
+    return 3;
+}
+
+static void split_col(int pos, int *part, int *col) {
+    int w = edit_width;
+
+    /* Two compares, not a loop. A loop here becomes a divide. */
+    if (pos < w) {
+        *part = 0;
+        *col = pos;
+        return;
+    }
+    pos -= w;
+    if (pos < w) {
+        *part = 1;
+        *col = pos;
+        return;
+    }
+    *part = 2;
+    *col = pos - w;
+}
+
+/* The cursor past a full row sits on the next screen row, before the next line. */
+static int phantom_row(int line) {
+    int len;
+    int part, col;
+
+    if (line != cursor_y || line >= num_lines || cursor_x <= 0)
+        return 0;
+    len = strlen(lines[line]);
+    if (cursor_x < len)
+        return 0;
+    split_col(cursor_x, &part, &col);
+    return col == 0;
+}
+
+static void cursor_screen(int *sx, int *sy) {
+    int row = 1;
+    int i;
+    int part, col;
+
+    for (i = scroll_offset; i < cursor_y; i++) {
+        int len = 0;
+        if (i < num_lines)
+            len = strlen(lines[i]);
+        row += text_rows(len);
+    }
+    split_col(cursor_x, &part, &col);
+    row += part;
+    *sy = row;
+    *sx = col + 3;
+}
+
+static void fit_cursor(void) {
+    int sx, sy;
+
+    if (cursor_y < scroll_offset)
+        scroll_offset = cursor_y;
+    for (;;) {
+        cursor_screen(&sx, &sy);
+        if (sy <= EDIT_HEIGHT)
+            break;
+        if (scroll_offset >= cursor_y)
+            break;
+        scroll_offset++;
+    }
+}
+
+static int line_is_simple(void) {
+    int i;
+    int len = 0;
+
+    if (cursor_y < num_lines)
+        len = strlen(lines[cursor_y]);
+    if (len >= edit_width || cursor_x >= edit_width)
+        return 0;
+    for (i = scroll_offset; i < cursor_y; i++) {
+        if (i < num_lines && (int)strlen(lines[i]) > edit_width)
+            return 0;
+    }
+    return 1;
+}
+
+static void clear_gutter(int screen_row) {
+    cputc_at(0, screen_row, ' ', COL_CYAN);
+    cputc_at(1, screen_row, ' ', COL_CYAN);
+    cputc_at(2, screen_row, ' ', COL_CYAN);
+}
+
+static void paint_40_keyword(int screen_row, int line_num, int len, int off) {
+    char word[20];
+    int word_len = 0;
+    int keyword_start = -1;
+    int i, j;
     int ew = edit_width;
+
+    if (!basic_mode)
+        return;
+
+    for (i = 0; i < len; i++) {
+        char c = lines[line_num][i];
+
+        if (isupper(c) || c == '$' || c == '%') {
+            if (word_len == 0)
+                keyword_start = i;
+            if (word_len < 19)
+                word[word_len++] = c;
+        } else if (word_len > 0) {
+            word[word_len] = '\0';
+            if (is_basic_keyword(word)) {
+                for (j = 0; j < word_len; j++) {
+                    int src = keyword_start + j;
+                    if (src >= off && src < off + ew) {
+                        cputc_at(3 + src - off, screen_row,
+                                 lines[line_num][src], COL_PURPLE);
+                    }
+                }
+            }
+            word_len = 0;
+        }
+    }
+
+    if (word_len > 0) {
+        word[word_len] = '\0';
+        if (is_basic_keyword(word)) {
+            for (j = 0; j < word_len; j++) {
+                int src = keyword_start + j;
+                if (src >= off && src < off + ew) {
+                    cputc_at(3 + src - off, screen_row,
+                             lines[line_num][src], COL_PURPLE);
+                }
+            }
+        }
+    }
+}
+
+/* show_num is the first screen row of an editor line. Later rows continue it. */
+static void draw_slice(int screen_row, int line_num, int off, int show_num) {
+    int ew = edit_width;
+    int len = 0;
+    int i;
+
+    if (line_num < num_lines)
+        len = strlen(lines[line_num]);
 
     if (screen_mode == MODE_80COL) {
         char rowbuf[80];
         uint8_t cell_color[40];
-        int i, len;
 
         for (i = 0; i < 40; i++)
             cell_color[i] = COL_WHITE;
 
-        if (line_num < num_lines) {
+        if (show_num && line_num < num_lines) {
             rowbuf[0] = (line_num / 10) + '0';
             rowbuf[1] = (line_num % 10) + '0';
             rowbuf[2] = ':';
-            len = strlen(lines[line_num]);
-            for (i = 0; i < ew && i < len; i++)
-                rowbuf[3 + i] = lines[line_num][i];
-            for (; i < ew; i++)
-                rowbuf[3 + i] = ' ';
-            if (basic_mode || mark_active)
-                paint_line_colors(line_num, len, cell_color);
-            cell_color[0] = COL_CYAN;
         } else {
-            memset(rowbuf, ' ', 3 + ew);
+            rowbuf[0] = ' ';
+            rowbuf[1] = ' ';
+            rowbuf[2] = ' ';
         }
+        for (i = 0; i < ew; i++) {
+            int src = off + i;
+            if (src < len)
+                rowbuf[3 + i] = lines[line_num][src];
+            else
+                rowbuf[3 + i] = ' ';
+        }
+        if (line_num < num_lines && (basic_mode || mark_active))
+            paint_line_colors(line_num, len, off, cell_color);
+        if (line_num < num_lines)
+            cell_color[0] = COL_CYAN;
 
         render_line_80(screen_row, rowbuf, 3 + ew, cell_color);
         return;
     }
 
-    // 40-col path
-    {
-        int i, j;
-        char word[20];
-        int word_len = 0;
-        unsigned char color;
-        int keyword_start = -1;
+    for (i = 0; i < ew; i++) {
+        int src = off + i;
+        unsigned char color = COL_WHITE;
+        char c = ' ';
 
-        if (line_num < num_lines) {
-            int len = strlen(lines[line_num]);
-            int is_marked;
-
-            for (i = 0; i < ew; i++) {
-                color = COL_WHITE;
-                is_marked = column_marked(line_num, i, len);
-
-                if (i < len) {
-                    char c = lines[line_num][i];
-
-                    if (basic_mode && (isupper(c) || c == '$' || c == '%')) {
-                        if (word_len == 0) keyword_start = i;
-                        if (word_len < 19) {
-                            word[word_len++] = c;
-                        }
-                    } else {
-                        if (word_len > 0) {
-                            word[word_len] = '\0';
-                            if (basic_mode && is_basic_keyword(word)) {
-                                for (j = 0; j < word_len; j++) {
-                                    cputc_at(3 + keyword_start + j, screen_row,
-                                             lines[line_num][keyword_start + j], COL_PURPLE);
-                                }
-                            }
-                            word_len = 0;
-                        }
-                    }
-
-                    if (is_marked) {
-                        color = COL_YELLOW;
-                    }
-                    cputc_at(3 + i, screen_row, c, color);
-                } else {
-                    cputc_at(3 + i, screen_row, ' ', COL_WHITE);
-                }
-            }
-
-            if (word_len > 0) {
-                word[word_len] = '\0';
-                if (basic_mode && is_basic_keyword(word)) {
-                    for (j = 0; j < word_len; j++) {
-                        cputc_at(3 + keyword_start + j, screen_row,
-                                 lines[line_num][keyword_start + j], COL_PURPLE);
-                    }
-                }
-            }
-        } else {
-            for (i = 0; i < ew; i++) {
-                cputc_at(3 + i, screen_row, ' ', COL_WHITE);
-            }
+        if (src < len) {
+            c = lines[line_num][src];
+            if (column_marked(line_num, src, len))
+                color = COL_YELLOW;
         }
+        cputc_at(3 + i, screen_row, c, color);
     }
+    if (line_num < num_lines)
+        paint_40_keyword(screen_row, line_num, len, off);
+}
+
+void draw_text_line(int screen_row, int line_num) {
+    draw_slice(screen_row, line_num, 0, 1);
 }
 
 void redraw_screen() {
@@ -258,8 +376,15 @@ void redraw_screen() {
         cputs_at(0, 0, "WHISPER", COL_YELLOW);
     }
 
-    char pos_info[15];
+    char pos_info[12];
+    int n;
+
+    /* Always 9 columns. A shorter line:col must cover the previous one. */
     sprintf(pos_info, " %d:%d", global_line, cursor_x + 1);
+    n = strlen(pos_info);
+    while (n < 9)
+        pos_info[n++] = ' ';
+    pos_info[n] = '\0';
     cputs_at(8, 0, pos_info, COL_GREEN);
 
     int next_x = 17;
@@ -294,12 +419,37 @@ void redraw_screen() {
         cputc_at(i, 0, ' ', COL_YELLOW);
     }
 
-    for (i = 0; i < EDIT_HEIGHT; i++) {
-        // In 80-col mode, draw_text_line includes line numbers
-        if (screen_mode != MODE_80COL) {
-            draw_line_number(i + 1, scroll_offset + i);
+    fit_cursor();
+    {
+        int row = 1;
+        int line = scroll_offset;
+
+        while (row <= EDIT_HEIGHT) {
+            if (line < num_lines) {
+                int len = strlen(lines[line]);
+                int rows = text_rows(len) + phantom_row(line);
+                int part;
+                int off = 0;
+
+                for (part = 0; part < rows && row <= EDIT_HEIGHT; part++) {
+                    if (screen_mode != MODE_80COL) {
+                        if (part == 0)
+                            draw_line_number(row, line);
+                        else
+                            clear_gutter(row);
+                    }
+                    draw_slice(row, line, off, part == 0);
+                    off += edit_width;
+                    row++;
+                }
+                line++;
+            } else {
+                if (screen_mode != MODE_80COL)
+                    draw_line_number(row, line);
+                draw_slice(row, line, 0, 0);
+                row++;
+            }
         }
-        draw_text_line(i + 1, scroll_offset + i);
     }
 
     // Clear status bar
@@ -309,8 +459,9 @@ void redraw_screen() {
 }
 
 void draw_cursor() {
-    int screen_y = cursor_y - scroll_offset + 1;
-    int screen_x = cursor_x + 3;
+    int screen_y, screen_x;
+
+    cursor_screen(&screen_x, &screen_y);
 
     if (screen_y >= 1 && screen_y <= EDIT_HEIGHT) {
         if (screen_mode == MODE_80COL) {
@@ -351,18 +502,31 @@ void draw_cursor() {
     }
 }
 
-// Fast update: only redraws the current line + title bar position + cursor
-// Use for typing operations (insert/delete char) instead of full redraw
+// Fast update: only redraws the current line + title bar position + cursor.
+// A wrapped line, or a wrap above it, has to rebuild the rows under it.
 void update_current_line(void) {
-    int screen_y = cursor_y - scroll_offset + 1;
+    int screen_y;
+
+    if (!line_is_simple()) {
+        update_cursor();
+        return;
+    }
+
+    screen_y = cursor_y - scroll_offset + 1;
 
     if (screen_mode == MODE_80COL) screen80_begin_draw();
 
     // Update position in title bar
     {
-        char pos_info[15];
+        char pos_info[12];
         int global_line = current_page * LINES_PER_PAGE + cursor_y + 1;
-        sprintf(pos_info, " %d:%d  ", global_line, cursor_x + 1);
+        int n;
+
+        sprintf(pos_info, " %d:%d", global_line, cursor_x + 1);
+        n = strlen(pos_info);
+        while (n < 9)
+            pos_info[n++] = ' ';
+        pos_info[n] = '\0';
         cputs_at(8, 0, pos_info, COL_GREEN);
     }
 
@@ -380,21 +544,12 @@ void update_current_line(void) {
 }
 
 void update_cursor() {
-    if (mouse_is_enabled()) {
-        mouse_hide_cursor();
-    }
-
-    // Batch all bitmap + color writes under one ROM banking operation
     if (screen_mode == MODE_80COL) screen80_begin_draw();
 
     redraw_screen();
     draw_cursor();
 
     if (screen_mode == MODE_80COL) screen80_end_draw();
-
-    if (mouse_is_enabled()) {
-        mouse_draw_cursor();
-    }
 }
 
 void show_message(const char *msg, unsigned char col) {

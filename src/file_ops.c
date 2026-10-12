@@ -2,7 +2,6 @@
 #include "editor_state.h"
 #include "editor.h"
 #include "screen.h"
-#include "mouse.h"
 #include "reu.h"
 
 // Compact extension table
