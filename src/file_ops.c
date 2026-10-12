@@ -292,20 +292,25 @@ void show_directory() {
                 int page = 0;
                 int total = 0;
                 unsigned char ch;
+                unsigned char st;
                 unsigned char eof = 0;
 
                 memset(lines, 0, sizeof(lines));
                 cbm_k_chkin(2);
+                *(volatile unsigned char *)0x90 = 0;
 
                 while (!eof) {
                     ch = cbm_k_chrin();
-                    if (cbm_k_readst() & 0x40) {
-                        eof = 1;
-                        // Save final partial line
-                        if (pos > 0 || line == 0) {
-                            lines[line][pos] = '\0';
-                            line++;
+                    st = cbm_k_readst();
+                    if (st & 0x40) {
+                        if (ch != '\r' && ch != '\n') {
+                            if (pos < MAX_LINE_LENGTH - 1)
+                                lines[line][pos++] = ch;
                         }
+                        lines[line][pos] = '\0';
+                        line++;
+                        pos = 0;
+                        eof = 1;
                         break;
                     }
 
@@ -480,7 +485,6 @@ void save_file() {
     // Write all pages to file
     if (num_pages > 1) {
         int saved_page = current_page;
-        int first_line_written = 0;
 
         // Current page was saved to REU/temp by save_current_page_to_temp above
         for (int p = 0; p < num_pages; p++) {
@@ -500,10 +504,22 @@ void save_file() {
                 if (cbm_k_open() == 0) {
                     int li = 0, po = 0;
                     unsigned char ch;
+                    unsigned char st;
                     cbm_k_chkin(3);
+                    *(volatile unsigned char *)0x90 = 0;
                     while (li < LINES_PER_PAGE) {
                         ch = cbm_k_chrin();
-                        if (cbm_k_readst() & 0x40) break;
+                        st = cbm_k_readst();
+                        if (st & 0x40) {
+                            if (ch != '\r' && ch != '\n') {
+                                if (po < MAX_LINE_LENGTH - 1)
+                                    lines[li][po++] = ch;
+                            }
+                            lines[li][po] = '\0';
+                            li++;
+                            po = 0;
+                            break;
+                        }
                         if (ch == '\r' || ch == '\n') {
                             lines[li][po] = '\0';
                             li++; po = 0;
@@ -521,14 +537,11 @@ void save_file() {
             // Write this page's lines to the output file
             cbm_k_chkout(2);
             for (i = 0; i < page_lines; i++) {
-                if (first_line_written) {
-                    cbm_k_chrout(13);
-                }
                 len = strlen(lines[i]);
                 for (int j = 0; j < len; j++) {
                     cbm_k_chrout(lines[i][j]);
                 }
-                first_line_written = 1;
+                cbm_k_chrout(13);
             }
         }
 
@@ -546,9 +559,7 @@ void save_file() {
             for (int j = 0; j < len; j++) {
                 cbm_k_chrout(lines[i][j]);
             }
-            if (i < num_lines - 1) {
-                cbm_k_chrout(13);
-            }
+            cbm_k_chrout(13);
         }
     }
 

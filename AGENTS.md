@@ -131,7 +131,7 @@ F1 opens the directory on `current_drive` (default 8, F3 selects 8–15). The li
 
 Load opens the file as a data channel (secondary address 2), not with `LOAD`, so nothing is written over the editor. SEQ uses `name,S,R`. Everything else uses `name,P,R`. Both paths read raw bytes and split on CR or LF into `lines[]`, paging every 48 lines. A tokenized BASIC PRG is not detokenized. Its link pointers, binary line numbers, and token bytes show up as garbage. Bytes `$0D` inside those binary fields also split lines.
 
-F2 always writes SEQ: `@0:name,S,W`, CR between lines, every page. The overwrite check opens `name,S,R` only, so an existing PRG of the same name is invisible to it. There is no tokenized writer.
+F2 always writes SEQ: `@0:name,S,W`, every page. Every SEQ line, including the last, ends with CR. Load keeps the CHRIN byte that arrives with STATUS bit 6, then stops. The following CHRIN is a synthetic CR and is not a line. The overwrite check opens `name,S,R` only, so an existing PRG of the same name is invisible to it. There is no tokenized writer.
 
 ## BASIC mode today
 

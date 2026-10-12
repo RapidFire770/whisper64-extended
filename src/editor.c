@@ -30,9 +30,7 @@ void save_current_page_to_temp(void) {
             for (int j = 0; j < len; j++) {
                 cbm_k_chrout(lines[i][j]);
             }
-            if (i < num_lines - 1) {
-                cbm_k_chrout(13);
-            }
+            cbm_k_chrout(13);
         }
         
         cbm_k_clrch();
@@ -45,6 +43,7 @@ void load_page(int page_num) {
     char temp_name[20];
     int i, pos;
     unsigned char ch;
+    unsigned char st;
     
     if (page_num == current_page) return;
     if (page_num < 0 || page_num >= num_pages) return;
@@ -73,10 +72,21 @@ void load_page(int page_num) {
         i = 0;
         pos = 0;
         cbm_k_chkin(2);
+        *(volatile unsigned char *)0x90 = 0;
         
         while (i < LINES_PER_PAGE) {
             ch = cbm_k_chrin();
-            if (cbm_k_readst() & 0x40) break;
+            st = cbm_k_readst();
+            if (st & 0x40) {
+                if (ch != '\r' && ch != '\n') {
+                    if (pos < MAX_LINE_LENGTH - 1)
+                        lines[i][pos++] = ch;
+                }
+                lines[i][pos] = '\0';
+                i++;
+                pos = 0;
+                break;
+            }
             
             if (ch == '\r' || ch == '\n') {
                 lines[i][pos] = '\0';

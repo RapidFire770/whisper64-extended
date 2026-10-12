@@ -221,8 +221,11 @@ HAND_STAR = bytes([
 
 
 def seq_text(lines):
-    """Editor SEQ at 0bb014e: CR between lines, no CR after the last line."""
-    return "\r".join(lines).encode("latin1")
+    """Editor SEQ: CR after every line, including the last."""
+    body = "\r".join(lines)
+    if not lines:
+        return b"\r"
+    return (body + "\r").encode("latin1")
 
 
 def main():
@@ -319,8 +322,8 @@ def main():
     assert b'"A:B"' in stmt
     assert stmt.count(bytes([TOKEN["PRINT"]])) == 1
 
-    assert seq_text(["10 PRINT", "20 GOTO 10"]) == b"10 PRINT\r20 GOTO 10"
-    assert seq_text(["10 PRINT"]) == b"10 PRINT"
+    assert seq_text(["10 PRINT", "20 GOTO 10"]) == b"10 PRINT\r20 GOTO 10\r"
+    assert seq_text(["10 PRINT"]) == b"10 PRINT\r"
 
     print("ok", len(HAND_PLUS), "plus-file bytes")
 
