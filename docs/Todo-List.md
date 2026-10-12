@@ -4,6 +4,7 @@
 
 ## Features
 - [x] Highlighting of BASIC when in 80 Column mode
-- [ ] Ability to load and export/save BASIC to .prg file instead of just .seq
+- [x] Ability to load and export/save BASIC to .prg file instead of just .seq
+  W64CONV, built and distributed next to the editor, reads a SEQ from the drive the user picks and writes a tokenized BASIC V2 PRG. It also reads a PRG and writes a SEQ the editor can load. The editor itself saves SEQ only.
 - [x] Support a joystick for mouse cursor movement when in mouse mode
 - [ ] Ability to select which port the joystick in plugged into.

@@ -35,7 +35,7 @@ cmake -DCMAKE_PREFIX_PATH=~/llvm-mos ..
 make
 ```
 
-Output: `build/whisper64.prg`
+Output: `build/whisper64.prg` and `build/w64conv.prg`
 
 A 512KB REU image (`whisper64.reu`) and a blank D64 disk image (`whisper64.d64`) are created automatically during the build.
 
@@ -58,6 +58,17 @@ RUN
 ```
 
 For REU support, ensure the REU is connected before starting.
+
+### W64CONV
+
+`w64conv.prg` turns a SEQ listing into a tokenized BASIC V2 PRG, and a PRG back into a SEQ. Copy it next to the editor. On the machine:
+
+```
+LOAD "W64CONV",8,1
+RUN
+```
+
+It asks for a drive (8-15), then `1` (SEQ to PRG) or `2` (PRG to SEQ), then the input and output names. The editor's F2 save stays a SEQ file. Save the listing from the editor, run W64CONV, and load the PRG from BASIC.
 
 ## Key Commands
 

@@ -2,8 +2,8 @@
 
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
-**Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, and renumber work. Tokenized BASIC PRG load/save does not. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse mode is a 1351 or a port-1 joystick pointer, visible in 40-column mode only. Open work is `docs/Todo-List.md`.
-**Last Updated:** October 11, 2026
+**Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, and current-page renumber. Tokenized BASIC V2 SEQ/PRG conversion is `w64conv.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse mode is a 1351 or a port-1 joystick pointer, visible in 40-column mode only. Open work is `docs/Todo-List.md`.
+**Last Updated:** October 12, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
 
@@ -37,7 +37,7 @@ cmake -DCMAKE_PREFIX_PATH=/home/josh/Documents/Programming/C64/tools/llvm-mos ..
 make
 ```
 
-`CMakeLists.txt` sets `LLVM_MOS_PLATFORM` to `c64` before `project()`. Output is `build/whisper64.prg`. Flags are `-Os`, `-ffunction-sections`, `--gc-sections`. A 512KB `whisper64.reu` image and `whisper64.d64` are created by the build and by `run_vice.sh`. Both are gitignored, as is `build/`.
+`CMakeLists.txt` sets `LLVM_MOS_PLATFORM` to `c64` before `project()`. Output is `build/whisper64.prg` and `build/w64conv.prg`. Flags are `-Os`, `-ffunction-sections`, `--gc-sections` on both. A 512KB `whisper64.reu` image and `whisper64.d64` are created by the build and by `run_vice.sh`. Both are gitignored, as is `build/`.
 
 Run in VICE:
 
@@ -52,9 +52,10 @@ There is no unit-test target. Do not claim a C64 behavior works unless VICE or t
 ## Layout
 
 ```text
-include/     headers, one per module, plus font_4x8.h and whisper64.h
-src/         matching .c files
-tools/       c64u.py (Ultimate REST driver)
+include/     headers, one per module, plus font_4x8.h, whisper64.h, w64conv.h
+src/         editor .c files
+src/conv/    w64conv tokenize and disk streaming
+tools/       c64u.py (Ultimate REST driver), test_basic_prg.py, test_w64conv_c64u.py
 docs/        Todo-List.md, SDK path note, c64 programming books
 build/       cmake output, gitignored
 run_vice.sh
@@ -166,45 +167,30 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 - Temp-file paging and REU paging must stay in lockstep. Save and load already re-`CHKOUT` after each page reload because opening the temp file disturbs the output channel.
 - The gutter, the title-bar line, and the BASIC line number in the text are three different numbers.
 - `insert_char` splits the buffer at `edit_width`. That corrupts a BASIC logical line.
-- Keyword lists in `editor_state.c` and `basic.c` already disagree. A tokenizer needs one V2 table, shared with the highlighter.
+- The editor highlight list is a short subset. The V2 token table lives only in `src/conv/token.c`. Do not merge them back into the editor.
 - `tools/c64u.py` only understands the 40-column screen.
 - Do not read joystick port 2 (`$DC00`) from the main loop. Port 1 is `$DC01`. A 1351 right-click is UP.
 
 ## Todo-List feasibility
 
-One open item in `docs/Todo-List.md` remains: tokenized PRG load/save. 80-column BASIC highlighting and the port-1 joystick pointer are done. The PRG work does not need a new linker layout, a new crate, or a different editor buffer. Keep the buffer as PETSCII text. That is already the right model. The sibling BASIC-IDE project used the same model and still spent its complexity on token edge cases, not on a second copy of the text.
+80-column BASIC highlighting and the port-1 joystick pointer are done. SEQ/PRG conversion is `w64conv`, not an editor feature. Open items are line wrap, garbled 40-column characters, and choosing the joystick port.
 
 ### 80-column BASIC highlighting — done
 
-The rules live in the Screen modes section. Do not widen `basic_keywords[]` as part of a color tweak. The full V2 list belongs with the tokenizer, and both highlighters must keep using the one table in `editor_state.c`.
-
-### Load and save tokenized BASIC PRG — feasible, the remaining item
-
-SEQ load/save stays. PRG is a second format on the same text buffer.
-
-On-disk BASIC V2, after the 2-byte load address (normally `$01 $08`):
-
-- next-line pointer, little-endian, absolute if loaded at `$0801`. `00 00` ends the program
-- line number, little-endian, 0–63999
-- bytes until `00`. `$80`–`$CB` are keywords in token order from `END` through `GO`. `$FF` is PI. Other bytes are PETSCII
-- inside quotes, and after a `REM` token, bytes are literal through the closing quote or the `00`, even when they are `>= $80`
-- `DATA` is still tokenized outside quotes
-
-Load: keep the data-channel read. If the file is PRG and the first records look like BASIC (load address, rising links, `00` line ends, a final `00 00`), detokenize each line into `"10 PRINT ..."` text and feed the existing pager. If it does not look like BASIC, say so and do not dump tokens into the buffer. Do not `LOAD` over the editor.
-
-Save, when the user asks for a BASIC program: tokenize one source line into a small stack buffer (a 79-character source line only gets shorter), emit the link pointer from a running address that starts at `$0801`, then the binary line number, tokens, and `00`. Finish with `00 00`. Write `name,P,W` (overwrite `@0:name,P,W`). The overwrite probe has to look for the PRG, not only the SEQ. Stream straight to disk. There is not enough free RAM to assemble a whole program (the heap/stack gap is about 1.8KB).
-
-A line with no leading line number cannot be part of a PRG. Report it and skip or abort that save. Do not invent a number.
-
-Lines that detokenize past 79 characters must be reported and truncated, or the buffer has to grow. Growing it means re-checking `$C2A3` against the stack at `$D000`. Normal C64 lines typed without abbreviations fit. Abbreviation-packed lines sometimes do not.
-
-Do this in the same change, or PRG files will not round-trip:
-
-- In BASIC mode, stop `insert_char` from hard-splitting at `edit_width`. A logical line stays one buffer line, up to 79 characters, even when 40-column mode cannot show all of it.
-- Renumber has to walk every page, not only `lines[]`. A real program is often longer than 48 lines.
-
-Out of scope unless the user asks: running the program in place, abbreviation entry (`P` + shifted `R`), and BASIC extensions beyond V2. `?` as `PRINT` is a small optional match because the C64 cruncher accepts it.
+The rules live in the Screen modes section. The editor list stays the short subset. Do not copy the V2 token table into `editor_state.c`.
 
 ### Joystick moves the mouse cursor — done
 
 The rules live in the Mouse section. Port 1 only, 4-jiffy repeat, fire reuses the left-button click. A 1351 right-click steps the pointer up. An 80-column bitmap pointer, and an 80-column hit test in `mouse_to_editor_pos`, are still a separate change. The C64 Ultimate can map a USB pad onto port 1.
+
+## W64CONV
+
+`src/conv/token.c` and `src/conv/main.c` build `w64conv.prg`. It is not linked into the editor. SEQ to PRG and PRG to SEQ stream one line through KERNAL secondary address 2. The editor saves SEQ only. This SDK has no `conio.h`, so the prompts write `$0400` directly and read keys with `cbm_k_getin`.
+
+The overwrite prompt reads the DOS error channel. `cbm_k_open` returns 0 for a missing file on the Ultimate; DOS code 62 means the name is free. Do not treat a zero open as "file exists". A new file is opened as `name,P,W` or `name,S,W`. `@0:` is only for a name that is already there.
+
+A 1541 has one data channel. The converter reads the input to completion, holds up to 32KB in `out_bytes`, then writes. Do not open the output while the input is still open. KERNAL STATUS at `$90` is OR-ed; `read_byte` clears it before each `CHRIN`. An EOF bit keeps that byte. A bare timeout is the end of the file.
+
+The token table in `src/conv/token.c` is V2 token order and is separate from the editor's highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host byte checks are `tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. Do not treat a VICE run as that test.
+
+Do not move the tokenizer back into the editor. The uncommitted attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. After this restore, `__bss_end` is `$C8EE` and `__stack` is `$D000`.
