@@ -249,6 +249,8 @@ def main():
     sample = ['10 PRINT "HI"', "20 GOTO 10"]
     sample_prg = oracle.build_prg(sample)
     sample_seq = oracle.seq_text(sample)
+    # PRG to SEQ writes a CR only between lines.
+    tokens_seq = "\r".join(sample).encode("latin1")
     bad_link = bytes([0x01, 0x08, 0x01, 0x08, 0x0A, 0x00, 0x00, 0x00, 0x00])
     not_basic = bytes([0x00, 0x08, 0x00, 0x00])
     failed = False
@@ -271,7 +273,7 @@ def main():
         code = run_job("2", "TOKENS", "OUT2")
         if code != CONV_OK:
             raise SystemExit(f"PRG to SEQ code {code}\n" + screen_text())
-        expect_bytes(sample_seq)
+        expect_bytes(tokens_seq)
 
         print("job BADLINK", flush=True)
         code = run_job("2", "BADLINK", "OUT3")
