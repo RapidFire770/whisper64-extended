@@ -3,7 +3,7 @@
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
 **Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, current-page renumber, and display wrap. Tokenized BASIC V2 SEQ/PRG conversion is `w64conv.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is `docs/Todo-List.md`.
-**Last Updated:** October 12, 2026
+**Last Updated:** October 15, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
 
@@ -84,9 +84,9 @@ The current link (`build/whisper64.map`, regenerated on each build) is approxima
 |---|---|
 | `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
 | `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$B0FD`–`$C781` | BSS. `lines[]` is at `$B819`: 48 × 80 = 3840 bytes |
-| `$C781` | Heap start |
-| `$D000` | Software stack (`__stack`). Grows down. About 2.1KB between heap and stack |
+| about `$AFDC`–`$C660` | BSS. `lines[]` is at `$B6F8`: 48 × 80 = 3840 bytes |
+| `$C660` | Heap start |
+| `$D000` | Software stack (`__stack`). Grows down. About 2.4KB between heap and stack |
 | `$0100`–`$01FF` | 6502 hardware stack, still in use |
 | `$0400`–`$07E7` | 40-column screen RAM |
 | `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
@@ -121,7 +121,7 @@ The cyan gutter (`00:`) is the row index inside the current page, two digits, no
 
 The cursor in 80-column mode XORs the glyph's nibble in the bitmap. In 40-column mode it sets reverse video on the screen code.
 
-`redraw_screen` rebuilds the title, every visible line, and the status row. A line longer than `edit_width` takes more than one screen row, and the cursor row follows that. `update_current_line` rebuilds the title position, the current line, and the cursor while the line fits on one row. A wrap uses the full redraw. Arrow keys use the full redraw.
+`redraw_screen` blanks title row 0 across `screen_width`, then paints the name, line:col, tags, page, and drive. It also rebuilds every visible line and the status row. A line longer than `edit_width` takes more than one screen row, and the cursor row follows that. `update_current_line` rebuilds the title position, the current line, and the cursor while the line fits on one row. A wrap uses the full redraw. Arrow keys use the full redraw.
 
 Directory, help, and the save prompt are laid out for 40 columns. In 80-column mode `cputs_at` still draws them, on the left side of the bitmap.
 
@@ -157,6 +157,7 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 - REU DMA needs the `DMA_BARRIER()` already in `reu.c`, or the compiler will delete the transfers.
 - Temp-file paging and REU paging must stay in lockstep. Save and load already re-`CHKOUT` after each page reload because opening the temp file disturbs the output channel.
 - The gutter, the title-bar line, and the BASIC line number in the text are three different numbers.
+- `redraw_screen` blanks title row 0 across `screen_width` before painting the name, line:col, tags, page, and drive. `update_current_line` does not. It rewrites line:col in place as 9 columns. A shorter filename has to go through the full redraw or the tail of the previous name stays.
 - Do not split a line at `edit_width`. Display wrap is a screen row only. The gutter number stays on the first row of that editor line.
 - The editor highlight list is a short subset. The V2 token table lives only in `src/conv/token.c`. Do not merge them back into the editor.
 - `tools/c64u.py` only understands the 40-column screen.
@@ -165,7 +166,7 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 
 ## Todo-List feasibility
 
-80-column BASIC highlighting and display wrap are done. SEQ/PRG conversion is `w64conv`, not an editor feature. The mouse and the joystick pointer were removed for size. Open items are garbled 40-column characters, REM highlighting, the leftover help text on the title line, full V2 colors, full-file renumber, and the BASIC line-length limit.
+80-column BASIC highlighting and display wrap are done. SEQ/PRG conversion is `w64conv`, not an editor feature. The mouse and the joystick pointer were removed for size. Open items are garbled 40-column characters, REM highlighting, full V2 colors, full-file renumber, and the BASIC line-length limit.
 
 ### 80-column BASIC highlighting — done
 
@@ -189,4 +190,4 @@ A 1541 has one data channel. The converter reads the input to completion, holds 
 
 The token table in `src/conv/token.c` is V2 token order and is separate from the editor's highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host byte checks are `tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. Do not treat a VICE run as that test.
 
-Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current link, with display wrap and without the mouse, has `__bss_end` at `$C781` and `__stack` at `$D000`.
+Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current link, with display wrap and without the mouse, has `__bss_end` at `$C660` and `__stack` at `$D000`.

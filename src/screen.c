@@ -369,6 +369,11 @@ void redraw_screen() {
     int global_line = current_page * LINES_PER_PAGE + cursor_y + 1;
     int sw = screen_width;
 
+    /* Help and the directory leave a longer string on row 0.
+       The fields below are shorter than that string. */
+    for (i = 0; i < sw; i++)
+        cputc_at(i, 0, ' ', COL_YELLOW);
+
     if (current_filename[0] != '\0') {
         sprintf(title, "%.8s", current_filename);
         cputs_at(0, 0, title, COL_YELLOW);
@@ -395,7 +400,6 @@ void redraw_screen() {
 
     if (mark_active) {
         cputs_at(next_x, 0, "[M]", COL_GREEN);
-        next_x += 3;
     }
 
     int drive_pos = sw - 10;
@@ -412,11 +416,6 @@ void redraw_screen() {
 
     if (screen_mode == MODE_80COL) {
         cputs_at(sw - 4, 0, "80C", COL_GREEN);
-    }
-
-    // Clear gap in title bar
-    for (i = next_x; i < page_pos; i++) {
-        cputc_at(i, 0, ' ', COL_YELLOW);
     }
 
     fit_cursor();
