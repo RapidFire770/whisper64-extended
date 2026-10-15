@@ -1,4 +1,5 @@
 # Whisper64
+
 A text editor for the Commodore 64.
 
 ![Whisper64 Screenshot](screenshot.png)
@@ -20,6 +21,7 @@ A text editor for the Commodore 64.
 ## Prerequisites
 
 Install the [LLVM-MOS SDK](https://github.com/llvm-mos/llvm-mos-sdk):
+
 ```bash
 # macOS (Apple Silicon)
 curl -sL https://github.com/llvm-mos/llvm-mos-sdk/releases/latest/download/llvm-mos-macos.tar.xz -o /tmp/llvm-mos.tar.xz
@@ -51,6 +53,7 @@ This launches VICE (x64sc) with REU enabled and a D64 disk image attached to dri
 ### Real Hardware
 
 Transfer `whisper64.prg` to a disk or SD card and load:
+
 ```
 LOAD "WHISPER64",8,1
 RUN
@@ -71,26 +74,26 @@ It asks for a drive (8-15), then `1` (SEQ to PRG) or `2` (PRG to SEQ), then the 
 
 ## Key Commands
 
-| Key | Function |
-|-----|----------|
-| **F1** | Load file (directory browser) |
-| **F2** | Save file |
-| **F3** | Select drive (8-15) |
-| **F4** | Toggle BASIC mode / Renumber lines |
-| **F5** | Find text |
-| **F6** | Find & replace |
-| **F7** | Find next |
-| **F8** | Help screen |
-| **CTRL+C** | Copy marked text |
-| **CTRL+D** | Toggle 40/80 column mode |
-| **CTRL+G** | Goto line |
-| **CTRL+K** | Toggle mark mode |
-| **CTRL+V** | Paste text |
-| **CTRL+W** | New file (clear buffer) |
-| **CTRL+Y** | Redo |
-| **CTRL+Z** | Undo |
-| **HOME** | Go to start of file |
-| **Arrows** | Move cursor |
+| Key        | Function                           |
+|------------|------------------------------------|
+| **F1**     | Load file (directory browser)      |
+| **F2**     | Save file                          |
+| **F3**     | Select drive (8-15)                |
+| **F4**     | Toggle BASIC mode / Renumber lines |
+| **F5**     | Find text                          |
+| **F6**     | Find & replace                     |
+| **F7**     | Find next                          |
+| **F8**     | Help screen                        |
+| **CTRL+C** | Copy marked text                   |
+| **CTRL+D** | Toggle 40/80 column mode           |
+| **CTRL+G** | Goto line                          |
+| **CTRL+K** | Toggle mark mode                   |
+| **CTRL+V** | Paste text                         |
+| **CTRL+W** | New file (clear buffer)            |
+| **CTRL+Y** | Redo                               |
+| **CTRL+Z** | Undo                               |
+| **HOME**   | Go to start of file                |
+| **Arrows** | Move cursor                        |
 
 ## 80-Column Mode
 
@@ -99,6 +102,7 @@ Press **CTRL+D** to toggle between 40 and 80 column modes.
 80-column mode uses VIC-II hires bitmap mode with a 4x8 pixel font (SCREEN-80 from Compute's Gazette, 1984). The display is rendered in VIC bank 3 ($C000-$FFFF) with bitmap data at $E000 and video matrix at $D800.
 
 Limitations:
+
 - Each pair of adjacent characters shares one foreground color
 - Slower screen updates than 40-column mode (typing updates only the current line for speed)
 
@@ -107,6 +111,7 @@ Limitations:
 The editor auto-detects REU at startup and shows the available size and maximum page count. With REU, page swapping is instant (DMA transfer) instead of using slow disk temp files.
 
 Page capacity depends on REU size:
+
 - 256KB: ~66 pages
 - 512KB: ~136 pages
 
@@ -115,6 +120,7 @@ All pages are saved to and loaded from REU when switching pages. File save (F2) 
 ## BASIC Mode
 
 Press **F4** to enable BASIC mode:
+
 - Keyword highlighting in purple
 - Press **F4** again to renumber lines (10, 20, 30...)
 - Updates GOTO, GOSUB, THEN, and ELSE references automatically
@@ -122,6 +128,7 @@ Press **F4** to enable BASIC mode:
 ## Directory Browser
 
 Press **F1** to open:
+
 - Shows disk name, file types (PRG, SEQ, DEL, USR, REL), block sizes
 - **UP/DOWN** to navigate, **RETURN** to load, **RUN/STOP** to cancel
 
