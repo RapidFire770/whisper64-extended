@@ -14,10 +14,12 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 
 - [x] Highlighting of BASIC when in 80 Column mode
 - [x] Ability to load and export/save BASIC to .prg file instead of just .seq W64CONV, built and distributed next to the editor, reads a SEQ from the drive the user picks and writes a tokenized BASIC V2 PRG. It also reads a PRG and writes a SEQ the editor can load. The editor itself saves SEQ only.
-- [ ] Do not syntax highlight inside of a REM comment
-- [ ] Full BASIC V2 highlighting with different colors instead of all purple.
+- [ ] Do not syntax highlight inside of a REM comment.
+- [ ] Full BASIC V2 keyword highlighting with different colors instead of all purple.
+- [ ] Brainstorm a way to expand Goto Line function to work across pages. Current pages are 47 lines long.
+- [ ] Keyboard shortcuts to move ahead to next page or back to the previous page.
 - [ ] In BASIC mode make sure the line cannot be longer than what the C64 supports for BASIC programming. If limit is hit warn the user.
-- [ ] Second help page. The user can navigate between page 1 and 2 with the arrow keys. Will tell the user the basic information about going and using the W64TOOLS program.
+- [ ] Second help page. The user can navigate between page 1 and 2 with the arrow keys. Will tell the user the basic information about going and using the W64TOOLS program and any overflowing new keyboard shortcuts.
 - [ ] Full file renumbering instead of just the page displayed. Allow user to input the renumber increment. The program is already close to its size limits so we can look at moving this feature into the W64CONV/W64TOOLS program.
 
 ---
