@@ -84,9 +84,9 @@ The current link (`build/whisper64.map`, regenerated on each build) is approxima
 |---|---|
 | `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
 | `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$AFDC`–`$C660` | BSS. `lines[]` is at `$B6F8`: 48 × 80 = 3840 bytes |
-| `$C660` | Heap start |
-| `$D000` | Software stack (`__stack`). Grows down. About 2.4KB between heap and stack |
+| about `$AD2D`–`$C3B1` | BSS. `lines[]` is at `$B449`: 48 × 80 = 3840 bytes |
+| `$C3B1` | Heap start |
+| `$D000` | Software stack (`__stack`). Grows down. About 3.1KB between heap and stack on this link |
 | `$0100`–`$01FF` | 6502 hardware stack, still in use |
 | `$0400`–`$07E7` | 40-column screen RAM |
 | `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
@@ -97,7 +97,7 @@ Do not grow `lines[]`, the undo buffers, or the clipboard without checking `__bs
 
 `screen80_begin_draw` does `SEI` and clears LORAM, HIRAM, and CHAREN (`$01 & $F8`). Inside that window the KERNAL is gone, I/O is gone (so `$D800` writes hit DRAM, which is what VIC bank 3 reads), and `$E000` is the bitmap. Do not call KERNAL, `printf`/`sprintf`, REU code, or anything that needs an IRQ from inside `begin_draw`/`end_draw`. Nested begin/end is reference-counted. The draw code itself must stay below `$D000`. The linker already does that.
 
-Startup prints PETSCII through direct screen stores and through the 4x8 font indexed by `ch - 32`. The C64 is in the lowercase/uppercase character set, so buffer bytes `$20`–`$7E` match both ASCII and screen codes for those glyphs. Letters the user types arrive from `GETIN` as PETSCII `$41`–`$5A` (unshifted, shown as capitals). Do not add a second screen-code conversion. Bytes `$80` and up are graphic PETSCII and must round-trip unchanged.
+Startup sends `CHROUT` `$0E`, so the VIC uses the lowercase/uppercase set. 40-column output goes through `to_screen` in `screen.c`. `@` is screen `$00`, `[` is `$1B`, `]` is `$1D`, `|` is `$5D`, and `a`–`z` are `$01`–`$1A`. `$20`–`$3F` and `A`–`Z` (`$41`–`$5A`) already match that set. Braces, backslash, caret, underscore, backtick, and tilde are not in the character ROM. Those bytes are drawn unchanged so they stay distinct from the brackets. The buffer keeps the original bytes. Do not write screen codes back into `lines[]`, and do not translate bytes `$80` and up. Those are graphic PETSCII and must round-trip unchanged. 80-column mode indexes `font_4x8` by `ch - 32` and does not use `to_screen`. Letters the user types arrive from `GETIN` as PETSCII `$41`–`$5A` (unshifted, shown as capitals).
 
 ## How the editor stores text
 
@@ -115,7 +115,7 @@ The cyan gutter (`00:`) is the row index inside the current page, two digits, no
 
 `screen_mode` is `MODE_40COL` (0) or `MODE_80COL` (1). CTRL+D toggles it (`main.c`, key code 4) and updates `edit_width` / `screen_width`.
 
-40-column mode writes screen RAM `$0400` and color RAM `$D800` directly. `draw_text_line` scans the line, and when `basic_mode` is set it colors a completed word purple if `is_basic_keyword` matches. Marked text is yellow. The keyword table in `editor_state.c` is a short subset (PRINT, FOR, GOTO, ...). It is not the BASIC V2 token list. A second, different list lives inside `replace_line_number` in `basic.c`.
+40-column mode writes screen RAM `$0400` and color RAM `$D800` directly. `cputc_at`, `cputs_at`, and the cursor all pass the byte through `to_screen` first. `draw_text_line` scans the line, and when `basic_mode` is set it colors a completed word purple if `is_basic_keyword` matches. Marked text is yellow. The keyword table in `editor_state.c` is a short subset (PRINT, FOR, GOTO, ...). It is not the BASIC V2 token list. A second, different list lives inside `replace_line_number` in `basic.c`.
 
 80-column mode is VIC bank 3 (`$DD00` bits 0–1 = 0), bitmap at `$E000`, video matrix at `$D800` (`$D018 = $68`), hires bitmap enabled. The font is the 4x8 SCREEN-80 glyph set in `include/font_4x8.h` (96 glyphs, ASCII 32–127, pixels in the high nibble). Two glyphs share one 8x8 cell, so they share one foreground color. `draw_text_line` fills a 40-byte cell-color array and `render_line_80` stores `color << 4` in that cell. The background nybble stays 0 (black). Cell 0, the two gutter digits, is forced cyan. The colon sits in cell 1 with the first text character and takes that character's color. Keyword purple outranks mark yellow, which outranks white, so a keyword or a mark on either half colors both glyphs. The scan matches 40-column mode: `is_basic_keyword` against the short list in `editor_state.c`, quote-blind, and a finished keyword is painted purple even when that span is also marked. Typing goes through `draw_text_line`. `cputc_at_80` still paints a whole cell one color; the title and status strings use that.
 
@@ -166,7 +166,7 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 
 ## Todo-List feasibility
 
-80-column BASIC highlighting and display wrap are done. SEQ/PRG conversion is `w64conv`, not an editor feature. The mouse and the joystick pointer were removed for size. Open items are garbled 40-column characters, REM highlighting, full V2 colors, full-file renumber, and the BASIC line-length limit.
+80-column BASIC highlighting, display wrap, and the 40-column screen-code map are done. SEQ/PRG conversion is `w64conv`, not an editor feature. The mouse and the joystick pointer were removed for size. Open items are REM highlighting, full V2 colors, full-file renumber, and the BASIC line-length limit.
 
 ### 80-column BASIC highlighting — done
 
@@ -175,6 +175,10 @@ The rules live in the Screen modes section. The editor list stays the short subs
 ### Display wrap — done
 
 The rules live in "How the editor stores text". One editor line, up to 79 characters. The screen continues it on the next row with a blank gutter. Return is the only new editor line. A file that was already split at column 37 stays split until Delete at the start of the continuation.
+
+### 40-column screen codes — done
+
+`to_screen` in `src/screen.c` is the whole map. It runs on the 40-column draw and the reverse-video cursor. Braces, backslash, caret, underscore, backtick, and tilde stay raw screen codes. A RAM charset for those seven glyphs would need a 2KB VIC-visible hole and would move `__bss_end` up by that much. Do not add that without checking the stack gap.
 
 ### Mouse and joystick — removed
 
@@ -190,4 +194,4 @@ A 1541 has one data channel. The converter reads the input to completion, holds 
 
 The token table in `src/conv/token.c` is V2 token order and is separate from the editor's highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host byte checks are `tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. Do not treat a VICE run as that test.
 
-Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current link, with display wrap and without the mouse, has `__bss_end` at `$C660` and `__stack` at `$D000`.
+Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current link, with display wrap, the 40-column screen map, and without the mouse, has `__bss_end` at `$C3B1` and `__stack` at `$D000`.

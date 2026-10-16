@@ -20,13 +20,25 @@ char cgetc() {
     return c;
 }
 
+/* Lowercase charset (CRT CHROUT $0E). A-Z already match $41-$5A.
+   @ [ ] a-z and the bar sit elsewhere. { } \ ^ _ ` ~ are not in
+   the ROM, so those bytes stay distinct from the brackets. */
+static unsigned char to_screen(unsigned char c) {
+    if (c == 0x40) return 0x00;
+    if (c == 0x5B) return 0x1B;
+    if (c == 0x5D) return 0x1D;
+    if (c == 0x7C) return 0x5D;
+    if (c >= 0x61 && c <= 0x7A) return (unsigned char)(c - 0x60);
+    return c;
+}
+
 void cputc_at(int x, int y, char c, unsigned char color) {
     if (screen_mode == MODE_80COL) {
         cputc_at_80(x, y, c, color);
         return;
     }
     int pos = y * SCREEN_WIDTH + x;
-    SCREEN_RAM[pos] = c;
+    SCREEN_RAM[pos] = to_screen((unsigned char)c);
     COLOR_RAM[pos] = color;
 }
 
@@ -37,7 +49,7 @@ void cputs_at(int x, int y, const char *s, unsigned char color) {
     }
     int pos = y * SCREEN_WIDTH + x;
     while (*s) {
-        SCREEN_RAM[pos] = *s++;
+        SCREEN_RAM[pos] = to_screen((unsigned char)*s++);
         COLOR_RAM[pos] = color;
         pos++;
     }
@@ -491,7 +503,7 @@ void draw_cursor() {
             int len = strlen(lines[cursor_y]);
 
             if (cursor_x < len) {
-                SCREEN_RAM[pos] = lines[cursor_y][cursor_x] + 128;
+                SCREEN_RAM[pos] = to_screen((unsigned char)lines[cursor_y][cursor_x]) | 0x80;
                 COLOR_RAM[pos] = COL_WHITE;
             } else {
                 SCREEN_RAM[pos] = CURSOR_CHAR;
