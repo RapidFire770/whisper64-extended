@@ -8,7 +8,7 @@ A text editor for the Commodore 64.
 
 - **80-Column Mode**: Bitmap-based 80-column display using a 4x8 pixel font (toggle with CTRL+D)
 - **REU Support**: RAM Expansion Unit for fast page swapping (auto-detected, up to 16MB)
-- **BASIC Mode** with keyword syntax highlighting and automatic line renumbering
+- **BASIC Mode** with keyword syntax highlighting (F4 toggles color on and off)
 - **Multi-Page Editing**: Pages stored in REU or disk temp files
 - **Directory Browser**: Multi-drive support (8-15) with file type display
 - **Search & Replace**: Find text with wrap-around and replace all
@@ -36,7 +36,7 @@ cmake -DCMAKE_PREFIX_PATH=~/llvm-mos ..
 make
 ```
 
-Output: `build/whisper64.prg` and `build/w64conv.prg`
+Output: `build/whisper64.prg` and `build/w64tools.prg`
 
 A 512KB REU image (`whisper64.reu`) and a blank D64 disk image (`whisper64.d64`) are created automatically during the build.
 
@@ -61,16 +61,16 @@ RUN
 
 For REU support, ensure the REU is connected before starting.
 
-### W64CONV
+### W64TOOLS
 
-`w64conv.prg` turns a SEQ listing into a tokenized BASIC V2 PRG, and a PRG back into a SEQ. Copy it next to the editor. On the machine:
+`w64tools.prg` is a separate program. Copy it next to the editor. On the machine:
 
 ```
-LOAD "W64CONV",8,1
+LOAD "W64TOOLS",8,1
 RUN
 ```
 
-It asks for a drive (8-15), then `1` (SEQ to PRG) or `2` (PRG to SEQ), then the input and output names. The editor's F2 save stays a SEQ file. Save the listing from the editor, run W64CONV, and load the PRG from BASIC.
+The menu is `1` SEQ to PRG, `2` PRG to SEQ, `3` renumber a SEQ, and `4` turn labeled lines into a numbered PRG. It asks for a read drive and a write drive (8–15), then lists the files on the read drive. Mode 3 asks for a step, and an empty step is 10. Mode 4 uses step 10. The editor's F2 save stays a SEQ file. Save the listing from the editor, run W64TOOLS, and load the PRG from BASIC. N or Stop at the another-file prompt leaves the tool.
 
 ## Key Commands
 
@@ -79,7 +79,7 @@ It asks for a drive (8-15), then `1` (SEQ to PRG) or `2` (PRG to SEQ), then the 
 | **F1**     | Load file (directory browser)      |
 | **F2**     | Save file                          |
 | **F3**     | Select drive (8-15)                |
-| **F4**     | Toggle BASIC mode / Renumber lines |
+| **F4**     | Toggle BASIC color on/off          |
 | **F5**     | Find text                          |
 | **F6**     | Find & replace                     |
 | **F7**     | Find next                          |
@@ -119,11 +119,11 @@ All pages are saved to and loaded from REU when switching pages. File save (F2) 
 
 ## BASIC Mode
 
-Press **F4** to enable BASIC mode:
+Press **F4** to turn BASIC color on. Press it again to turn the color off.
 
-- Keyword highlighting in purple
-- Press **F4** again to renumber lines (10, 20, 30...)
-- Updates GOTO, GOSUB, THEN, and ELSE references automatically
+- Statements are purple and functions are blue
+- A quote, or a finished REM, leaves the rest of that line uncolored
+- The editor does not rewrite line numbers. Renumber and labels are W64TOOLS
 
 ## Directory Browser
 

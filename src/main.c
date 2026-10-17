@@ -14,7 +14,6 @@
 #include "file_ops.h"
 #include "search.h"
 #include "clipboard.h"
-#include "basic.h"
 #include "help.h"
 #include "undo.h"
 #include "goto.h"
@@ -70,22 +69,14 @@ int main(void) {
         } else if (c == KEY_F3) {
             select_drive();
         } else if (c == KEY_F4) {
-            // BASIC mode toggle and renumber
             if (!basic_mode) {
                 basic_mode = 1;
                 update_cursor();
-                show_message("BASIC MODE ON - F4 AGAIN=RENUMBER", COL_GREEN);
+                show_message("BASIC MODE ON", COL_GREEN);
             } else {
-                // Already in BASIC mode, ask to renumber
-                show_message("RENUMBER? (Y/N)", COL_YELLOW);
-                char response = cgetc();
-                if (response == 'Y' || response == 'y') {
-                    renumber_basic();
-                } else {
-                    basic_mode = 0;
-                    update_cursor();
-                    show_message("BASIC MODE OFF", COL_RED);
-                }
+                basic_mode = 0;
+                update_cursor();
+                show_message("BASIC MODE OFF", COL_RED);
             }
         } else if (c == KEY_F5) {
             search_text();

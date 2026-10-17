@@ -9,7 +9,7 @@ static void help_page(int page) {
         cputs_at(2, 3, "F1 - LOAD FILE (DIRECTORY)", COL_WHITE);
         cputs_at(2, 4, "F2 - SAVE FILE", COL_WHITE);
         cputs_at(2, 5, "F3 - SELECT DRIVE (8-15)", COL_WHITE);
-        cputs_at(2, 6, "F4 - BASIC MODE & RENUMBER", COL_WHITE);
+        cputs_at(2, 6, "F4 - BASIC COLOR ON/OFF", COL_WHITE);
         cputs_at(2, 7, "F5 - FIND TEXT", COL_WHITE);
         cputs_at(2, 8, "F6 - FIND & REPLACE", COL_WHITE);
         cputs_at(2, 9, "F7 - FIND NEXT", COL_WHITE);
@@ -38,7 +38,7 @@ static void help_page(int page) {
     cputs_at(2, 4, "3 RENUMBER  4 LABELS", COL_WHITE);
     cputs_at(2, 6, "CTRL+N NEXT  CTRL+B BACK", COL_WHITE);
     cputs_at(2, 7, "CTRL+G TITLE LINE", COL_WHITE);
-    cputs_at(2, 9, "F4 RENUMBERS THIS PAGE", COL_WHITE);
+    cputs_at(2, 9, "F4 BASIC COLOR ON, AGAIN OFF", COL_WHITE);
     cputs_at(2, 10, "BASIC LINE STOPS AT 79", COL_WHITE);
     cputs_at(0, 23, "LEFT PAGE  STOP EXITS", COL_CYAN);
 }

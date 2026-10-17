@@ -37,15 +37,6 @@ extern int mark_end_x, mark_end_y;
 // BASIC mode
 extern int basic_mode;
 
-// Line number mapping for BASIC renumbering
-typedef struct {
-    int old_num;
-    int new_num;
-} LineMapping;
-
-extern LineMapping line_mappings[MAX_LINES];
-extern int num_mappings;
-
 // Directory browser
 typedef struct {
     char name[17];

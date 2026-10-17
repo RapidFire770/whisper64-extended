@@ -39,10 +39,6 @@ DirEntry dir_entries[MAX_DIR_ENTRIES];
 int num_dir_entries = 0;
 char disk_name[17];
 
-// Line number mapping
-LineMapping line_mappings[MAX_LINES];
-int num_mappings = 0;
-
 /* Statements are purple. Functions are blue. One-character operators are omitted. */
 const char *basic_keywords[] = {
     "END", "FOR", "NEXT", "DATA", "INPUT#", "INPUT", "DIM", "READ", "LET", "GOTO",

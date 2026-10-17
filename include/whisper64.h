@@ -17,7 +17,6 @@
 #define MAX_LINE_LENGTH 80
 #define LINES_PER_PAGE 48
 #define MAX_DIR_ENTRIES 40
-#define MAX_LINES 128
 
 // Key codes
 #define KEY_RETURN 13

@@ -2,7 +2,7 @@
 
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
-**Status:** Editing, paging, SEQ load/save, two-color BASIC highlighting in 40- and 80-column mode, current-page renumber, display wrap, file-wide goto, and page keys. Tokenized BASIC V2 SEQ/PRG conversion is `w64conv.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is full-file renumber in W64TOOLS (`docs/Todo-List.md`).
+**Status:** Editing, paging, SEQ load/save, two-color BASIC highlighting in 40- and 80-column mode, display wrap, file-wide goto, and page keys. F4 only toggles BASIC color. Full-file renumber and labels are `w64tools.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is `docs/Todo-List.md`.
 **Last Updated:** October 16, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
@@ -37,7 +37,7 @@ cmake -DCMAKE_PREFIX_PATH=/home/josh/Documents/Programming/C64/tools/llvm-mos ..
 make
 ```
 
-`CMakeLists.txt` sets `LLVM_MOS_PLATFORM` to `c64` before `project()`. Output is `build/whisper64.prg` and `build/w64conv.prg`. Flags are `-Os`, `-ffunction-sections`, `--gc-sections` on both. A 512KB `whisper64.reu` image and `whisper64.d64` are created by the build and by `run_vice.sh`. Both are gitignored, as is `build/`.
+`CMakeLists.txt` sets `LLVM_MOS_PLATFORM` to `c64` before `project()`. Output is `build/whisper64.prg` and `build/w64tools.prg`. Flags are `-Os`, `-ffunction-sections`, `--gc-sections` on both. `w64tools.prg` also links `-lexit-return` so a return from `main` reaches BASIC. The editor does not. A 512KB `whisper64.reu` image and `whisper64.d64` are created by the build and by `run_vice.sh`. Both are gitignored, as is `build/`.
 
 Run in VICE:
 
@@ -52,10 +52,10 @@ There is no unit-test target. Do not claim a C64 behavior works unless VICE or t
 ## Layout
 
 ```text
-include/     headers, one per module, plus font_4x8.h, whisper64.h, w64conv.h
+include/     headers, one per module, plus font_4x8.h, whisper64.h, w64tools.h
 src/         editor .c files
-src/conv/    w64conv tokenize and disk streaming
-tools/       c64u.py (Ultimate REST driver), test_basic_prg.py, test_w64conv_c64u.py
+src/conv/    W64TOOLS tokenize, renumber, labels, and disk streaming
+tools/       c64u.py (Ultimate REST driver), test_basic_prg.py, test_renumber.c, test_w64conv_c64u.py
 docs/        Todo-List.md, SDK path note, c64 programming books
 build/       cmake output, gitignored
 run_vice.sh
@@ -70,7 +70,6 @@ CMakeLists.txt
 | `screen.c` | Draw, keyword and mark colors, cursor, status line. Dispatches the bitmap to 80-column |
 | `screen80.c` | VIC bank 3 bitmap mode, 4x8 font, per-cell color |
 | `file_ops.c` | Directory, load, save, drive select, new file |
-| `basic.c` | Line-number parse and renumber of the current page |
 | `reu.c` | REU detect, size probe, page DMA |
 | `search.c` `clipboard.c` `undo.c` `goto.c` `help.c` | Find/replace, mark/copy/paste, one-line undo, goto, help |
 
@@ -84,9 +83,9 @@ The current link (`build/whisper64.map`, regenerated on each build) is approxima
 |---|---|
 | `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
 | `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$B1F7`–`$C87B` | BSS. `lines[]` is at `$B911`: 48 × 80 = 3840 bytes |
-| `$C89B` | Heap start |
-| `$D000` | Software stack (`__stack`). Grows down. About 1.8KB between heap and stack on this link. Stop adding editor code if `__bss_end` passes `$CC00` |
+| about `$AB6A`–`$BFEC` | BSS. `lines[]` is at `$B081`: 48 × 80 = 3840 bytes |
+| `$C00C` | Heap start |
+| `$D000` | Software stack (`__stack`). Grows down. About 4KB between heap and stack on this link. Stop adding editor code if `__bss_end` passes `$CC00` |
 | `$0100`–`$01FF` | 6502 hardware stack, still in use |
 | `$0400`–`$07E7` | 40-column screen RAM |
 | `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
@@ -107,7 +106,7 @@ Other pages live in the REU when one is present, otherwise in drive temp files `
 
 There is no horizontal scroll. A line stays one editor line, up to 79 characters. `edit_width` is 37 in 40-column mode and 77 in 80-column mode. The screen draws that many characters per row and continues the same line on the next screen row, with a blank gutter. Return is what starts a new editor line. Do not split the buffer at `edit_width`. That used to leave the tail unnumbered, so a tokenized save dropped it.
 
-The cyan gutter (`00:`) is the row index inside the current page, two digits, not a BASIC line number and not a file-wide line number. The title bar's `line:col` is the file-wide row (`page * 48 + row`). BASIC line numbers, when present, are decimal text at the start of the line. `extract_line_number` requires digits then a space or end of line.
+The cyan gutter (`00:`) is the row index inside the current page, two digits, not a BASIC line number and not a file-wide line number. The title bar's `line:col` is the file-wide row (`page * 48 + row`). BASIC line numbers, when present, are decimal text at the start of the line: optional spaces, then digits, then a space or the end of the line. `10PRINT` is not a numbered line. The editor does not parse or rewrite those numbers.
 
 `new_line` can open the next page only when Return is pressed on the last row of a full page. Inserting in the middle of a full page shows `PAGE FULL`. Undo stores one line. The clipboard stores two lines.
 
@@ -119,7 +118,7 @@ In BASIC mode the 80th character is not stored and the status row says `BASIC LI
 
 `screen_mode` is `MODE_40COL` (0) or `MODE_80COL` (1). CTRL+D toggles it (`main.c`, key code 4) and updates `edit_width` / `screen_width`.
 
-40-column mode writes screen RAM `$0400` and color RAM `$D800` directly. `cputc_at`, `cputs_at`, and the cursor all pass the byte through `to_screen` first. `draw_text_line` scans the line when `basic_mode` is set. Statements are purple and functions are blue. A quote toggles string mode. A finished word `REM` colors that word and stops the scan for the rest of the editor line. `(` ends a word; only `TAB(` and `SPC(` keep the parenthesis. Marked text is yellow, and a keyword color outranks it. The names live in `editor_state.c`. They are the V2 statement and function names, not the token bytes, and not the separate list inside `replace_line_number` in `basic.c`. One-character operators are not in the list.
+40-column mode writes screen RAM `$0400` and color RAM `$D800` directly. `cputc_at`, `cputs_at`, and the cursor all pass the byte through `to_screen` first. `draw_text_line` scans the line when `basic_mode` is set. Statements are purple and functions are blue. A quote toggles string mode. A finished word `REM` colors that word and stops the scan for the rest of the editor line. `(` ends a word; only `TAB(` and `SPC(` keep the parenthesis. Marked text is yellow, and a keyword color outranks it. The names live in `editor_state.c`. They are the V2 statement and function names, not the token bytes in `src/conv/token.c`. One-character operators are not in the list.
 
 80-column mode is VIC bank 3 (`$DD00` bits 0–1 = 0), bitmap at `$E000`, video matrix at `$D800` (`$D018 = $68`), hires bitmap enabled. The font is the 4x8 SCREEN-80 glyph set in `include/font_4x8.h` (96 glyphs, ASCII 32–127, pixels in the high nibble). Two glyphs share one 8x8 cell, so they share one foreground color. `draw_text_line` fills a 40-byte cell-color array and `render_line_80` stores `color << 4` in that cell. The background nybble stays 0 (black). Cell 0, the two gutter digits, is forced cyan. The colon sits in cell 1 with the first text character and takes that character's color. Keyword purple outranks mark yellow, which outranks white, so a keyword or a mark on either half colors both glyphs. The scan matches 40-column mode. `is_basic_keyword` returns the color. Purple and blue both outrank mark yellow, which outranks white, and the later keyword wins on a shared cell. Typing goes through `draw_text_line`. `cputc_at_80` still paints a whole cell one color; the title and status strings use that.
 
@@ -139,9 +138,9 @@ F2 always writes SEQ: `@0:name,S,W`, every page. Every SEQ line, including the l
 
 ## BASIC mode today
 
-F4 sets `basic_mode`, which only affects highlighting and the status tag. F4 again asks to renumber. Yes runs `renumber_basic`. No turns BASIC mode off.
+F4 turns `basic_mode` on (`BASIC MODE ON`) and off (`BASIC MODE OFF`). Highlighting and the 79-character cap are the only editor effects. The editor does not rewrite line numbers.
 
-Renumber walks the current page only. It maps line numbers to 10, 20, 30, ... and rewrites a following number after `GOTO`, `GOSUB`, `GO TO`, `GO SUB`, `THEN`, and `ELSE`. It does not see other pages, `ON ... GOTO` lists beyond a single number, or numbers written without the keyword patterns above. `line_mappings[]` is 128 entries. A page holds at most 48 numbered lines, so the cap is not the bug. The single-page walk is.
+W64TOOLS mode 3 renumbers a whole SEQ. The step prompt defaults to 10 when left empty. Mode 4 numbers labeled lines at step 10 and writes a PRG. Both live in `src/conv/renumber.c`.
 
 ## Pointer
 
@@ -149,7 +148,7 @@ The 1351 and the port-1 joystick pointer were removed so display wrap fits under
 
 ## Style
 
-Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls spelled `cbm_k_*`, hardware addresses as named macros next to the code that uses them. Comments belong on VIC, CIA, REU, and banking constraints, not on ordinary control flow. Prefer editing the module that already owns the behavior (`basic.c` for tokens, `file_ops.c` for open/read/write, `screen.c` / `screen80.c` for color) over a new wrapper. `sprintf` into a small stack buffer is the existing way to build status text. No `malloc` in the editor.
+Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls spelled `cbm_k_*`, hardware addresses as named macros next to the code that uses them. Comments belong on VIC, CIA, REU, and banking constraints, not on ordinary control flow. Prefer editing the module that already owns the behavior (`src/conv/token.c` and `src/conv/renumber.c` for BASIC text, `file_ops.c` for open/read/write, `screen.c` / `screen80.c` for color) over a new wrapper. The editor builds status text with `sprintf` into a small stack buffer. The converter does not. No `malloc` in the editor.
 
 ## Pitfalls
 
@@ -170,11 +169,11 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 
 ## Todo-List feasibility
 
-80-column BASIC highlighting, display wrap, the 40-column screen-code map, quote/REM colors, the two-color V2 name list, file-wide goto, the page keys, the BASIC line-full warning, and the second help page are done. SEQ/PRG conversion is `w64conv`, not an editor feature. The mouse and the joystick pointer were removed for size. The open editor item is full-file renumber, and that belongs in W64TOOLS. The editor still renumbers the current page only.
+80-column BASIC highlighting, display wrap, the 40-column screen-code map, quote/REM colors, the two-color V2 name list, file-wide goto, the page keys, the BASIC line-full warning, and the second help page are done. The editor does not renumber. Full-file renumber is W64TOOLS mode 3. Labels are mode 4. SEQ/PRG conversion is `w64tools`, not an editor feature. The mouse and the joystick pointer were removed for size.
 
 ### 80-column BASIC highlighting — done
 
-The rules live in the Screen modes section. The editor list stays the short subset. Do not copy the V2 token table into `editor_state.c`.
+The rules live in the Screen modes section. The names in `editor_state.c` are the V2 statement and function names. The token bytes stay in `src/conv/token.c`. Do not merge them.
 
 ### Display wrap — done
 
@@ -188,14 +187,24 @@ The rules live in "How the editor stores text". One editor line, up to 79 charac
 
 Removed so wrap fits under `$D000`. The port-select item is moot. Do not put the pointer back without a size check.
 
-## W64CONV
+## W64TOOLS
 
-`src/conv/token.c` and `src/conv/main.c` build `w64conv.prg`. It is not linked into the editor. SEQ to PRG and PRG to SEQ stream one line through KERNAL secondary address 2. The editor saves SEQ only. This SDK has no `conio.h`, so the prompts write `$0400` directly and read keys with `cbm_k_getin`.
+`src/conv/token.c`, `src/conv/renumber.c`, and `src/conv/main.c` build `w64tools.prg`. It is not linked into the editor. The header is `include/w64tools.h`. The editor saves SEQ only.
 
-The overwrite prompt reads the DOS error channel. `cbm_k_open` returns 0 for a missing file on the Ultimate; DOS code 62 means the name is free. Do not treat a zero open as "file exists". A new file is opened as `name,P,W` or `name,S,W`. `@0:` is only for a name that is already there.
+The menu is `1` SEQ to PRG, `2` PRG to SEQ, `3` renumber a SEQ, `4` labels to numbered lines then a PRG, and `?` help. Mode 3 asks for a step; an empty step is 10. Mode 4 uses step 10 and does not ask. Read drive and write drive are separate, 8–15, and an empty entry is 8. The directory of the read drive is packed into `out_bytes` (18 bytes a slot, name in 0–15, NUL at 16, type at 17, at most 144 entries) and discarded when the file is read. SEQ modes list type S. Mode 2 lists type P. Skip the disk-header entry. `NO FILES` waits for a key and does not set `verify_code`, so the menu redraws and does not ask ANOTHER.
 
-A 1541 has one data channel. The converter reads the input to completion, holds up to 32KB in `out_bytes`, then writes. Do not open the output while the input is still open. KERNAL STATUS at `$90` is OR-ed; `read_byte` clears it before each `CHRIN`. An EOF bit keeps that byte. A bare timeout is the end of the file.
+The screen is border gray 12, background black, text green 5, and the selected directory row yellow 7. The title `W64TOOLS` is centered. This SDK has no `conio.h`. The tool writes `$0400` and color RAM directly and reads keys with `cbm_k_getin`. It does not use `sprintf`.
 
-The token table in `src/conv/token.c` is V2 token order and is separate from the editor's highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host byte checks are `tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. Do not treat a VICE run as that test.
+A 1541 has one data channel. Close the directory before opening the file. Do not open the output while the input is still open. The overwrite probe reads the DOS error channel. `cbm_k_open` returns 0 for a missing file; DOS code 62 means the name is free. A new file is `name,P,W` or `name,S,W`. `@0:` is only when the probe finds the name already there.
 
-Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current link has `__bss_end` at `$C87B`, `__heap_start` at `$C89B`, and `__stack` at `$D000`. Help page 2 is kept short on purpose. Do not lengthen those strings without checking the map.
+`out_bytes` is 20096 bytes, not 32KB. Modes 1 and 2 use the whole array. Modes 3 and 4 keep the text in the front (`OUT_CAP - 2048`) and the map in the last 2048 bytes. Size that map with `2048 / sizeof` the entry. On the C64 `unsigned int` is 16 bits, so do not assume the host's 16-byte `LabelEnt`. The last link has `__heap_start` at `$C7AE`. Keep it at or below `$C800`. Do not raise `OUT_CAP` without relinking. Mode 4 moves the SEQ to the end of the array and writes the PRG in front of it, so a long SEQ has only `OUT_CAP - length` bytes for the PRG.
+
+New numbers are the step, then twice the step, and they stop at 63999. Check `63999u - step` before adding so a 16-bit step does not wrap. Renumber returns 0, or 1 (step 0 or above 63999), 2 (a new or old number would pass 63999), 3 (more numbered lines than the map), 4 (a line would pass 79 characters or the text cap), 5 (a GOTO, GOSUB, THEN, ELSE, GO TO, or GO SUB number is not in the map). Codes 1–3 leave the text alone. A target above 63999 is code 5. Label codes add 6 (unknown name), 7 (name longer than 11), and 8 (duplicate). The screen stores renumber 5 as `NO NUM`, label 6 as `NO LABEL`, 7 as `BAD NAME`, and 8 as `DUP LABEL`. Do not add `CONV_*` codes for them. A letter starts a label, then letters or digits, at most 11, then `:`. One space after the colon is stripped. Digit-leading lines keep their numbers and are not labels. `GO TO` and `GO SUB` are renumber keywords, not label keywords.
+
+KERNAL STATUS at `$90` is OR-ed. `chrin_fresh` clears it before each `CHRIN`. An EOF bit keeps that byte. A bare timeout is the end of the file. Renumber and labels split lines on CR only. Mode 1 still splits a SEQ on CR or LF.
+
+N or Stop (PETSCII 3) at the another-file prompt returns from `main`. `-lexit-return` makes `__after_main` jump to `__exit_return`. `_fini` stores `$3F` in `$01`, and the RTS goes back to the BASIC stub. Menu Stop still says cancelled and waits. That return was not run on a machine. Do not claim READY was seen.
+
+The token table in `src/conv/token.c` is V2 token order and is separate from the editor highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host checks are `gcc -Wall -Wextra -Iinclude -o /tmp/test_renumber tools/test_renumber.c src/conv/renumber.c` and `python3 tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. The script name stayed. Do not treat a VICE run as that test, and do not run the script unless asked. It resets the Ultimate.
+
+Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current editor link has `__bss_end` at `$BFEC`, `__heap_start` at `$C00C`, and `__stack` at `$D000`. Help page 2 is kept short on purpose. Do not lengthen those strings without checking the map.

@@ -25,7 +25,6 @@ set(SOURCES
     src/file_ops.c
     src/search.c
     src/clipboard.c
-    src/basic.c
     src/help.c
     src/undo.c
     src/goto.c
@@ -45,7 +44,7 @@ add_executable(w64tools.prg
     src/conv/renumber.c
 )
 target_compile_options(w64tools.prg PRIVATE -Os -ffunction-sections)
-target_link_options(w64tools.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=w64tools.map)
+target_link_options(w64tools.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=w64tools.map -Wl,-lexit-return)
 
 # Create blank REU image file (512KB) if it doesn't exist
 set(REU_IMAGE "${CMAKE_SOURCE_DIR}/whisper64.reu")
