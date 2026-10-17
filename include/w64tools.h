@@ -1,5 +1,5 @@
-#ifndef W64CONV_H
-#define W64CONV_H
+#ifndef W64TOOLS_H
+#define W64TOOLS_H
 
 #define CONV_IDLE      0
 #define CONV_OK        1

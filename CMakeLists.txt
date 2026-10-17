@@ -39,13 +39,13 @@ target_compile_options(whisper64.prg PRIVATE -Os -ffunction-sections)
 
 target_link_options(whisper64.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=whisper64.map)
 
-add_executable(w64conv.prg
+add_executable(w64tools.prg
     src/conv/main.c
     src/conv/token.c
     src/conv/renumber.c
 )
-target_compile_options(w64conv.prg PRIVATE -Os -ffunction-sections)
-target_link_options(w64conv.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=w64conv.map)
+target_compile_options(w64tools.prg PRIVATE -Os -ffunction-sections)
+target_link_options(w64tools.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=w64tools.map)
 
 # Create blank REU image file (512KB) if it doesn't exist
 set(REU_IMAGE "${CMAKE_SOURCE_DIR}/whisper64.reu")

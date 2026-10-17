@@ -1,4 +1,4 @@
-#include "w64conv.h"
+#include "w64tools.h"
 #include <ctype.h>
 #include <string.h>
 
@@ -396,11 +396,19 @@ static int take_label(const unsigned char *s, unsigned int len,
     return 1;
 }
 
+static int same_name(const char *a, const char *b) {
+    while (*a && *a == *b) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+
 static int find_label(struct LabelEnt *map, int nmap, const char *name) {
     int i;
 
     for (i = 0; i < nmap; i++) {
-        if (strcmp(map[i].name, name) == 0)
+        if (same_name(map[i].name, name))
             return i;
     }
     return -1;

@@ -153,7 +153,7 @@ def restore_mount(drive_name, drive):
 
 def map_addr(symbol):
     """Linker rows look like: '    be50     be50        1     1                 basic_mode'."""
-    with open("build/w64conv.map") as f:
+    with open("build/w64tools.map") as f:
         for line in f:
             parts = line.split()
             if parts and parts[-1] == symbol:
@@ -189,21 +189,31 @@ def inject_text(text):
     c64u.inject_keys(codes, settle=0.5)
 
 
-def run_job(mode, in_name, out_name, timeout=45):
+def run_job(mode, downs, out_name, timeout=45):
     c64u.reset()
-    c64u.load_and_run("build/w64conv.prg")
-    title = bytes([0x57, 0x36, 0x34, 0x43, 0x4F, 0x4E, 0x56])
+    c64u.load_and_run("build/w64tools.prg")
     deadline = time.time() + 15
     while time.time() < deadline:
         raw = mem(0x0400, 40)
-        if raw[:7] == title or raw[:7] == b"W64CONV":
+        if b"W64TOOLS" in raw:
             break
         time.sleep(0.25)
     else:
         raise SystemExit("converter did not start\n" + screen_text())
-    inject_text("")
     c64u.inject_keys([ord(mode)], settle=0.5)
-    inject_text(in_name)
+    inject_text("")
+    inject_text("")
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        row = c64u.decode_screen_row(mem(0x0400, 400), 2)
+        if "SEQ TO PRG" not in row and row.strip(" ."):
+            break
+        time.sleep(0.25)
+    else:
+        raise SystemExit("directory did not list\n" + screen_text())
+    for _ in range(downs):
+        c64u.inject_keys([0x11], settle=0.5)
+    c64u.inject_keys([0x0D], settle=0.5)
     inject_text(out_name)
     code_addr = map_addr("verify_code")
     deadline = time.time() + timeout
@@ -264,24 +274,24 @@ def main():
         with open(image_path, "rb") as f:
             mount_bytes(name, f.read())
         print("job SAMPLE", flush=True)
-        code = run_job("1", "SAMPLE", "OUT1")
+        code = run_job("1", 0, "OUT1")
         if code != CONV_OK:
             raise SystemExit(f"SEQ to PRG code {code}\n" + verify_dump() + screen_text())
         expect_bytes(sample_prg)
 
         print("job TOKENS", flush=True)
-        code = run_job("2", "TOKENS", "OUT2")
+        code = run_job("2", 0, "OUT2")
         if code != CONV_OK:
             raise SystemExit(f"PRG to SEQ code {code}\n" + screen_text())
         expect_bytes(tokens_seq)
 
         print("job BADLINK", flush=True)
-        code = run_job("2", "BADLINK", "OUT3")
+        code = run_job("2", 1, "OUT3")
         if code != CONV_BAD_BASIC:
             raise SystemExit(f"bad link code {code}\n" + screen_text())
 
         print("job NOTBASIC", flush=True)
-        code = run_job("2", "NOTBASIC", "OUT4")
+        code = run_job("2", 2, "OUT4")
         if code != CONV_NOT_BASIC:
             raise SystemExit(f"not basic code {code}\n" + screen_text())
         print("ultimate ok")
