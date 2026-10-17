@@ -317,11 +317,13 @@ void show_directory() {
                     if (ch == '\r' || ch == '\n') {
                         lines[line][pos] = '\0';
                         line++;
-                        total++;
                         pos = 0;
 
-                        // Page full - save to REU/temp and start next page
+                        /* A full page is counted once here. The CR that
+                           arrives with EOI never reaches this branch, so the
+                           last page is counted once after the read. */
                         if (line >= LINES_PER_PAGE) {
+                            total += line;
                             num_lines = line;
                             current_page = page;
                             page_modified = 1;
@@ -343,9 +345,12 @@ void show_directory() {
                 cbm_k_clrch();
                 cbm_k_close(2);
 
-                // Final page stays in lines buffer
+                /* The last page was not added at a page break. */
                 num_lines = line > 0 ? line : 1;
-                total += num_lines;
+                if (line > 0)
+                    total += line;
+                if (total < 1)
+                    total = 1;
                 num_pages = page + 1;
                 current_page = 0;
                 total_lines = total;

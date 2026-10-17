@@ -113,6 +113,22 @@ int main(void) {
             redo_last_action();
         } else if (c == 7) {  // Control+G for goto line
             goto_line();
+        } else if (c == KEY_CTRL_N) {
+            if (current_page < num_pages - 1) {
+                load_page(current_page + 1);
+                cursor_y = 0;
+                cursor_x = 0;
+                scroll_offset = 0;
+                update_cursor();
+            }
+        } else if (c == KEY_CTRL_B) {
+            if (current_page > 0) {
+                load_page(current_page - 1);
+                cursor_y = 0;
+                cursor_x = 0;
+                scroll_offset = 0;
+                update_cursor();
+            }
         } else if (c == 23) {  // Control+W new file
             new_file();
         }
@@ -222,9 +238,16 @@ int main(void) {
             update_cursor();
         }
         else if (c >= 32 && c < 128) {
-            save_undo_state();
+            int before = cursor_x;
+
+            /* A full line is not stored. Redrawing it would wipe the
+               BASIC LINE FULL message: that line is wrapped, so the
+               redraw clears the status row. */
+            if ((int)strlen(lines[cursor_y]) < MAX_LINE_LENGTH - 1)
+                save_undo_state();
             insert_char(c);
-            update_current_line();
+            if (cursor_x != before)
+                update_current_line();
         }
     }
     

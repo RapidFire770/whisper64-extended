@@ -55,12 +55,11 @@ void cputs_at(int x, int y, const char *s, unsigned char color) {
     }
 }
 
-int is_basic_keyword(const char *word) {
+unsigned char is_basic_keyword(const char *word) {
     int i;
     for (i = 0; basic_keywords[i] != NULL; i++) {
-        if (strcmp(word, basic_keywords[i]) == 0) {
-            return 1;
-        }
+        if (strcmp(word, basic_keywords[i]) == 0)
+            return basic_colors[i];
     }
     return 0;
 }
@@ -88,9 +87,9 @@ static int column_marked(int line_num, int col, int len) {
     return 1;
 }
 
-/* Two 4px glyphs share a hires cell. Purple beats yellow beats white. */
+/* Two 4px glyphs share a hires cell. Keyword colors beat yellow, which beats white. */
 static uint8_t cell_rank(uint8_t color) {
-    if (color == COL_PURPLE) return 3;
+    if (color == COL_PURPLE || color == COL_BLUE) return 3;
     if (color == COL_YELLOW) return 2;
     if (color == COL_WHITE) return 1;
     return 0;
@@ -106,48 +105,93 @@ static void paint_cell(uint8_t *cell_color, int screen_col, uint8_t color) {
         cell_color[cell] = color;
 }
 
-static void paint_span(uint8_t *cell_color, int start, int word_len, int off) {
+static void flush_word(const char *word, int word_len, int start,
+                       unsigned char *color, int *rem) {
+    unsigned char col;
     int j;
-    int ew = edit_width;
+    char tmp[16];
 
-    for (j = 0; j < word_len; j++) {
-        int src = start + j;
-        if (src >= off && src < off + ew)
-            paint_cell(cell_color, 3 + src - off, COL_PURPLE);
+    if (word_len <= 0 || word_len > 15)
+        return;
+    memcpy(tmp, word, word_len);
+    tmp[word_len] = '\0';
+    col = is_basic_keyword(tmp);
+    if (!col)
+        return;
+    for (j = 0; j < word_len; j++)
+        color[start + j] = col;
+    if (strcmp(tmp, "REM") == 0)
+        *rem = 1;
+}
+
+/* color[i] is 0, or the keyword color. Quotes and a finished REM stay 0. */
+static void scan_keywords(const char *line, int len, unsigned char *color) {
+    char word[16];
+    int word_len = 0;
+    int start = 0;
+    int quote = 0;
+    int rem = 0;
+    int i;
+
+    for (i = 0; i < len; i++)
+        color[i] = 0;
+    for (i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)line[i];
+
+        if (rem)
+            break;
+        if (c == '"') {
+            flush_word(word, word_len, start, color, &rem);
+            word_len = 0;
+            quote = !quote;
+            continue;
+        }
+        if (quote)
+            continue;
+        if (c == '(') {
+            int tab = word_len == 3 && word[0] == 'T' && word[1] == 'A' && word[2] == 'B';
+            int spc = word_len == 3 && word[0] == 'S' && word[1] == 'P' && word[2] == 'C';
+            if (tab || spc) {
+                word[word_len++] = '(';
+                flush_word(word, word_len, start, color, &rem);
+            } else if (word_len > 0) {
+                flush_word(word, word_len, start, color, &rem);
+            }
+            word_len = 0;
+            continue;
+        }
+        if (isupper(c) || c == '$' || c == '%' || c == '#') {
+            if (word_len == 0)
+                start = i;
+            if (word_len < 15)
+                word[word_len++] = c;
+            else
+                word_len = 16;
+        } else if (word_len > 0) {
+            flush_word(word, word_len, start, color, &rem);
+            word_len = 0;
+        }
     }
+    if (!rem)
+        flush_word(word, word_len, start, color, &rem);
 }
 
 /* off is the first buffer column drawn on this screen row. */
 static void paint_line_colors(int line_num, int len, int off, uint8_t *cell_color) {
-    char word[20];
-    int word_len = 0;
-    int keyword_start = -1;
-    int i, ew;
+    unsigned char color[MAX_LINE_LENGTH];
+    int i;
+    int ew = edit_width;
 
-    ew = edit_width;
     for (i = 0; i < len; i++) {
-        char c = lines[line_num][i];
-
         if (i >= off && i < off + ew && column_marked(line_num, i, len))
             paint_cell(cell_color, 3 + i - off, COL_YELLOW);
-
-        if (basic_mode && (isupper(c) || c == '$' || c == '%')) {
-            if (word_len == 0)
-                keyword_start = i;
-            if (word_len < 19)
-                word[word_len++] = c;
-        } else if (word_len > 0) {
-            word[word_len] = '\0';
-            if (basic_mode && is_basic_keyword(word))
-                paint_span(cell_color, keyword_start, word_len, off);
-            word_len = 0;
-        }
     }
-
-    if (word_len > 0) {
-        word[word_len] = '\0';
-        if (basic_mode && is_basic_keyword(word))
-            paint_span(cell_color, keyword_start, word_len, off);
+    if (!basic_mode)
+        return;
+    scan_keywords(lines[line_num], len, color);
+    for (i = 0; i < len; i++) {
+        if (color[i] && i >= off && i < off + ew)
+            paint_cell(cell_color, 3 + i - off, color[i]);
     }
 }
 
@@ -268,49 +312,16 @@ static void clear_gutter(int screen_row) {
 }
 
 static void paint_40_keyword(int screen_row, int line_num, int len, int off) {
-    char word[20];
-    int word_len = 0;
-    int keyword_start = -1;
-    int i, j;
+    unsigned char color[MAX_LINE_LENGTH];
+    int i;
     int ew = edit_width;
 
     if (!basic_mode)
         return;
-
+    scan_keywords(lines[line_num], len, color);
     for (i = 0; i < len; i++) {
-        char c = lines[line_num][i];
-
-        if (isupper(c) || c == '$' || c == '%') {
-            if (word_len == 0)
-                keyword_start = i;
-            if (word_len < 19)
-                word[word_len++] = c;
-        } else if (word_len > 0) {
-            word[word_len] = '\0';
-            if (is_basic_keyword(word)) {
-                for (j = 0; j < word_len; j++) {
-                    int src = keyword_start + j;
-                    if (src >= off && src < off + ew) {
-                        cputc_at(3 + src - off, screen_row,
-                                 lines[line_num][src], COL_PURPLE);
-                    }
-                }
-            }
-            word_len = 0;
-        }
-    }
-
-    if (word_len > 0) {
-        word[word_len] = '\0';
-        if (is_basic_keyword(word)) {
-            for (j = 0; j < word_len; j++) {
-                int src = keyword_start + j;
-                if (src >= off && src < off + ew) {
-                    cputc_at(3 + src - off, screen_row,
-                             lines[line_num][src], COL_PURPLE);
-                }
-            }
-        }
+        if (color[i] && i >= off && i < off + ew)
+            cputc_at(3 + i - off, screen_row, lines[line_num][i], color[i]);
     }
 }
 

@@ -1,4 +1,5 @@
 #include "goto.h"
+#include "editor.h"
 #include "editor_state.h"
 #include "screen.h"
 
@@ -39,18 +40,37 @@ void goto_line(void) {
         line_num = line_num * 10 + (input[j] - '0');
     }
     
-    // Convert to 0-based index
+    /* Title bar is page * 48 + row, 1-based. A join drops total_lines
+       without sliding the later pages down, so the row has to exist on
+       that page. Past the end, Return would memmove a negative length. */
     line_num--;
-    
-    // Check if line exists
-    if (line_num < 0 || line_num >= num_lines) {
+    if (line_num < 0) {
         sprintf(msg, "LINE %d NOT FOUND", line_num + 1);
         show_message(msg, COL_RED);
         return;
     }
-    
-    // Jump to line
-    cursor_y = line_num;
+
+    {
+        int page = line_num / LINES_PER_PAGE;
+        int row = line_num % LINES_PER_PAGE;
+        int old_page = current_page;
+
+        if (page >= num_pages) {
+            sprintf(msg, "LINE %d NOT FOUND", line_num + 1);
+            show_message(msg, COL_RED);
+            return;
+        }
+        if (page != current_page)
+            load_page(page);
+        if (row >= num_lines) {
+            if (current_page != old_page)
+                load_page(old_page);
+            sprintf(msg, "LINE %d NOT FOUND", line_num + 1);
+            show_message(msg, COL_RED);
+            return;
+        }
+        cursor_y = row;
+    }
     cursor_x = 0;
     
     // Adjust scroll if needed

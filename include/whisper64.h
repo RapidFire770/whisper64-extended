@@ -36,6 +36,8 @@
 #define KEY_LEFT 157
 #define KEY_RIGHT 29
 #define KEY_STOP 3
+#define KEY_CTRL_B 2
+#define KEY_CTRL_N 14
 
 // Colors
 #define COL_WHITE 1

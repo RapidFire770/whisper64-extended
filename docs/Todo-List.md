@@ -14,12 +14,12 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 
 - [x] Highlighting of BASIC when in 80 Column mode
 - [x] Ability to load and export/save BASIC to .prg file instead of just .seq W64CONV, built and distributed next to the editor, reads a SEQ from the drive the user picks and writes a tokenized BASIC V2 PRG. It also reads a PRG and writes a SEQ the editor can load. The editor itself saves SEQ only.
-- [ ] Do not syntax highlight inside of a REM comment.
-- [ ] Full BASIC V2 keyword highlighting with different colors instead of all purple.
-- [ ] Brainstorm a way to expand Goto Line function to work across pages. Current pages are 47 lines long.
-- [ ] Keyboard shortcuts to move ahead to next page or back to the previous page.
-- [ ] In BASIC mode make sure the line cannot be longer than what the C64 supports for BASIC programming. If limit is hit warn the user.
-- [ ] Second help page. The user can navigate between page 1 and 2 with the arrow keys. Will tell the user the basic information about going and using the W64TOOLS program and any overflowing new keyboard shortcuts.
+- [x] Do not syntax highlight inside of a REM comment. A quote toggles string mode for the rest of the scan. A finished word REM colors that word and leaves the rest of the editor line alone. REMEMBER is not a comment. Checked in VICE: `10 PRINT "REM" : REM GOTO` colors PRINT and the real REM, and leaves the quoted REM and the GOTO white.
+- [x] Full BASIC V2 keyword highlighting with different colors instead of all purple. Statements are purple and functions are blue. One-character operators are not colored. `(` is not part of a word except `TAB(` and `SPC(`. The list is separate from the tokenizer in `src/conv/token.c`. Checked in VICE in both column modes: PRINT purple, SGN blue.
+- [x] Brainstorm a way to expand Goto Line function to work across pages. Current pages are 47 lines long. CTRL+G takes the title bar's file-wide row. A page is 48 lines, gutter `00`–`47`. Line 49 is gutter `00` on page 2. A number past the file shows `LINE n NOT FOUND` and stays put. Checked in VICE.
+- [x] Keyboard shortcuts to move ahead to next page or back to the previous page. CTRL+N is next page and CTRL+B is the previous page. Both land on row 0. Up from row 0 and Down from the last row still change pages too. Checked in VICE.
+- [x] In BASIC mode make sure the line cannot be longer than what the C64 supports for BASIC programming. If limit is hit warn the user. The 80th character is not stored. The status row says `BASIC LINE FULL`. The buffer stays 79 characters plus a NUL. That warning is not followed by a redraw, because a wrapped line's redraw clears the status row. Checked in VICE.
+- [x] Second help page. The user can navigate between page 1 and 2 with the arrow keys. Will tell the user the basic information about going and using the W64TOOLS program and any overflowing new keyboard shortcuts. Right shows page 2, Left shows page 1, Stop or Return leaves help and the title row is redrawn. The page 2 strings stay short so the link remains under `$CC00`. Checked in VICE.
 - [ ] Full file renumbering instead of just the page displayed. Allow user to input the renumber increment. The program is already close to its size limits so we can look at moving this feature into the W64CONV/W64TOOLS program.
 
 ---

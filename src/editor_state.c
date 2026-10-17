@@ -43,11 +43,26 @@ char disk_name[17];
 LineMapping line_mappings[MAX_LINES];
 int num_mappings = 0;
 
-// BASIC keywords for syntax highlighting
+/* Statements are purple. Functions are blue. One-character operators are omitted. */
 const char *basic_keywords[] = {
-    "PRINT", "FOR", "NEXT", "IF", "THEN", "GOTO", "GOSUB", "RETURN",
-    "REM", "LET", "DIM", "READ", "DATA", "INPUT", "GET", "POKE",
-    "PEEK", "SYS", "LOAD", "SAVE", "RUN", "LIST", "NEW", "CLR",
-    "AND", "OR", "NOT", "TO", "STEP", "END", "STOP", "RESTORE",
+    "END", "FOR", "NEXT", "DATA", "INPUT#", "INPUT", "DIM", "READ", "LET", "GOTO",
+    "RUN", "IF", "RESTORE", "GOSUB", "RETURN", "REM", "STOP", "ON", "WAIT", "LOAD",
+    "SAVE", "VERIFY", "DEF", "POKE", "PRINT#", "PRINT", "CONT", "LIST", "CLR", "CMD",
+    "SYS", "OPEN", "CLOSE", "GET", "NEW", "TO", "THEN", "NOT", "STEP", "AND",
+    "OR", "GO", "TAB(", "FN", "SPC(", "SGN", "INT", "ABS", "USR", "FRE",
+    "POS", "SQR", "RND", "LOG", "EXP", "COS", "SIN", "TAN", "ATN", "PEEK",
+    "LEN", "STR$", "VAL", "ASC", "CHR$", "LEFT$", "RIGHT$", "MID$",
     NULL
+};
+
+const unsigned char basic_colors[] = {
+    COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE,
+    COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE,
+    COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE,
+    COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE,
+    COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE, COL_PURPLE,
+    COL_PURPLE, COL_PURPLE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE,
+    COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE,
+    COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE,
+    COL_BLUE, COL_BLUE, COL_BLUE, COL_BLUE
 };

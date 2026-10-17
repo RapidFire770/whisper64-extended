@@ -2,8 +2,8 @@
 
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
-**Status:** Editing, paging, SEQ load/save, BASIC highlighting in 40- and 80-column mode, current-page renumber, and display wrap. Tokenized BASIC V2 SEQ/PRG conversion is `w64conv.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is `docs/Todo-List.md`.
-**Last Updated:** October 15, 2026
+**Status:** Editing, paging, SEQ load/save, two-color BASIC highlighting in 40- and 80-column mode, current-page renumber, display wrap, file-wide goto, and page keys. Tokenized BASIC V2 SEQ/PRG conversion is `w64conv.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is full-file renumber in W64TOOLS (`docs/Todo-List.md`).
+**Last Updated:** October 16, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
 
@@ -84,9 +84,9 @@ The current link (`build/whisper64.map`, regenerated on each build) is approxima
 |---|---|
 | `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
 | `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$AD2D`–`$C3B1` | BSS. `lines[]` is at `$B449`: 48 × 80 = 3840 bytes |
-| `$C3B1` | Heap start |
-| `$D000` | Software stack (`__stack`). Grows down. About 3.1KB between heap and stack on this link |
+| about `$B1F7`–`$C87B` | BSS. `lines[]` is at `$B911`: 48 × 80 = 3840 bytes |
+| `$C89B` | Heap start |
+| `$D000` | Software stack (`__stack`). Grows down. About 1.8KB between heap and stack on this link. Stop adding editor code if `__bss_end` passes `$CC00` |
 | `$0100`–`$01FF` | 6502 hardware stack, still in use |
 | `$0400`–`$07E7` | 40-column screen RAM |
 | `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
@@ -111,13 +111,17 @@ The cyan gutter (`00:`) is the row index inside the current page, two digits, no
 
 `new_line` can open the next page only when Return is pressed on the last row of a full page. Inserting in the middle of a full page shows `PAGE FULL`. Undo stores one line. The clipboard stores two lines.
 
+CTRL+N (PETSCII 14) loads the next page and CTRL+B (PETSCII 2) loads the previous page. Both put the cursor on row 0. Up from row 0 and Down from the last row still change pages too. CTRL+G asks for the title bar's file-wide row, 1-based. Page is `(n - 1) / 48` and the row is the remainder. The row has to be one of the lines stored on that page. A join drops `total_lines` and leaves the later pages at the same title numbers, so the check is that page's `num_lines`, not `total_lines`. A missing row shows `LINE n NOT FOUND` and does not keep the page change.
+
+In BASIC mode the 80th character is not stored and the status row says `BASIC LINE FULL`. Non-BASIC mode stays silent at the same cap. Do not raise `MAX_LINE_LENGTH`. A rejected character must not call `update_current_line`: a 79-character line is wrapped, and that redraw clears the status row.
+
 ## Screen modes
 
 `screen_mode` is `MODE_40COL` (0) or `MODE_80COL` (1). CTRL+D toggles it (`main.c`, key code 4) and updates `edit_width` / `screen_width`.
 
-40-column mode writes screen RAM `$0400` and color RAM `$D800` directly. `cputc_at`, `cputs_at`, and the cursor all pass the byte through `to_screen` first. `draw_text_line` scans the line, and when `basic_mode` is set it colors a completed word purple if `is_basic_keyword` matches. Marked text is yellow. The keyword table in `editor_state.c` is a short subset (PRINT, FOR, GOTO, ...). It is not the BASIC V2 token list. A second, different list lives inside `replace_line_number` in `basic.c`.
+40-column mode writes screen RAM `$0400` and color RAM `$D800` directly. `cputc_at`, `cputs_at`, and the cursor all pass the byte through `to_screen` first. `draw_text_line` scans the line when `basic_mode` is set. Statements are purple and functions are blue. A quote toggles string mode. A finished word `REM` colors that word and stops the scan for the rest of the editor line. `(` ends a word; only `TAB(` and `SPC(` keep the parenthesis. Marked text is yellow, and a keyword color outranks it. The names live in `editor_state.c`. They are the V2 statement and function names, not the token bytes, and not the separate list inside `replace_line_number` in `basic.c`. One-character operators are not in the list.
 
-80-column mode is VIC bank 3 (`$DD00` bits 0–1 = 0), bitmap at `$E000`, video matrix at `$D800` (`$D018 = $68`), hires bitmap enabled. The font is the 4x8 SCREEN-80 glyph set in `include/font_4x8.h` (96 glyphs, ASCII 32–127, pixels in the high nibble). Two glyphs share one 8x8 cell, so they share one foreground color. `draw_text_line` fills a 40-byte cell-color array and `render_line_80` stores `color << 4` in that cell. The background nybble stays 0 (black). Cell 0, the two gutter digits, is forced cyan. The colon sits in cell 1 with the first text character and takes that character's color. Keyword purple outranks mark yellow, which outranks white, so a keyword or a mark on either half colors both glyphs. The scan matches 40-column mode: `is_basic_keyword` against the short list in `editor_state.c`, quote-blind, and a finished keyword is painted purple even when that span is also marked. Typing goes through `draw_text_line`. `cputc_at_80` still paints a whole cell one color; the title and status strings use that.
+80-column mode is VIC bank 3 (`$DD00` bits 0–1 = 0), bitmap at `$E000`, video matrix at `$D800` (`$D018 = $68`), hires bitmap enabled. The font is the 4x8 SCREEN-80 glyph set in `include/font_4x8.h` (96 glyphs, ASCII 32–127, pixels in the high nibble). Two glyphs share one 8x8 cell, so they share one foreground color. `draw_text_line` fills a 40-byte cell-color array and `render_line_80` stores `color << 4` in that cell. The background nybble stays 0 (black). Cell 0, the two gutter digits, is forced cyan. The colon sits in cell 1 with the first text character and takes that character's color. Keyword purple outranks mark yellow, which outranks white, so a keyword or a mark on either half colors both glyphs. The scan matches 40-column mode. `is_basic_keyword` returns the color. Purple and blue both outrank mark yellow, which outranks white, and the later keyword wins on a shared cell. Typing goes through `draw_text_line`. `cputc_at_80` still paints a whole cell one color; the title and status strings use that.
 
 The cursor in 80-column mode XORs the glyph's nibble in the bitmap. In 40-column mode it sets reverse video on the screen code.
 
@@ -159,14 +163,14 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 - The gutter, the title-bar line, and the BASIC line number in the text are three different numbers.
 - `redraw_screen` blanks title row 0 across `screen_width` before painting the name, line:col, tags, page, and drive. `update_current_line` does not. It rewrites line:col in place as 9 columns. A shorter filename has to go through the full redraw or the tail of the previous name stays.
 - Do not split a line at `edit_width`. Display wrap is a screen row only. The gutter number stays on the first row of that editor line.
-- The editor highlight list is a short subset. The V2 token table lives only in `src/conv/token.c`. Do not merge them back into the editor.
+- The editor highlight list is the V2 statement and function names, purple and blue. The token table lives only in `src/conv/token.c`. Do not merge them. Do not treat `(` as a word character. `TAB(` and `SPC(` are the exception.
 - `tools/c64u.py` only understands the 40-column screen.
 - Do not divide or take a remainder by `edit_width`. The width is a runtime value, so `/` and `%` pull in `__udiv` / `__divmod` / `__mul`. A subtract loop is rewritten into that divide. Wrap uses two compares. A 79-character line is at most three screen rows. LTO stores `edit_width` and `screen_width` as a one-byte mode flag (0 = 40-column, 1 = 80-column). Readers turn that into 37/77 and 40/80. Do not poke 37 into `edit_width`.
 - Do not restore the mouse or joystick without checking that slack. The main loop does not read `$DC00` or `$DC01`.
 
 ## Todo-List feasibility
 
-80-column BASIC highlighting, display wrap, and the 40-column screen-code map are done. SEQ/PRG conversion is `w64conv`, not an editor feature. The mouse and the joystick pointer were removed for size. Open items are REM highlighting, full V2 colors, full-file renumber, and the BASIC line-length limit.
+80-column BASIC highlighting, display wrap, the 40-column screen-code map, quote/REM colors, the two-color V2 name list, file-wide goto, the page keys, the BASIC line-full warning, and the second help page are done. SEQ/PRG conversion is `w64conv`, not an editor feature. The mouse and the joystick pointer were removed for size. The open editor item is full-file renumber, and that belongs in W64TOOLS. The editor still renumbers the current page only.
 
 ### 80-column BASIC highlighting — done
 
@@ -194,4 +198,4 @@ A 1541 has one data channel. The converter reads the input to completion, holds 
 
 The token table in `src/conv/token.c` is V2 token order and is separate from the editor's highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host byte checks are `tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. Do not treat a VICE run as that test.
 
-Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current link, with display wrap, the 40-column screen map, and without the mouse, has `__bss_end` at `$C3B1` and `__stack` at `$D000`.
+Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current link has `__bss_end` at `$C87B`, `__heap_start` at `$C89B`, and `__stack` at `$D000`. Help page 2 is kept short on purpose. Do not lengthen those strings without checking the map.

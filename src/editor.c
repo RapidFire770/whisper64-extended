@@ -181,6 +181,8 @@ void insert_char(char c) {
         lines[cursor_y][cursor_x] = c;
         cursor_x++;
         page_modified = 1;
+    } else if (basic_mode) {
+        show_message("BASIC LINE FULL", COL_YELLOW);
     }
 }
 

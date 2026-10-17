@@ -19,6 +19,6 @@ void update_current_line(void);  // fast: redraws only current line + cursor
 void show_message(const char *msg, unsigned char col);
 
 // Helper
-int is_basic_keyword(const char *word);
+unsigned char is_basic_keyword(const char *word);
 
 #endif // SCREEN_H

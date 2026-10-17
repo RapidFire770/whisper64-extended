@@ -57,7 +57,8 @@ extern DirEntry dir_entries[MAX_DIR_ENTRIES];
 extern int num_dir_entries;
 extern char disk_name[17];
 
-// BASIC keywords
+// BASIC keywords. basic_colors[i] is the color of basic_keywords[i].
 extern const char *basic_keywords[];
+extern const unsigned char basic_colors[];
 
 #endif // EDITOR_STATE_H
