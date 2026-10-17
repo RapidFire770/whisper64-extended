@@ -33,6 +33,16 @@ int renumber_seq(unsigned char *text, unsigned int *used, unsigned int text_cap,
                  struct RenumEnt *map, int map_cap,
                  unsigned int step, int *err);
 
+struct LabelEnt {
+    char name[12];
+    unsigned int num;
+};
+
+int labels_to_numbered(unsigned char *text, unsigned int *used,
+                       unsigned int text_cap,
+                       struct LabelEnt *map, int map_cap,
+                       unsigned int step, int *err);
+
 /* Volatile so a whole-program link keeps the bytes the Ultimate test reads. */
 extern volatile unsigned char verify_buf[256];
 extern volatile unsigned long verify_len;

@@ -71,6 +71,50 @@ static void expect_err_str(const char *name, const char *in, unsigned int step,
                map, 32, step, want);
 }
 
+static void expect_labels(const char *name, const char *in, const char *want,
+                          unsigned int step) {
+    unsigned char buf[4096];
+    unsigned char tail[2048];
+    int cap = 2048 / (int)sizeof(struct LabelEnt);
+    unsigned int used = (unsigned int)strlen(in);
+    unsigned int want_len = (unsigned int)strlen(want);
+    int err = 99;
+    int rc;
+
+    memset(buf, 0xa5, sizeof buf);
+    memcpy(buf, in, used);
+    rc = labels_to_numbered(buf, &used, (unsigned int)sizeof buf,
+                            (struct LabelEnt *)tail, cap, step, &err);
+    if (rc != 0 || err != 0 || used != want_len || memcmp(buf, want, want_len) != 0) {
+        printf("FAIL %s rc=%d err=%d\n", name, rc, err);
+        show_bytes("got", buf, used);
+        show_bytes("want", (const unsigned char *)want, want_len);
+        failed = 1;
+    }
+}
+
+static void expect_label_err(const char *name, const char *in, int map_cap,
+                             unsigned int step, int want) {
+    unsigned char buf[4096];
+    unsigned char orig[4096];
+    struct LabelEnt map[8];
+    unsigned int used = (unsigned int)strlen(in);
+    unsigned int got_used = used;
+    int err = 99;
+    int rc;
+
+    memset(buf, 0xa5, sizeof buf);
+    memcpy(buf, in, used);
+    memcpy(orig, in, used);
+    rc = labels_to_numbered(buf, &got_used, 4096, map, map_cap, step, &err);
+    if (rc != want || err != want || got_used != used || memcmp(buf, orig, used) != 0) {
+        printf("FAIL %s rc=%d err=%d used=%u\n", name, rc, err, got_used);
+        show_bytes("got", buf, got_used);
+        show_bytes("orig", orig, used);
+        failed = 1;
+    }
+}
+
 int main(void) {
     unsigned char many[4096];
     struct RenumEnt big[512];
@@ -173,6 +217,39 @@ int main(void) {
     expect_err_str("old too big", "64000 END", 10, 2);
     expect_err_str("two at 63999", "1\r2", 63999, 2);
     expect_err_str("later old big", "10 END\r64000 END", 10, 2);
+
+    printf("sizeof LabelEnt %u\n", (unsigned)sizeof(struct LabelEnt));
+    expect_labels("menu", "menu: PRINT \"HI\"\rGOTO menu",
+                  "10 PRINT \"HI\"\r20 GOTO 10", 10);
+    expect_labels("start", "start:\rGOSUB start", "10\r20 GOSUB 10", 10);
+    expect_labels("keep num", "10 PRINT \"X\"\rloop: GOTO loop",
+                  "10 PRINT \"X\"\r20 GOTO 20", 10);
+    expect_label_err("missing", "GOTO missing", 8, 10, 6);
+    expect_label_err("dup", "menu: END\rmenu: END", 8, 10, 8);
+    expect_label_err("long", "ABCDEFGHIJKL: END", 8, 10, 7);
+    expect_label_err("map cap", "a:\rb:", 1, 10, 3);
+    expect_label_err("step 0", "a: END", 8, 0, 1);
+    expect_label_err("step big", "a:\rb:\rc:", 8, 30000, 2);
+    expect_labels("comma", "a: END\rGOTO a, a", "10 END\r20 GOTO 10, 10", 10);
+    expect_labels("then else", "a: END\rIF A THEN a ELSE a",
+                  "10 END\r20 IF A THEN 10 ELSE 10", 10);
+    expect_labels("quotes", "a: END\r10 PRINT \"GOTO a\"",
+                  "10 END\r10 PRINT \"GOTO a\"", 10);
+    expect_labels("quote then", "a: END\rPRINT \"a\":GOTO a",
+                  "10 END\r20 PRINT \"a\":GOTO 10", 10);
+    expect_labels("rem", "a: END\r10 REM GOTO a",
+                  "10 END\r10 REM GOTO a", 10);
+    expect_labels("no space", "menu:PRINT \"HI\"", "10 PRINT \"HI\"", 10);
+    expect_labels("two spaces", "menu:  PRINT \"HI\"", "10  PRINT \"HI\"", 10);
+    expect_labels("indent", "  menu: END", "10 END", 10);
+    expect_labels("digit goto", "10 GOTO 10\rloop: END", "10 GOTO 10\r20 END", 10);
+    expect_labels("low num", "5 END\rloop: END", "5 END\r10 END", 10);
+    expect_labels("high num", "30 END\rloop: END", "30 END\r40 END", 10);
+    expect_labels("blank", "a:\r\rGOTO a", "10\r\r20 GOTO 10", 10);
+    expect_labels("forgoto", "a: END\rFORGOTO a", "10 END\r20 FORGOTO a", 10);
+    expect_labels("remember", "a: END\r10 REMEMBER:GOTO a",
+                  "10 END\r10 REMEMBER:GOTO 10", 10);
+    expect_label_err("list missing", "GOTO a, missing", 8, 10, 6);
 
     if (failed)
         return 1;
