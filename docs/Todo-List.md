@@ -35,3 +35,12 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
   - [x] 4\. Show a list of files on the read disk and allow user to navigate up and down that list to select the file they want to load. `NO FILES` waits for a key and returns to the menu.
   - [x] 5\. Status screen for convervsion. After finished asks the user if they want to convert another file or exit the program. Exiting should clear the screen back to a C64 ready prompt. N or Stop returns through the SDK exit-return path. That return was not run on a machine.
 - [x] Support for BASIC files using labels instead of line numbers. In VScode with the VS64 plugin you can write basic with no line numbers but use a label e.g. "labelmenu:" and when compiled it will add line numbers to the file and change all label references in goto, gosub, etc. to the correct line numbers. Mode 4 numbers the labels at step 10 and writes a PRG. Host tests passed. The Ultimate disk round trip was not run.
+- [ ] If a program is to large to load into the remaining memory of the C64 can we use a connected REU like the main editor to allow the program to still load and allow conversion and renumbering to occur.
+- [ ] Show error messages in the color red.
+
+## Bugs on real C64U hardware with 16MB REU enabled and .d64 disk inserted called W64 
+- [ ] Label support is not working correctly. 
+    - If the label is on a line alone and a line of code bellow, it does is not numbered correctly, it gets corrupted, losing part of the code and getting a very large line number replacing the missing section of code.
+    - When a user is using labels they will not be writing line numbers on the lines with no label. Lines with no label should be getting auto line numbered but instead I get the no label error message. 
+    - It should also detect if a line is to long to add a line number and tell the user which lines these numbers are on. Renumber feature should probably do this as well if its not already.
+- [ ] A BASIC program written on my desktop with VS64 in Visual Studio Code with the code in the /home/josh/Documents/Programming/C64/dice-roll folder when turned back into code from the prg file says trunc 14 when converted back, I am guessing this might mean 14 lines were truncated for some reason, the help menu does not mention what the message means. If I turn that converted code back into a prg and run it the error says "?TYPE MISMATCH ERROR IN 3"

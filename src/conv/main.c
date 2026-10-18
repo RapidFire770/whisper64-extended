@@ -1072,18 +1072,19 @@ static void draw_menu(void) {
 static void show_help(void) {
     clrscr();
     put_row(0, "W64TOOLS HELP");
-    put_row(1, "1 SEQ>PRG  2 PRG>SEQ");
-    put_row(2, "3 RENUMBER 4 LABELS");
-    put_row(3, "NO NUM    LINE HAS NO NUMBER");
-    put_row(4, "NUM BIG   PAST 63999");
-    put_row(5, "LINE LONG PAST 79 CHARACTERS");
-    put_row(6, "TOO BIG   BUFFER IS FULL");
-    put_row(7, "OPEN FAIL DRIVE DID NOT OPEN");
-    put_row(8, "BAD NAME  EMPTY OR , : * ? @");
-    put_row(9, "NO LABEL  GOTO NAME MISSING");
-    put_row(10, "DUP LABEL SAME NAME TWICE");
-    put_row(11, "DISK      SEE THE DOS TEXT");
-    put_row(12, "STOP EXITS THIS PAGE");
+    put_row(2, "1 SEQ>PRG  2 PRG>SEQ");
+    put_row(3, "3 RENUMBER 4 LABELS");
+    put_row(5, "* ERRORS *");
+    put_row(6, "NO NUM:    LINE HAS NO NUMBER");
+    put_row(7, "NUM BIG:   PAST 63999");
+    put_row(8, "LINE LONG: PAST 79 CHARACTERS");
+    put_row(9, "TOO BIG:   BUFFER IS FULL");
+    put_row(10, "OPEN FAIL: DRIVE DID NOT OPEN");
+    put_row(11, "BAD NAME:  EMPTY OR , : * ? @");
+    put_row(12, "NO LABEL:  GOTO NAME MISSING");
+    put_row(13, "DUP LABEL: SAME NAME TWICE");
+    put_row(14, "DISK:      SEE THE DOS TEXT");
+    put_row(16, "STOP EXITS THIS PAGE");
     cgetc();
 }
 
@@ -1218,16 +1219,16 @@ int main(void) {
             put_row(12, "CANCELLED");
             stay();
         }
-        if (ask_drive(8, "READ DRIVE ", &read_drive) < 0)
+        if (ask_drive(8, "READ DRIVE (8-15): ", &read_drive) < 0)
             continue;
-        if (ask_drive(10, "WRITE DRIVE ", &write_drive) < 0)
+        if (ask_drive(10, "WRITE DRIVE (8-15): ", &write_drive) < 0)
             continue;
         if (pick_file(mode) < 0) {
             if (verify_code != 0 && !another())
                 return 0;
             continue;
         }
-        if (read_field(20, "OUT ", out_name, 17) < 0)
+        if (read_field(20, "OUTPUT FILENAME: ", out_name, 17) < 0)
             continue;
         if (out_name[0] == '\0')
             set_str(out_name, in_name);
@@ -1239,7 +1240,7 @@ int main(void) {
         }
         if (mode == 3) {
             char buf[8];
-            int n = read_field(21, "STEP ", buf, 8);
+            int n = read_field(21, "STEP: ", buf, 8);
 
             if (n < 0)
                 continue;
