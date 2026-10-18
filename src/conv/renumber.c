@@ -269,14 +269,17 @@ static int fit_line(unsigned char *text, unsigned int *used, unsigned int text_c
 
 int renumber_seq(unsigned char *text, unsigned int *used, unsigned int text_cap,
                  struct RenumEnt *map, int map_cap,
-                 unsigned int step, int *err) {
+                 unsigned int step, int *err, int *err_row) {
     unsigned int pos;
     unsigned int next;
     int nmap;
     int rc;
     int past;
     int map_i;
+    int pass;
+    int row;
 
+    *err_row = 0;
     rc = 0;
     if (step == 0 || step > 63999u) {
         rc = 1;
@@ -324,38 +327,64 @@ int renumber_seq(unsigned char *text, unsigned int *used, unsigned int text_cap,
             pos++;
     }
 
-    pos = 0;
-    map_i = 0;
-    while (pos < *used) {
-        unsigned int end = line_end(text, *used, pos);
-        unsigned int len = end - pos;
-        unsigned int old = 0;
-        unsigned int digits = 0;
-        unsigned int after = 0;
-        int has_cr = end < *used;
-        int new_len = 0;
-        int kind;
-        char line[80];
+    for (pass = 0; pass < 2; pass++) {
+        unsigned int sim = *used;
 
-        kind = line_num_at(text + pos, len, &old, &digits, &after);
-        if (kind < 0) {
-            rc = 2;
-            goto done;
+        pos = 0;
+        map_i = 0;
+        row = 0;
+        while (pos < *used) {
+            unsigned int end = line_end(text, *used, pos);
+            unsigned int len = end - pos;
+            unsigned int old = 0;
+            unsigned int digits = 0;
+            unsigned int after = 0;
+            int has_cr = end < *used;
+            int new_len = 0;
+            int kind;
+            char line[80];
+
+            row++;
+            kind = line_num_at(text + pos, len, &old, &digits, &after);
+            if (kind < 0) {
+                rc = 2;
+                goto done;
+            }
+            rc = build_line(text + pos, len, kind > 0,
+                            kind > 0 ? map[map_i].new_num : 0,
+                            digits, after, map, nmap, line, &new_len);
+            if (rc) {
+                if (rc == 4)
+                    *err_row = row;
+                goto done;
+            }
+            if (kind > 0)
+                map_i++;
+            if (pass == 0) {
+                if ((unsigned int)new_len > len) {
+                    unsigned int growth = (unsigned int)new_len - len;
+
+                    if (sim > text_cap || growth > text_cap - sim) {
+                        *err_row = row;
+                        rc = 4;
+                        goto done;
+                    }
+                    sim += growth;
+                } else if ((unsigned int)new_len < len)
+                    sim -= len - (unsigned int)new_len;
+                pos = has_cr ? end + 1 : end;
+                continue;
+            }
+            rc = fit_line(text, used, text_cap, pos, end, line, new_len);
+            if (rc) {
+                if (rc == 4)
+                    *err_row = row;
+                goto done;
+            }
+            pos += (unsigned int)new_len;
+            if (has_cr)
+                pos++;
         }
-        rc = build_line(text + pos, len, kind > 0,
-                        kind > 0 ? map[map_i].new_num : 0,
-                        digits, after, map, nmap, line, &new_len);
-        if (rc)
-            goto done;
-        if (kind > 0)
-            map_i++;
-
-        rc = fit_line(text, used, text_cap, pos, end, line, new_len);
-        if (rc)
-            goto done;
-        pos += (unsigned int)new_len;
-        if (has_cr)
-            pos++;
     }
     rc = 0;
 
@@ -491,6 +520,64 @@ static int emit_names(const unsigned char *s, unsigned int len, unsigned int *ip
     }
 }
 
+/* THEN/ELSE: a keyword is a statement. A mapped name is a jump.
+   GOTO and GOSUB keep their targets. Anything else stays text. */
+static int emit_then(const unsigned char *s, unsigned int len, unsigned int *ip,
+                     char *line, int *n, struct LabelEnt *map, int nmap) {
+    unsigned int at = *ip;
+    unsigned int i;
+    unsigned int nlen = 0;
+    char tmp[12];
+    int kn;
+    int idx;
+
+    while (*ip < len && s[*ip] == ' ')
+        (*ip)++;
+    if (*ip >= len || !is_letter(s[*ip])) {
+        *ip = at;
+        return 0;
+    }
+    kn = word_at(s, len, *ip, "GOTO");
+    if (!kn)
+        kn = word_at(s, len, *ip, "GOSUB");
+    if (kn) {
+        if (put_span(line, n, s + at, *ip - at + (unsigned int)kn))
+            return 4;
+        *ip += (unsigned int)kn;
+        return emit_names(s, len, ip, line, n, map, nmap, 1);
+    }
+    kn = conv_keyword_len(s, len, *ip);
+    if (kn) {
+        if (put_span(line, n, s + at, *ip - at + (unsigned int)kn))
+            return 4;
+        *ip += (unsigned int)kn;
+        return 0;
+    }
+    i = *ip;
+    while (i < len && name_char(s[i])) {
+        if (nlen < 11)
+            tmp[nlen] = (char)s[i];
+        nlen++;
+        i++;
+    }
+    if (nlen == 0 || nlen > 11) {
+        *ip = at;
+        return 0;
+    }
+    tmp[nlen] = '\0';
+    idx = find_label(map, nmap, tmp);
+    if (idx < 0) {
+        *ip = at;
+        return 0;
+    }
+    if (put_span(line, n, s + at, *ip - at))
+        return 4;
+    if (put_num(line, n, map[idx].num))
+        return 4;
+    *ip = i;
+    return 0;
+}
+
 static int write_refs(const unsigned char *s, unsigned int from, unsigned int len,
                       char *line, int *n, struct LabelEnt *map, int nmap) {
     static const char *kws[] = { "GOSUB", "GOTO", "THEN", "ELSE", NULL };
@@ -529,7 +616,10 @@ static int write_refs(const unsigned char *s, unsigned int from, unsigned int le
             if (put_span(line, n, s + i, (unsigned int)kn))
                 return 4;
             i += (unsigned int)kn;
-            rc = emit_names(s, len, &i, line, n, map, nmap, kws[k][0] == 'G');
+            if (kws[k][0] == 'G')
+                rc = emit_names(s, len, &i, line, n, map, nmap, 1);
+            else
+                rc = emit_then(s, len, &i, line, n, map, nmap);
             if (rc)
                 return rc;
             break;
@@ -581,16 +671,156 @@ static int build_label_line(const unsigned char *s, unsigned int len, int mode,
     return 0;
 }
 
+static int flush_hold(struct LabelEnt *map, int nmap, int *hold,
+                      unsigned int *counter, int *past, unsigned int step) {
+    while (*hold) {
+        unsigned int assigned = 0;
+        int rc = take_number(0, 0, counter, past, step, &assigned);
+
+        if (rc)
+            return rc;
+        map[nmap - *hold].num = assigned;
+        (*hold)--;
+    }
+    return 0;
+}
+
+/* 1 when a later code line should wear this label's number. */
+static int next_is_code(const unsigned char *text, unsigned int used,
+                        unsigned int pos) {
+    while (pos < used) {
+        unsigned int end = line_end(text, used, pos);
+        unsigned int len = end - pos;
+        unsigned int start = 0;
+        unsigned int nlen = 0;
+        unsigned int stmt = 0;
+        int lab;
+
+        if (len == 0)
+            return 0;
+        lab = take_label(text + pos, len, &start, &nlen, &stmt);
+        if (lab == 1 && stmt == len) {
+            pos = end < used ? end + 1 : end;
+            continue;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static void drop_span(unsigned char *text, unsigned int *used,
+                      unsigned int pos, unsigned int end) {
+    unsigned int cut = end;
+
+    if (cut < *used)
+        cut++;
+    if (*used > cut)
+        memmove(text + pos, text + cut, *used - cut);
+    *used -= cut - pos;
+}
+
+static int label_emit(unsigned char *text, unsigned int *used,
+                      unsigned int text_cap, struct LabelEnt *map, int nmap,
+                      unsigned int step, int apply, int *err_row) {
+    unsigned int pos = 0;
+    unsigned int counter = step;
+    unsigned int sim = *used;
+    int past = 0;
+    int row = 0;
+
+    while (pos < *used) {
+        unsigned int end = line_end(text, *used, pos);
+        unsigned int len = end - pos;
+        unsigned int old = 0;
+        unsigned int digits = 0;
+        unsigned int after = 0;
+        unsigned int start = 0;
+        unsigned int nlen = 0;
+        unsigned int stmt = 0;
+        unsigned int assigned = 0;
+        int has_cr = end < *used;
+        int new_len = 0;
+        int kind;
+        int lab = 0;
+        int mode;
+        int rc;
+        char line[80];
+
+        row++;
+        if (len == 0) {
+            pos = has_cr ? end + 1 : end;
+            continue;
+        }
+        kind = line_num_at(text + pos, len, &old, &digits, &after);
+        if (kind < 0)
+            return 2;
+        if (kind == 0)
+            lab = take_label(text + pos, len, &start, &nlen, &stmt);
+        if (lab == 1 && stmt == len &&
+            next_is_code(text, *used, has_cr ? end + 1 : end)) {
+            if (apply)
+                drop_span(text, used, pos, end);
+            else {
+                sim -= len + (has_cr ? 1u : 0u);
+                pos = has_cr ? end + 1 : end;
+            }
+            continue;
+        }
+        rc = take_number(kind > 0, old, &counter, &past, step, &assigned);
+        if (rc)
+            return rc;
+        if (kind > 0)
+            mode = 1;
+        else if (lab == 1)
+            mode = 2;
+        else
+            mode = 0;
+        rc = build_label_line(text + pos, len, mode, assigned, after, stmt,
+                              map, nmap, line, &new_len);
+        if (rc) {
+            if (rc == 4 || rc == 6)
+                *err_row = row;
+            return rc;
+        }
+        if (!apply) {
+            if ((unsigned int)new_len > len) {
+                unsigned int growth = (unsigned int)new_len - len;
+
+                if (sim > text_cap || growth > text_cap - sim) {
+                    *err_row = row;
+                    return 4;
+                }
+                sim += growth;
+            } else if ((unsigned int)new_len < len)
+                sim -= len - (unsigned int)new_len;
+            pos = has_cr ? end + 1 : end;
+            continue;
+        }
+        rc = fit_line(text, used, text_cap, pos, end, line, new_len);
+        if (rc) {
+            if (rc == 4)
+                *err_row = row;
+            return rc;
+        }
+        pos += (unsigned int)new_len;
+        if (has_cr)
+            pos++;
+    }
+    return 0;
+}
+
 int labels_to_numbered(unsigned char *text, unsigned int *used,
                        unsigned int text_cap,
                        struct LabelEnt *map, int map_cap,
-                       unsigned int step, int *err) {
+                       unsigned int step, int *err, int *err_row) {
     unsigned int pos;
     unsigned int counter;
     int past;
     int nmap;
+    int hold;
     int rc;
 
+    *err_row = 0;
     rc = 0;
     if (step == 0 || step > 63999u) {
         rc = 1;
@@ -600,6 +830,7 @@ int labels_to_numbered(unsigned char *text, unsigned int *used,
         goto done;
 
     nmap = 0;
+    hold = 0;
     counter = step;
     past = 0;
     pos = 0;
@@ -617,6 +848,9 @@ int labels_to_numbered(unsigned char *text, unsigned int *used,
         int lab = 0;
 
         if (len == 0) {
+            rc = flush_hold(map, nmap, &hold, &counter, &past, step);
+            if (rc)
+                goto done;
             pos = end < *used ? end + 1 : end;
             continue;
         }
@@ -645,11 +879,24 @@ int labels_to_numbered(unsigned char *text, unsigned int *used,
                     goto done;
                 }
                 memcpy(map[nmap].name, tmp, (unsigned int)nlen + 1);
+                if (stmt == len) {
+                    nmap++;
+                    hold++;
+                    pos = end < *used ? end + 1 : end;
+                    continue;
+                }
             }
         }
         rc = take_number(kind > 0, old, &counter, &past, step, &assigned);
         if (rc)
             goto done;
+        if (hold) {
+            int i;
+
+            for (i = nmap - hold; i < nmap; i++)
+                map[i].num = assigned;
+            hold = 0;
+        }
         if (lab == 1) {
             map[nmap].num = assigned;
             nmap++;
@@ -658,55 +905,14 @@ int labels_to_numbered(unsigned char *text, unsigned int *used,
         if (pos < *used)
             pos++;
     }
+    rc = flush_hold(map, nmap, &hold, &counter, &past, step);
+    if (rc)
+        goto done;
 
-    counter = step;
-    past = 0;
-    pos = 0;
-    while (pos < *used) {
-        unsigned int end = line_end(text, *used, pos);
-        unsigned int len = end - pos;
-        unsigned int old = 0;
-        unsigned int digits = 0;
-        unsigned int after = 0;
-        unsigned int start = 0;
-        unsigned int nlen = 0;
-        unsigned int stmt = 0;
-        unsigned int assigned = 0;
-        int has_cr = end < *used;
-        int new_len = 0;
-        int kind;
-        int lab = 0;
-        int mode;
-        char line[80];
-
-        if (len == 0) {
-            pos = has_cr ? end + 1 : end;
-            continue;
-        }
-        kind = line_num_at(text + pos, len, &old, &digits, &after);
-        if (kind == 0)
-            lab = take_label(text + pos, len, &start, &nlen, &stmt);
-        rc = take_number(kind > 0, old, &counter, &past, step, &assigned);
-        if (rc)
-            goto done;
-        if (kind > 0)
-            mode = 1;
-        else if (lab == 1)
-            mode = 2;
-        else
-            mode = 0;
-        rc = build_label_line(text + pos, len, mode, assigned, after, stmt,
-                              map, nmap, line, &new_len);
-        if (rc)
-            goto done;
-        rc = fit_line(text, used, text_cap, pos, end, line, new_len);
-        if (rc)
-            goto done;
-        pos += (unsigned int)new_len;
-        if (has_cr)
-            pos++;
-    }
-    rc = 0;
+    rc = label_emit(text, used, text_cap, map, nmap, step, 0, err_row);
+    if (rc)
+        goto done;
+    rc = label_emit(text, used, text_cap, map, nmap, step, 1, err_row);
 
 done:
     if (err)

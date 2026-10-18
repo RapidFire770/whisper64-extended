@@ -19,6 +19,10 @@
 int conv_tokenize(const char *line, unsigned int *line_no,
                   unsigned char *out, int cap);
 
+/* Length of a V2 keyword at s[i], or 0. A following letter rejects a
+   keyword that ends in a letter or digit. TAB( and SPC( keep the paren. */
+int conv_keyword_len(const unsigned char *s, unsigned int len, unsigned int i);
+
 /* Writes the editor text for one statement, capped at cap-1 characters.
    *truncated is set when a byte did not fit. Returns the length. */
 int conv_format_line(unsigned int line_no, const unsigned char *stmt, int slen,
@@ -31,7 +35,7 @@ struct RenumEnt {
 
 int renumber_seq(unsigned char *text, unsigned int *used, unsigned int text_cap,
                  struct RenumEnt *map, int map_cap,
-                 unsigned int step, int *err);
+                 unsigned int step, int *err, int *err_row);
 
 struct LabelEnt {
     char name[12];
@@ -41,7 +45,7 @@ struct LabelEnt {
 int labels_to_numbered(unsigned char *text, unsigned int *used,
                        unsigned int text_cap,
                        struct LabelEnt *map, int map_cap,
-                       unsigned int step, int *err);
+                       unsigned int step, int *err, int *err_row);
 
 /* Volatile so a whole-program link keeps the bytes the Ultimate test reads. */
 extern volatile unsigned char verify_buf[256];

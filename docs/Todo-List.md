@@ -39,8 +39,9 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [ ] Show error messages in the color red.
 
 ## Bugs on real C64U hardware with 16MB REU enabled and .d64 disk inserted called W64 
-- [ ] Label support is not working correctly. 
+- [x] Label support is not working correctly. 
     - If the label is on a line alone and a line of code bellow, it does is not numbered correctly, it gets corrupted, losing part of the code and getting a very large line number replacing the missing section of code.
     - When a user is using labels they will not be writing line numbers on the lines with no label. Lines with no label should be getting auto line numbered but instead I get the no label error message. 
     - It should also detect if a line is to long to add a line number and tell the user which lines these numbers are on. Renumber feature should probably do this as well if its not already.
+    - Host tests cover a lone label sharing the next code line (`start:` / `PRINT "HI"` / `GOTO start` becomes `10 PRINT "HI"` / `20 GOTO 10`) and `THEN PRINT` staying a statement. `LINE LONG` and `NO LABEL` include the source row. Not run on the Ultimate.
 - [ ] A BASIC program written on my desktop with VS64 in Visual Studio Code with the code in the /home/josh/Documents/Programming/C64/dice-roll folder when turned back into code from the prg file says trunc 14 when converted back, I am guessing this might mean 14 lines were truncated for some reason, the help menu does not mention what the message means. If I turn that converted code back into a prg and run it the error says "?TYPE MISMATCH ERROR IN 3"

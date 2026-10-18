@@ -29,12 +29,14 @@ static void expect_text(const char *name, const char *in, const char *want,
     unsigned int used = (unsigned int)strlen(in);
     unsigned int want_len = (unsigned int)strlen(want);
     int err = 99;
+    int row = 77;
     int rc;
 
     memset(buf, 0xa5, sizeof buf);
     memcpy(buf, in, used);
-    rc = renumber_seq(buf, &used, (unsigned int)sizeof buf, map, 32, step, &err);
-    if (rc != 0 || err != 0 || used != want_len || memcmp(buf, want, want_len) != 0) {
+    rc = renumber_seq(buf, &used, (unsigned int)sizeof buf, map, 32, step, &err, &row);
+    if (rc != 0 || err != 0 || row != 0 || used != want_len ||
+        memcmp(buf, want, want_len) != 0) {
         printf("FAIL %s rc=%d err=%d\n", name, rc, err);
         show_bytes("got", buf, used);
         show_bytes("want", (const unsigned char *)want, want_len);
@@ -42,25 +44,33 @@ static void expect_text(const char *name, const char *in, const char *want,
     }
 }
 
-static void expect_err(const char *name, const unsigned char *in, unsigned int used,
-                       unsigned int cap, struct RenumEnt *map, int map_cap,
-                       unsigned int step, int want) {
+static void expect_err_at(const char *name, const unsigned char *in, unsigned int used,
+                          unsigned int cap, struct RenumEnt *map, int map_cap,
+                          unsigned int step, int want, int want_row) {
     unsigned char buf[4096];
     unsigned char orig[4096];
     unsigned int got_used = used;
     int err = 99;
+    int row = 77;
     int rc;
 
     memset(buf, 0xa5, sizeof buf);
     memcpy(buf, in, used);
     memcpy(orig, in, used);
-    rc = renumber_seq(buf, &got_used, cap, map, map_cap, step, &err);
-    if (rc != want || err != want || got_used != used || memcmp(buf, orig, used) != 0) {
-        printf("FAIL %s rc=%d err=%d used=%u\n", name, rc, err, got_used);
+    rc = renumber_seq(buf, &got_used, cap, map, map_cap, step, &err, &row);
+    if (rc != want || err != want || row != want_row || got_used != used ||
+        memcmp(buf, orig, used) != 0) {
+        printf("FAIL %s rc=%d err=%d row=%d used=%u\n", name, rc, err, row, got_used);
         show_bytes("got", buf, got_used);
         show_bytes("orig", orig, used);
         failed = 1;
     }
+}
+
+static void expect_err(const char *name, const unsigned char *in, unsigned int used,
+                       unsigned int cap, struct RenumEnt *map, int map_cap,
+                       unsigned int step, int want) {
+    expect_err_at(name, in, used, cap, map, map_cap, step, want, 0);
 }
 
 static void expect_err_str(const char *name, const char *in, unsigned int step,
@@ -79,13 +89,15 @@ static void expect_labels(const char *name, const char *in, const char *want,
     unsigned int used = (unsigned int)strlen(in);
     unsigned int want_len = (unsigned int)strlen(want);
     int err = 99;
+    int row = 77;
     int rc;
 
     memset(buf, 0xa5, sizeof buf);
     memcpy(buf, in, used);
     rc = labels_to_numbered(buf, &used, (unsigned int)sizeof buf,
-                            (struct LabelEnt *)tail, cap, step, &err);
-    if (rc != 0 || err != 0 || used != want_len || memcmp(buf, want, want_len) != 0) {
+                            (struct LabelEnt *)tail, cap, step, &err, &row);
+    if (rc != 0 || err != 0 || row != 0 || used != want_len ||
+        memcmp(buf, want, want_len) != 0) {
         printf("FAIL %s rc=%d err=%d\n", name, rc, err);
         show_bytes("got", buf, used);
         show_bytes("want", (const unsigned char *)want, want_len);
@@ -94,21 +106,23 @@ static void expect_labels(const char *name, const char *in, const char *want,
 }
 
 static void expect_label_err(const char *name, const char *in, int map_cap,
-                             unsigned int step, int want) {
+                             unsigned int step, int want, int want_row) {
     unsigned char buf[4096];
     unsigned char orig[4096];
     struct LabelEnt map[8];
     unsigned int used = (unsigned int)strlen(in);
     unsigned int got_used = used;
     int err = 99;
+    int row = 77;
     int rc;
 
     memset(buf, 0xa5, sizeof buf);
     memcpy(buf, in, used);
     memcpy(orig, in, used);
-    rc = labels_to_numbered(buf, &got_used, 4096, map, map_cap, step, &err);
-    if (rc != want || err != want || got_used != used || memcmp(buf, orig, used) != 0) {
-        printf("FAIL %s rc=%d err=%d used=%u\n", name, rc, err, got_used);
+    rc = labels_to_numbered(buf, &got_used, 4096, map, map_cap, step, &err, &row);
+    if (rc != want || err != want || row != want_row || got_used != used ||
+        memcmp(buf, orig, used) != 0) {
+        printf("FAIL %s rc=%d err=%d row=%d used=%u\n", name, rc, err, row, got_used);
         show_bytes("got", buf, got_used);
         show_bytes("orig", orig, used);
         failed = 1;
@@ -157,7 +171,8 @@ int main(void) {
     used = 0;
     {
         int err = 99;
-        int rc = renumber_seq(many, &used, 4096, map, 32, 10, &err);
+        int row = 77;
+        int rc = renumber_seq(many, &used, 4096, map, 32, 10, &err, &row);
         if (rc != 0 || err != 0 || used != 0) {
             printf("FAIL empty rc=%d err=%d used=%u\n", rc, err, used);
             failed = 1;
@@ -169,7 +184,7 @@ int main(void) {
     long_line[len++] = ' ';
     while (len < 79)
         long_line[len++] = 'X';
-    expect_err("line 79 grows", long_line, len, 4096, map, 32, 10, 4);
+    expect_err_at("line 79 grows", long_line, len, 4096, map, 32, 10, 4, 1);
 
     len = 0;
     while (len < 79)
@@ -180,16 +195,17 @@ int main(void) {
     len = 0;
     while (len < 80)
         long_line[len++] = 'Y';
-    expect_err("line 80", long_line, 80, 4096, map, 32, 10, 4);
-    expect_err("cap", (const unsigned char *)"5 END", 5, 5, map, 32, 10, 4);
+    expect_err_at("line 80", long_line, 80, 4096, map, 32, 10, 4, 1);
+    expect_err_at("cap", (const unsigned char *)"5 END", 5, 5, map, 32, 10, 4, 1);
     {
         unsigned char exact[6];
         unsigned int n = 5;
         int err = 99;
+        int row = 77;
         int rc;
 
         memcpy(exact, "5 END", 5);
-        rc = renumber_seq(exact, &n, 6, map, 32, 10, &err);
+        rc = renumber_seq(exact, &n, 6, map, 32, 10, &err, &row);
         if (rc != 0 || err != 0 || n != 6 || memcmp(exact, "10 END", 6) != 0) {
             printf("FAIL exact cap rc=%d err=%d used=%u\n", rc, err, n);
             failed = 1;
@@ -221,15 +237,15 @@ int main(void) {
     printf("sizeof LabelEnt %u\n", (unsigned)sizeof(struct LabelEnt));
     expect_labels("menu", "menu: PRINT \"HI\"\rGOTO menu",
                   "10 PRINT \"HI\"\r20 GOTO 10", 10);
-    expect_labels("start", "start:\rGOSUB start", "10\r20 GOSUB 10", 10);
+    expect_labels("start", "start:\rGOSUB start", "10 GOSUB 10", 10);
     expect_labels("keep num", "10 PRINT \"X\"\rloop: GOTO loop",
                   "10 PRINT \"X\"\r20 GOTO 20", 10);
-    expect_label_err("missing", "GOTO missing", 8, 10, 6);
-    expect_label_err("dup", "menu: END\rmenu: END", 8, 10, 8);
-    expect_label_err("long", "ABCDEFGHIJKL: END", 8, 10, 7);
-    expect_label_err("map cap", "a:\rb:", 1, 10, 3);
-    expect_label_err("step 0", "a: END", 8, 0, 1);
-    expect_label_err("step big", "a:\rb:\rc:", 8, 30000, 2);
+    expect_label_err("missing", "GOTO missing", 8, 10, 6, 1);
+    expect_label_err("dup", "menu: END\rmenu: END", 8, 10, 8, 0);
+    expect_label_err("long", "ABCDEFGHIJKL: END", 8, 10, 7, 0);
+    expect_label_err("map cap", "a:\rb:", 1, 10, 3, 0);
+    expect_label_err("step 0", "a: END", 8, 0, 1, 0);
+    expect_label_err("step big", "a:\rb:\rc:", 8, 30000, 2, 0);
     expect_labels("comma", "a: END\rGOTO a, a", "10 END\r20 GOTO 10, 10", 10);
     expect_labels("then else", "a: END\rIF A THEN a ELSE a",
                   "10 END\r20 IF A THEN 10 ELSE 10", 10);
@@ -249,10 +265,45 @@ int main(void) {
     expect_labels("forgoto", "a: END\rFORGOTO a", "10 END\r20 FORGOTO a", 10);
     expect_labels("remember", "a: END\r10 REMEMBER:GOTO a",
                   "10 END\r10 REMEMBER:GOTO 10", 10);
-    expect_label_err("list missing", "GOTO a, missing", 8, 10, 6);
+    expect_label_err("list missing", "GOTO a, missing", 8, 10, 6, 1);
+    expect_labels("under", "start:\rPRINT \"HI\"\rGOTO start",
+                  "10 PRINT \"HI\"\r20 GOTO 10", 10);
+    expect_labels("stack", "a:\rb:\rPRINT \"Z\"", "10 PRINT \"Z\"", 10);
+    expect_labels("then print", "a:\rIF X THEN PRINT \"NO\"",
+                  "10 IF X THEN PRINT \"NO\"", 10);
+    expect_labels("then let", "a:\rIF X THEN A=1", "10 IF X THEN A=1", 10);
+    expect_labels("then goto", "a:\rIF X THEN GOTO a",
+                  "10 IF X THEN GOTO 10", 10);
+    expect_labels("then else stmt", "a: END\rIF X THEN a ELSE a",
+                  "10 END\r20 IF X THEN 10 ELSE 10", 10);
+    expect_labels("kept", "start:\r5 PRINT \"X\"", "5 PRINT \"X\"", 10);
+    expect_labels("kw label", "PRINT: END\rGOTO PRINT\rIF X THEN PRINT \"Z\"",
+                  "10 END\r20 GOTO 10\r30 IF X THEN PRINT \"Z\"", 10);
+    {
+        char long_stmt[96];
+        unsigned int n = 0;
+
+        long_stmt[n++] = 'A';
+        long_stmt[n++] = '\r';
+        while (n < 79)
+            long_stmt[n++] = 'B';
+        long_stmt[n] = '\0';
+        expect_label_err("long stmt", long_stmt, 8, 10, 4, 2);
+    }
+    {
+        unsigned char raw[128];
+        struct RenumEnt later[8];
+        unsigned int n = 6;
+
+        memcpy(raw, "1 END\r", 6);
+        raw[n++] = '5';
+        raw[n++] = ' ';
+        while (n < 6 + 79)
+            raw[n++] = 'X';
+        expect_err_at("later long", raw, n, 4096, later, 8, 10, 4, 2);
+    }
 
     if (failed)
         return 1;
-    printf("ok\n");
     return 0;
 }

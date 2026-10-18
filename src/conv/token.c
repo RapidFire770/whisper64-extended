@@ -29,6 +29,39 @@ static int keyword_at(const unsigned char *s, const char *kw) {
     return n;
 }
 
+int conv_keyword_len(const unsigned char *s, unsigned int len, unsigned int i) {
+    int k;
+
+    if (i >= len)
+        return 0;
+    for (k = 0; keywords[k] != NULL; k++) {
+        const char *kw = keywords[k];
+        unsigned int n = 0;
+        unsigned int p = i;
+        unsigned char last = 0;
+
+        while (kw[n]) {
+            if (p >= len || s[p] != (unsigned char)kw[n])
+                break;
+            last = (unsigned char)kw[n];
+            p++;
+            n++;
+        }
+        if (kw[n])
+            continue;
+        if ((last >= 'A' && last <= 'Z') || (last >= '0' && last <= '9')) {
+            if (p < len) {
+                unsigned char c = s[p];
+
+                if (c >= 'A' && c <= 'Z')
+                    continue;
+            }
+        }
+        return (int)n;
+    }
+    return 0;
+}
+
 int conv_tokenize(const char *line, unsigned int *line_no,
                   unsigned char *out, int cap) {
     const unsigned char *s;

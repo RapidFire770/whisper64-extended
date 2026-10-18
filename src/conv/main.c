@@ -730,16 +730,28 @@ static void prg_to_seq(void) {
 #define DIR_BYTES 18
 #define DIR_MAX 144
 
-static void show_tool_err(int rc) {
+static void show_tool_err(int rc, int row) {
+    char msg[20];
+
     if (rc == 1 || rc == 2)
         finish(CONV_NUM_BIG, "NUM BIG");
     else if (rc == 3)
         finish(CONV_TOO_BIG, "TOO BIG");
-    else if (rc == 4)
-        finish(CONV_LINE_LONG, "LINE LONG");
-    else if (rc == 6)
-        finish(CONV_BAD_BASIC, "NO LABEL");
-    else if (rc == 7)
+    else if (rc == 4) {
+        if (row) {
+            set_str(msg, "LINE LONG ");
+            add_dec(msg, (unsigned int)row);
+            finish(CONV_LINE_LONG, msg);
+        } else
+            finish(CONV_LINE_LONG, "LINE LONG");
+    } else if (rc == 6) {
+        if (row) {
+            set_str(msg, "NO LABEL ");
+            add_dec(msg, (unsigned int)row);
+            finish(CONV_BAD_BASIC, msg);
+        } else
+            finish(CONV_BAD_BASIC, "NO LABEL");
+    } else if (rc == 7)
         finish(CONV_BAD_NAME, "BAD NAME");
     else if (rc == 8)
         finish(CONV_BAD_BASIC, "DUP LABEL");
@@ -796,6 +808,7 @@ static void renumber_job(unsigned int step) {
     char probe[28];
     int replace;
     int err = 0;
+    int row = 0;
     struct RenumEnt *map = (struct RenumEnt *)(out_bytes + TEXT_CAP);
     int cap = 2048 / (int)sizeof(struct RenumEnt);
 
@@ -805,8 +818,8 @@ static void renumber_job(unsigned int step) {
         return;
     if (read_text(TEXT_CAP) < 0)
         return;
-    if (renumber_seq(out_bytes, &out_used, TEXT_CAP, map, cap, step, &err)) {
-        show_tool_err(err);
+    if (renumber_seq(out_bytes, &out_used, TEXT_CAP, map, cap, step, &err, &row)) {
+        show_tool_err(err, row);
         return;
     }
     if (write_named("S,W", replace) < 0)
@@ -910,6 +923,7 @@ static void label_job(void) {
     char probe[28];
     int replace;
     int err = 0;
+    int row = 0;
     int wrote;
     unsigned int text_len;
     struct LabelEnt *map = (struct LabelEnt *)(out_bytes + TEXT_CAP);
@@ -921,8 +935,8 @@ static void label_job(void) {
         return;
     if (read_text(TEXT_CAP) < 0)
         return;
-    if (labels_to_numbered(out_bytes, &out_used, TEXT_CAP, map, cap, 10, &err)) {
-        show_tool_err(err);
+    if (labels_to_numbered(out_bytes, &out_used, TEXT_CAP, map, cap, 10, &err, &row)) {
+        show_tool_err(err, row);
         return;
     }
     text_len = out_used;
