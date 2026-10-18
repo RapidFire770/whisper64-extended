@@ -3,7 +3,7 @@
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
 **Status:** Editing, paging, SEQ load/save, two-color BASIC highlighting in 40- and 80-column mode, display wrap, file-wide goto, and page keys. F4 only toggles BASIC color. Full-file renumber and labels are `w64tools.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is `docs/Todo-List.md`.
-**Last Updated:** October 16, 2026
+**Last Updated:** October 18, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
 
@@ -30,6 +30,8 @@ LLVM-MOS SDK on this machine:
 ```
 
 That path is also in `docs/llvm-mos-sdk location.md`, which is gitignored. The README's `~/llvm-mos` prefix is the upstream example, not this machine.
+
+Cloud Agents install LLVM-MOS SDK v23.3.0 at `/opt/llvm-mos`. `mos-c64-clang` and `llvm-ar` are linked in `/usr/local/bin`. The SDK's `clang` is not on `PATH`, so it does not replace `/usr/bin/clang`. `cmake -S . -B build` finds `llvm-mos-sdk` without `CMAKE_PREFIX_PATH`. `x64sc` and `c1541` come from the `vice` package. Ubuntu does not ship Commodore ROMs. The image uses MEGA65 Open ROMs (LGPL-3.0, commit `5192c683a098204e835b8c5529ecd24c808eba92`) as `/usr/share/vice/C64/kernal-901227-03.bin`, `basic-901226-01.bin`, and `chargen-901225-01.bin`. Those files are not Commodore's ROMs. Drive ROMs are not installed, so hardware-level 1541 emulation is unavailable. `./run_vice.sh` still injects `whisper64.prg`.
 
 ```bash
 cd build
