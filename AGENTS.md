@@ -32,6 +32,8 @@ LLVM-MOS SDK on this machine:
 
 That path is also in `docs/llvm-mos-sdk location.md`, which is gitignored. The README's `~/llvm-mos` prefix is the upstream example, not this machine.
 
+Cloud Agents install LLVM-MOS SDK v23.3.0 at `/opt/llvm-mos`. `mos-c64-clang` and `llvm-ar` are linked in `/usr/local/bin`. The SDK's `clang` is not on `PATH`, so it does not replace `/usr/bin/clang`. `cmake -S . -B build` finds `llvm-mos-sdk` without `CMAKE_PREFIX_PATH`. `x64sc` and `c1541` come from the `vice` package. Ubuntu does not ship Commodore ROMs. The image uses MEGA65 Open ROMs (LGPL-3.0, commit `5192c683a098204e835b8c5529ecd24c808eba92`) as `/usr/share/vice/C64/kernal-901227-03.bin`, `basic-901226-01.bin`, and `chargen-901225-01.bin`. Those files are not Commodore's ROMs. Drive ROMs are not installed, so hardware-level 1541 emulation is unavailable. `./run_vice.sh` still injects `whisper64.prg`.
+
 ```bash
 cd build
 cmake -DCMAKE_PREFIX_PATH=/home/josh/Documents/Programming/C64/tools/llvm-mos ..
