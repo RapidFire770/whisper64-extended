@@ -18,6 +18,7 @@ This file defines how coding agents should work on the project. It exists to kee
 - Verify that any changes do not break existing functionality.
 - Keep this AGENTS.md file updated with information about the project that other AI agents would need to know to keep the project consistent from session to session. (Project layout/structure, technology stack, tool chain, coding standards & style, testing, pitfalls and conflicts to avoid, features, etc.)
 - When a bug is fixed or feature is implemented check it off the user's `docs/Todo-List.md` and include it in the commit for the final work.
+- Real C64U hardware is available for testing at http://192.168.100.193 via REST API or with the c64u.py in the tools folder. If the C64U is unreachable for testing, pause and ask the user to bring it back online.
 
 ---
 
