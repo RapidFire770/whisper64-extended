@@ -43,7 +43,10 @@ add_executable(w64tools.prg
     src/conv/token.c
     src/conv/renumber.c
 )
-target_compile_options(w64tools.prg PRIVATE -Os -ffunction-sections)
+# -Oz, not -Os. The label rewrite overflows RAM at -Os (heap past $D000).
+# MinSizeRel injects -Os first; this later -Oz is what clang compiles.
+# The link line stays -Os. Full LTO does not grow it back to the -Os size.
+target_compile_options(w64tools.prg PRIVATE -Oz -ffunction-sections)
 target_link_options(w64tools.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=w64tools.map -Wl,-lexit-return)
 
 # Create blank REU image file (512KB) if it doesn't exist
