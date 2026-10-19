@@ -1098,19 +1098,22 @@ static void draw_menu(void) {
 static void show_help(void) {
     clrscr();
     put_row(0, "W64TOOLS HELP");
-    put_row(2, "1 SEQ>PRG  2 PRG>SEQ");
-    put_row(3, "3 RENUMBER 4 LABELS");
-    put_row(5, "* ERRORS *");
-    put_row(6, "NO NUM:    LINE HAS NO NUMBER");
-    put_row(7, "NUM BIG:   PAST 63999");
-    put_row(8, "LINE LONG: PAST 79 CHARACTERS");
-    put_row(9, "TOO BIG:   BUFFER IS FULL");
-    put_row(10, "OPEN FAIL: DRIVE DID NOT OPEN");
-    put_row(11, "BAD NAME:  EMPTY OR , : * ? @");
-    put_row(12, "NO LABEL:  GOTO NAME MISSING");
-    put_row(13, "DUP LABEL: SAME NAME TWICE");
-    put_row(14, "DISK:      SEE THE DOS TEXT");
-    put_row(16, "STOP EXITS THIS PAGE");
+    put_row(2, "1. SEQ > PRG  - Converts a SEQ file to a PRG file");
+    put_row(3, "2. PRG > SEQ  - Converts a PRG file to a SEQ file");
+    put_row(4, "3. RENUMBER - Renumbers the lines in a SEQ file");
+    put_row(5, "4. LABELS - Converts labeled line SEQ file to PRG file");
+    put_row(6, "? HELP - Shows this help screen");
+    put_row(8, "* ERRORS *");
+    put_row(9, "NO NUM:    LINE HAS NO NUMBER");
+    put_row(10, "NUM BIG:   PAST 63999");
+    put_row(11, "LINE LONG: PAST 79 CHARACTERS");
+    put_row(12, "TOO BIG:   BUFFER IS FULL");
+    put_row(13, "OPEN FAIL: DRIVE DID NOT OPEN");
+    put_row(14, "BAD NAME:  EMPTY OR , : * ? @");
+    put_row(15, "NO LABEL:  GOTO NAME MISSING");
+    put_row(16, "DUP LABEL: SAME NAME TWICE");
+    put_row(17, "DISK:      SEE THE DOS TEXT");
+    put_row(18, "STOP EXITS THIS PAGE");
     cgetc();
 }
 
