@@ -42,7 +42,9 @@ add_executable(w64tools.prg
     src/conv/main.c
     src/conv/token.c
     src/conv/renumber.c
+    src/conv/basic_zp.S
 )
+set_source_files_properties(src/conv/basic_zp.S PROPERTIES LANGUAGE C)
 # -Oz, not -Os. The label rewrite overflows RAM at -Os (heap past $D000).
 # MinSizeRel injects -Os first; this later -Oz is what clang compiles.
 # The link line stays -Os. Full LTO does not grow it back to the -Os size.
