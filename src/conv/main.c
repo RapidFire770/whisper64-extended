@@ -7,6 +7,7 @@
 #define SCREEN_RAM ((unsigned char *)0x0400)
 #define COL_GREEN 5
 #define COL_YELLOW 7
+#define COL_RED 2
 #define KEY_DOWN 17
 #define KEY_UP 145
 
@@ -65,12 +66,20 @@ static char text_line[80];
 static unsigned char out_bytes[OUT_CAP];
 static unsigned int out_used;
 
-static void put_row(unsigned char row, const char *msg) {
+static void paint_row(unsigned char row, const char *msg, unsigned char color) {
     unsigned char i;
 
     for (i = 0; i < 39; i++)
         cputc_at(i, row, ' ', COL_GREEN);
-    cputs_at(0, row, msg, COL_GREEN);
+    cputs_at(0, row, msg, color);
+}
+
+static void put_row(unsigned char row, const char *msg) {
+    paint_row(row, msg, COL_GREEN);
+}
+
+static void put_err(unsigned char row, const char *msg) {
+    paint_row(row, msg, COL_RED);
 }
 
 /* One shared formatter. sprintf pulls in about 4KB of printf. */
@@ -188,7 +197,7 @@ static int ask_drive(unsigned char row, const char *label, unsigned char *dest) 
             *dest = (unsigned char)v;
             return 0;
         }
-        put_row(20, "USE 8-15");
+        put_err(20, "USE 8-15");
     }
 }
 
@@ -277,7 +286,10 @@ static void finish(unsigned char code, const char *msg) {
     cbm_k_close(2);
     cbm_k_close(3);
     verify_code = code;
-    put_row(12, msg);
+    if (code == CONV_CANCEL)
+        put_row(12, msg);
+    else
+        put_err(12, msg);
 }
 
 static int drive_status_ok(void) {
@@ -1134,7 +1146,7 @@ static int pick_file(int mode) {
             which[nshow++] = (unsigned char)i;
     }
     if (nshow == 0) {
-        put_row(12, "NO FILES");
+        put_err(12, "NO FILES");
         cgetc();
         return -1;
     }

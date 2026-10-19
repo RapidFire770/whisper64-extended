@@ -196,7 +196,7 @@ Removed so wrap fits under `$D000`. The port-select item is moot. Do not put the
 
 The menu is `1` SEQ to PRG, `2` PRG to SEQ, `3` renumber a SEQ, `4` labels to numbered lines then a PRG, and `?` help. Mode 3 asks for a step; an empty step is 10. Mode 4 uses step 10 and does not ask. Read drive and write drive are separate, 8–15, and an empty entry is 8. The directory of the read drive is packed into `out_bytes` (18 bytes a slot, name in 0–15, NUL at 16, type at 17, at most 144 entries) and discarded when the file is read. SEQ modes list type S. Mode 2 lists type P. Skip the disk-header entry. `NO FILES` waits for a key and does not set `verify_code`, so the menu redraws and does not ask ANOTHER.
 
-The screen is border gray 12, background black, text green 5, and the selected directory row yellow 7. The title `W64TOOLS` is centered. This SDK has no `conio.h`. The tool writes `$0400` and color RAM directly and reads keys with `cbm_k_getin`. It does not use `sprintf`.
+The screen is border gray 12, background black, text green 5, and the selected directory row yellow 7. The title `W64TOOLS` is centered. This SDK has no `conio.h`. The tool writes `$0400` and color RAM directly and reads keys with `cbm_k_getin`. It does not use `sprintf`. Error text from `put_err` is red (color 2). `CANCELLED` stays green.
 
 A 1541 has one data channel. Close the directory before opening the file. Do not open the output while the input is still open. The overwrite probe reads the DOS error channel. `cbm_k_open` returns 0 for a missing file; DOS code 62 means the name is free. A new file is `name,P,W` or `name,S,W`. `@0:` is only when the probe finds the name already there.
 

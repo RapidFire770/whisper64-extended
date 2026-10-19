@@ -36,7 +36,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
   - [x] 5\. Status screen for convervsion. After finished asks the user if they want to convert another file or exit the program. Exiting should clear the screen back to a C64 ready prompt. N or Stop returns through the SDK exit-return path. That return was not run on a machine.
 - [x] Support for BASIC files using labels instead of line numbers. In VScode with the VS64 plugin you can write basic with no line numbers but use a label e.g. "labelmenu:" and when compiled it will add line numbers to the file and change all label references in goto, gosub, etc. to the correct line numbers. Mode 4 numbers the labels at step 10 and writes a PRG. Host tests passed. The Ultimate disk round trip was not run.
 - [ ] If a program is to large to load into the remaining memory of the C64 can we use a connected REU like the main editor to allow the program to still load and allow conversion and renumbering to occur.
-- [ ] Show error messages in the color red.
+- [x] Show error messages in the color red. `put_err` draws them in VIC color 2. `USE 8-15`, `NO FILES`, and `finish` errors use it. `CANCELLED`, the menu, and the help glossary stay green. Checked on the Ultimate: color RAM under `USE 8-15`, `NO FILES`, and `BAD NAME` is 2, and under the menu, the help line, and `CANCELLED` is 5.
 
 ## Bugs on real C64U hardware with 16MB REU enabled and .d64 disk inserted called W64 
 - [x] Label support is not working correctly. 
