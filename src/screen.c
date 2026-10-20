@@ -561,38 +561,59 @@ static void paint_cursor_only(void) {
         screen80_end_draw();
 }
 
-static void shift_rows_40(int shift, int up) {
+static unsigned char *skip_rows_40(unsigned char *p, int n) {
+    while (n-- > 0)
+        p += SCREEN_WIDTH;
+    return p;
+}
+
+static uint8_t *skip_u8(uint8_t *p, unsigned int stride, int n) {
+    while (n-- > 0)
+        p += stride;
+    return p;
+}
+
+static unsigned int row_bytes(unsigned int stride, int rows) {
+    unsigned int n = 0;
+    int i;
+
+    for (i = 0; i < rows; i++)
+        n += stride;
+    return n;
+}
+
+__attribute__((noinline)) static void shift_rows_40(int shift, int up) {
     int rows = EDIT_HEIGHT - shift;
-    unsigned char *screen = SCREEN_RAM + SCREEN_WIDTH;
-    unsigned char *color = COLOR_RAM + SCREEN_WIDTH;
-    unsigned int bytes = (unsigned int)SCREEN_WIDTH * (unsigned int)rows;
+    unsigned char *screen = (unsigned char *)(SCREEN_RAM + SCREEN_WIDTH);
+    unsigned char *color = skip_rows_40((unsigned char *)COLOR_RAM, 1);
+    unsigned int bytes = row_bytes((unsigned int)SCREEN_WIDTH, rows);
 
     if (up) {
-        memmove(screen, screen + SCREEN_WIDTH * shift, bytes);
-        memmove(color, color + SCREEN_WIDTH * shift, bytes);
+        memmove(screen, skip_rows_40(screen, shift), bytes);
+        memmove(color, skip_rows_40(color, shift), bytes);
     } else {
-        memmove(screen + SCREEN_WIDTH * shift, screen, bytes);
-        memmove(color + SCREEN_WIDTH * shift, color, bytes);
+        memmove(skip_rows_40(screen, shift), screen, bytes);
+        memmove(skip_rows_40(color, shift), color, bytes);
     }
 }
 
-static void shift_rows_80(int shift, int up) {
+__attribute__((noinline)) static void shift_rows_80(int shift, int up) {
     int rows = EDIT_HEIGHT - shift;
     uint8_t *bmp = BITMAP_BASE + 320;
     uint8_t *col = SCREEN_RAM_80 + 40;
-    unsigned int bmp_bytes = 320u * (unsigned int)rows;
-    unsigned int col_bytes = 40u * (unsigned int)rows;
+    unsigned int bmp_bytes = row_bytes(320u, rows);
+    unsigned int col_bytes = row_bytes(40u, rows);
 
     if (up) {
-        memmove(bmp, bmp + 320 * shift, bmp_bytes);
-        memmove(col, col + 40 * shift, col_bytes);
+        memmove(bmp, skip_u8(bmp, 320u, shift), bmp_bytes);
+        memmove(col, skip_u8(col, 40u, shift), col_bytes);
     } else {
-        memmove(bmp + 320 * shift, bmp, bmp_bytes);
-        memmove(col + 40 * shift, col, col_bytes);
+        memmove(skip_u8(bmp, 320u, shift), bmp, bmp_bytes);
+        memmove(skip_u8(col, 40u, shift), col, col_bytes);
     }
 }
 
-static int shift_viewport(int old_scroll) {
+__attribute__((noinline)) static int shift_viewport(int old_scroll) {
     int lens[LINES_PER_PAGE];
     int n, i, shift, first, last, up;
 
