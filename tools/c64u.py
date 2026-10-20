@@ -7,8 +7,8 @@ via the KERNAL keyboard buffer ($0277, count $C6), and reads back screen +
 color RAM so we can SEE the per-keystroke state that py65 cannot reproduce.
 
 Usage (see functions called from __main__):
-    python3 tools/c64u.py repro        # reset, load, type 3 lines, dump
-    python3 tools/c64u.py down N       # inject N cursor-downs, dump after each
+    python3 tools/c64u.py cursor     # whisper64 cursor-move regression
+    python3 tools/c64u.py dump       # print the current 40-column screen
 
 Keyboard buffer: $0277 (10 bytes), count at $C6. The editor's main-loop GETIN
 consumes them. One buffer load = up to 10 keys; the loop runs thousands of
@@ -32,6 +32,10 @@ K_DOWN = 0x11
 K_UP = 0x91
 K_RETURN = 0x0D
 K_HOME = 0x13
+K_LEFT = 0x9D
+K_RIGHT = 0x1D
+K_F4 = 0x8A
+PRG = "build/whisper64.prg"
 
 
 def _put(path, data=None):
@@ -104,84 +108,91 @@ def decode_screen_row(raw, row):
     return "".join(out)
 
 
-def dump_rows(rows=range(3, 10), label=""):
+def dump_rows(rows=range(0, 25), label=""):
     scr = read_mem(SCREEN, 25 * 40)
     col = read_mem(COLOR, 25 * 40)
     if label:
         print(f"--- {label} ---")
     for r in rows:
         text = decode_screen_row(scr, r)
-        colors = " ".join(f"{col[r*40+i]&0x0F:X}" for i in range(40))
+        colors = " ".join(f"{col[r * 40 + i] & 0x0F:X}" for i in range(40))
         print(f"  r{r:2d}: {text}")
-    # [BREADCRUMB] read cassette-buffer trace left by edit_draw_current_line:
-    # $033C=ROW $033D=START_ROW $033E=len $033F=buf[0] $0340=counter $0341=caller
-    try:
-        bc = read_mem(0x033C, 9)
-        caller = {0xA1: "redraw_all", 0xB1: "eml_line_dirty(D=1)"}.get(bc[5], "?")
-        print(f"  [BC] ROW={bc[0]} START_ROW={bc[1]} len={bc[2]} buf[0]=${bc[3]:02X} "
-              f"calls={bc[4]} caller={caller}")
-        print(f"  [BC@entry] edcl_is_row1={bc[6]} edcl_row0={bc[7]} edcl_row1={bc[8]}")
-    except Exception as e:
-        print(f"  [BC] read failed: {e}")
-    # [BREADCRUMB] walk-step ring at $4D00 (ptr at $4D80): 4 bytes/step
-    # [idx, scrr_before(|0x80 if row1), len, buf0].
-    try:
-        n = read_mem(0x4D80, 1)[0]
-        steps = read_mem(0x4D00, min(n, 128))
-        print(f"  [WALK] {n//4} steps:")
-        for i in range(0, len(steps), 4):
-            if i + 3 >= len(steps):
-                break
-            idx, scrr, ln, b0 = steps[i:i+4]
-            row1 = " (row1)" if (scrr & 0x80) else ""
-            scr = scrr & 0x7F
-            print(f"    idx={idx} scr_before={scr}{row1} ->r{scr+3} len={ln} buf0=${b0:02X}")
-    except Exception as e:
-        print(f"  [WALK] read failed: {e}")
-    # [BREADCRUMB] end-of-redraw snapshot of screen r5/r6/r7 into $4D90/$4DA4/$4DB8.
-    try:
-        d = lambda b: "".join(chr(x) if 0x41<=x<=0x5A else (" " if x==0x20 else f"<{x:02X}>") for x in b)
-        print(f"  [SNAP@redraw_end] r5={d(read_mem(0x4D90,20))}")
-        print(f"  [SNAP@redraw_end] r6={d(read_mem(0x4DA4,20))}")
-        print(f"  [SNAP@redraw_end] r7={d(read_mem(0x4DB8,20))}")
-        # walk-end snapshot (before current-line draw) at $4E00/$4E14/$4E28
-        print(f"  [SNAP@walk_end]   r5={d(read_mem(0x4E00,20))}")
-        print(f"  [SNAP@walk_end]   r6={d(read_mem(0x4E14,20))}")
-        print(f"  [SNAP@walk_end]   r7={d(read_mem(0x4E28,20))}")
-    except Exception as e:
-        print(f"  [SNAP] read failed: {e}")
+        print(f"       {colors}")
     print()
+    return scr, col
+
+
+def row_text(raw, row):
+    return bytes(raw[row * 40:(row + 1) * 40])
+
+
+def boot_editor():
+    reset()
+    load_and_run(PRG)
+    scr, _ = dump_rows(rows=range(24, 25), label="after run")
+    if b"REU" in row_text(scr, 24):
+        inject_keys([0x20], settle=0.6)
+        dump_rows(rows=range(24, 25), label="reu dismissed")
+
+
+def cells_changed(before, after):
+    out = []
+    for i, (a, b) in enumerate(zip(before, after)):
+        if a != b:
+            out.append((i // 40, i % 40))
+    return out
+
+
+def allowed_move(diffs, rows):
+    """Title line:col is columns 8-16 of row 0. Cursor cells sit on `rows`."""
+    for r, c in diffs:
+        if r == 0 and 8 <= c <= 16:
+            continue
+        if r in rows:
+            continue
+        return False
+    return True
+
+
+def cmd_cursor():
+    boot_editor()
+    inject_keys([K_F4], settle=0.6)
+    scr, col = dump_rows(label="basic on")
+    status = row_text(scr, 24)
+    if b"BASIC" not in status:
+        print("FAIL basic status missing")
+        return 1
+    # PRINT on row 1. HOME leaves the cursor on the P.
+    inject_keys(list(b"PRINT") + [K_RETURN, K_HOME], settle=0.8)
+    before_s, before_c = dump_rows(label="before right")
+    inject_keys([K_RIGHT], settle=0.5)
+    after_s, after_c = dump_rows(label="after right")
+    if row_text(after_s, 24) != row_text(before_s, 24):
+        print("FAIL right cleared status row")
+        return 1
+    if not allowed_move(cells_changed(before_s, after_s), {1}):
+        print("FAIL right rewrote rows other than the cursor line")
+        return 1
+    if not allowed_move(cells_changed(before_c, after_c), {1}):
+        print("FAIL right rewrote colors outside the cursor line")
+        return 1
+    # P is screen column 3. Leaving it restores purple (4). R is column 4.
+    if after_s[1 * 40 + 3] != 0x50 or (after_c[1 * 40 + 3] & 0x0F) != 4:
+        print("FAIL P did not return to purple")
+        return 1
+    if (after_s[1 * 40 + 4] & 0x80) == 0 or (after_c[1 * 40 + 4] & 0x0F) != 1:
+        print("FAIL cursor did not land on R")
+        return 1
+    print("ok")
+    return 0
 
 
 def main():
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "repro"
-    if cmd == "repro":
-        reset()
-        load_and_run("basic-ide.prg")
-        dump_rows(label="editor launched (empty)")
-        # Type: REM SHORT (line 0), then a long POKE line (wraps), then a long
-        # PRINT line (wraps). RETURN commits each line.
-        # REM <space> SHORT
-        line0 = list(b"REM SHORT")
-        line1 = list(b"POKE 53280,0:POKE 53281,0:REM SET BACKGROUND AND BORDER COLOR TO BLACK")
-        line2 = list(b"PRINT \"TEXT COLOR TO GREEN AND A LONG STRING WRAPPING\"")
-        inject_keys(line0 + [K_RETURN], settle=0.6)
-        dump_rows(label="after line 0 (REM SHORT)")
-        inject_keys(line1 + [K_RETURN], settle=0.8)
-        dump_rows(label="after line 1 (POKE, wraps)")
-        inject_keys(line2 + [K_RETURN], settle=0.8)
-        dump_rows(label="after line 2 (PRINT, wraps) -- cursor on line 2")
-        # HOME to put cursor at top first? Cursor should already be near top.
-        # The bug: cursor on line 0, press DOWN twice. First get to line 0:
-        # After typing, cursor is on the phantom line below line 2. Move UP
-        # three times to reach line 0.
-        inject_keys([K_UP, K_UP, K_UP], settle=0.5)
-        dump_rows(label="cursor moved UP x3 -> on line 0 (REM)")
-        # Now the reported repro: DOWN, DOWN.
-        inject_keys([K_DOWN], settle=0.5)
-        dump_rows(label="DOWN #1 (REM -> POKE)")
-        inject_keys([K_DOWN], settle=0.5)
-        dump_rows(label="DOWN #2 (POKE -> PRINT) -- BUG MANIFESTS HERE")
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "dump"
+    if cmd == "cursor":
+        sys.exit(cmd_cursor())
+    elif cmd == "dump":
+        dump_rows()
     elif cmd == "down":
         n = int(sys.argv[2]) if len(sys.argv) > 2 else 1
         for i in range(n):
@@ -195,11 +206,9 @@ def main():
     elif cmd == "home":
         inject_keys([K_HOME], settle=0.5)
         dump_rows(label="HOME")
-    elif cmd == "dump":
-        dump_rows()
-    elif cmd == "resetrun":
-        reset()
-        load_and_run("basic-ide.prg")
+    else:
+        print(f"unknown command: {cmd}", file=sys.stderr)
+        sys.exit(2)
 
 
 if __name__ == "__main__":

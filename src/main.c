@@ -144,6 +144,10 @@ int main(void) {
             else
                 update_current_line();
         } else if (c == KEY_LEFT) {
+            int old_x = cursor_x;
+            int old_y = cursor_y;
+            int old_scroll = scroll_offset;
+
             if (cursor_x > 0) {
                 cursor_x--;
             } else if (cursor_y > 0) {
@@ -157,8 +161,12 @@ int main(void) {
                 mark_end_x = cursor_x;
                 mark_end_y = cursor_y;
             }
-            update_cursor();
+            refresh_move(old_x, old_y, old_scroll);
         } else if (c == KEY_RIGHT) {
+            int old_x = cursor_x;
+            int old_y = cursor_y;
+            int old_scroll = scroll_offset;
+
             if (cursor_x < strlen(lines[cursor_y])) {
                 cursor_x++;
             } else if (cursor_y < num_lines - 1) {
@@ -172,8 +180,13 @@ int main(void) {
                 mark_end_x = cursor_x;
                 mark_end_y = cursor_y;
             }
-            update_cursor();
+            refresh_move(old_x, old_y, old_scroll);
         } else if (c == KEY_UP) {
+            int old_x = cursor_x;
+            int old_y = cursor_y;
+            int old_scroll = scroll_offset;
+            int page = current_page;
+
             if (cursor_y > 0) {
                 cursor_y--;
                 if (cursor_x > strlen(lines[cursor_y])) {
@@ -196,8 +209,16 @@ int main(void) {
                 mark_end_x = cursor_x;
                 mark_end_y = cursor_y;
             }
-            update_cursor();
+            if (current_page != page)
+                update_cursor();
+            else
+                refresh_move(old_x, old_y, old_scroll);
         } else if (c == KEY_DOWN) {
+            int old_x = cursor_x;
+            int old_y = cursor_y;
+            int old_scroll = scroll_offset;
+            int page = current_page;
+
             if (cursor_y < num_lines - 1) {
                 cursor_y++;
                 if (cursor_x > strlen(lines[cursor_y])) {
@@ -217,7 +238,10 @@ int main(void) {
                 mark_end_x = cursor_x;
                 mark_end_y = cursor_y;
             }
-            update_cursor();
+            if (current_page != page)
+                update_cursor();
+            else
+                refresh_move(old_x, old_y, old_scroll);
         } else if (c == KEY_HOME) {
             // Go to absolute start (page 0, line 0)
             if (current_page != 0) {

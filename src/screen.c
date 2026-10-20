@@ -1,6 +1,7 @@
 #include "screen.h"
 #include "screen80.h"
 #include "editor_state.h"
+#include "cursor_layout.h"
 
 void clrscr() {
     if (screen_mode == MODE_80COL) {
@@ -212,50 +213,21 @@ void draw_line_number(int screen_row, int line_num) {
     }
 }
 
-/* edit_width is 37 or 77. A line is at most 79, so three rows is the cap.
-   Subtract instead of dividing: the compiler's divide helpers do not fit. */
 static int text_rows(int len) {
-    int limit = edit_width;
-
-    if (len <= limit)
-        return 1;
-    limit += edit_width;
-    if (len <= limit)
-        return 2;
-    return 3;
+    return text_rows_for(len, edit_width);
 }
 
 static void split_col(int pos, int *part, int *col) {
-    int w = edit_width;
-
-    /* Two compares, not a loop. A loop here becomes a divide. */
-    if (pos < w) {
-        *part = 0;
-        *col = pos;
-        return;
-    }
-    pos -= w;
-    if (pos < w) {
-        *part = 1;
-        *col = pos;
-        return;
-    }
-    *part = 2;
-    *col = pos - w;
+    split_col_for(pos, edit_width, part, col);
 }
 
-/* The cursor past a full row sits on the next screen row, before the next line. */
 static int phantom_row(int line) {
-    int len;
-    int part, col;
+    int len = 0;
 
-    if (line != cursor_y || line >= num_lines || cursor_x <= 0)
-        return 0;
-    len = strlen(lines[line]);
-    if (cursor_x < len)
-        return 0;
-    split_col(cursor_x, &part, &col);
-    return col == 0;
+    if (line < num_lines)
+        len = (int)strlen(lines[line]);
+    return phantom_row_for(len, edit_width,
+                           line == cursor_y && line < num_lines, cursor_x);
 }
 
 static void cursor_screen(int *sx, int *sy) {
@@ -386,11 +358,66 @@ void draw_text_line(int screen_row, int line_num) {
     draw_slice(screen_row, line_num, 0, 1);
 }
 
+static void draw_title_pos(void) {
+    char pos_info[12];
+    int global_line = current_page * LINES_PER_PAGE + cursor_y + 1;
+    int n;
+
+    sprintf(pos_info, " %d:%d", global_line, cursor_x + 1);
+    n = (int)strlen(pos_info);
+    while (n < 9)
+        pos_info[n++] = ' ';
+    pos_info[n] = '\0';
+    cputs_at(8, 0, pos_info, COL_GREEN);
+}
+
+static unsigned char cursor_drawn;
+static unsigned char cursor_color;
+static unsigned char cursor_sx, cursor_sy;
+
+static void draw_editor_band(int first, int last) {
+    int row = 1;
+    int line = scroll_offset;
+
+    while (row <= EDIT_HEIGHT) {
+        if (line < num_lines) {
+            int len = (int)strlen(lines[line]);
+            int rows = text_rows(len) + phantom_row(line);
+            int part;
+            int off = 0;
+
+            for (part = 0; part < rows && row <= EDIT_HEIGHT; part++) {
+                if (row >= first && row <= last) {
+                    if (screen_mode != MODE_80COL) {
+                        if (part == 0)
+                            draw_line_number(row, line);
+                        else
+                            clear_gutter(row);
+                    }
+                    draw_slice(row, line, off, part == 0);
+                }
+                off += edit_width;
+                row++;
+            }
+            line++;
+        } else {
+            if (row >= first && row <= last) {
+                if (screen_mode != MODE_80COL)
+                    draw_line_number(row, line);
+                draw_slice(row, line, 0, 0);
+            }
+            row++;
+            line++;
+        }
+    }
+}
+
 void redraw_screen() {
     int i;
     char title[80];
-    int global_line = current_page * LINES_PER_PAGE + cursor_y + 1;
     int sw = screen_width;
+
+    cursor_drawn = 0;
 
     /* Help and the directory leave a longer string on row 0.
        The fields below are shorter than that string. */
@@ -404,16 +431,7 @@ void redraw_screen() {
         cputs_at(0, 0, "WHISPER", COL_YELLOW);
     }
 
-    char pos_info[12];
-    int n;
-
-    /* Always 9 columns. A shorter line:col must cover the previous one. */
-    sprintf(pos_info, " %d:%d", global_line, cursor_x + 1);
-    n = strlen(pos_info);
-    while (n < 9)
-        pos_info[n++] = ' ';
-    pos_info[n] = '\0';
-    cputs_at(8, 0, pos_info, COL_GREEN);
+    draw_title_pos();
 
     int next_x = 17;
     if (basic_mode) {
@@ -442,37 +460,7 @@ void redraw_screen() {
     }
 
     fit_cursor();
-    {
-        int row = 1;
-        int line = scroll_offset;
-
-        while (row <= EDIT_HEIGHT) {
-            if (line < num_lines) {
-                int len = strlen(lines[line]);
-                int rows = text_rows(len) + phantom_row(line);
-                int part;
-                int off = 0;
-
-                for (part = 0; part < rows && row <= EDIT_HEIGHT; part++) {
-                    if (screen_mode != MODE_80COL) {
-                        if (part == 0)
-                            draw_line_number(row, line);
-                        else
-                            clear_gutter(row);
-                    }
-                    draw_slice(row, line, off, part == 0);
-                    off += edit_width;
-                    row++;
-                }
-                line++;
-            } else {
-                if (screen_mode != MODE_80COL)
-                    draw_line_number(row, line);
-                draw_slice(row, line, 0, 0);
-                row++;
-            }
-        }
-    }
+    draw_editor_band(1, EDIT_HEIGHT);
 
     // Clear status bar
     for (i = 0; i < sw; i++) {
@@ -480,48 +468,113 @@ void redraw_screen() {
     }
 }
 
+static void xor_cursor_cell(unsigned char sx, unsigned char sy) {
+    uint8_t *bmp;
+    int cell_col = sx >> 1;
+    int side = sx & 1;
+    uint8_t xor_mask = (side == 0) ? 0xF0 : 0x0F;
+
+    bmp = BITMAP_BASE + (uint16_t)sy * 320 + (uint16_t)cell_col * 8;
+    bmp[0] ^= xor_mask;
+    bmp[1] ^= xor_mask;
+    bmp[2] ^= xor_mask;
+    bmp[3] ^= xor_mask;
+    bmp[4] ^= xor_mask;
+    bmp[5] ^= xor_mask;
+    bmp[6] ^= xor_mask;
+    bmp[7] ^= xor_mask;
+}
+
+static void erase_cursor(void) {
+    int pos;
+
+    if (!cursor_drawn)
+        return;
+    if (screen_mode == MODE_80COL) {
+        xor_cursor_cell(cursor_sx, cursor_sy);
+    } else {
+        pos = cursor_sy * SCREEN_WIDTH + cursor_sx;
+        SCREEN_RAM[pos] &= 0x7F;
+        COLOR_RAM[pos] = cursor_color;
+    }
+    cursor_drawn = 0;
+}
+
 void draw_cursor() {
     int screen_y, screen_x;
 
     cursor_screen(&screen_x, &screen_y);
 
-    if (screen_y >= 1 && screen_y <= EDIT_HEIGHT) {
-        if (screen_mode == MODE_80COL) {
-            // In bitmap mode, draw cursor by inverting the character cell
-            // Use reverse-video effect: redraw char with inverted colors
-            int len = strlen(lines[cursor_y]);
-            char c = (cursor_x < len) ? lines[cursor_y][cursor_x] : ' ';
-            // Draw with black-on-white (inverted) by using a special approach
-            // In bitmap mode: XOR the bitmap bytes for this character position
-            uint8_t *bmp;
-            int cell_col = screen_x >> 1;
-            int side = screen_x & 1;
-            uint8_t xor_mask = (side == 0) ? 0xF0 : 0x0F;
+    if (screen_y < 1 || screen_y > EDIT_HEIGHT) {
+        cursor_drawn = 0;
+        return;
+    }
 
-            bmp = BITMAP_BASE + (uint16_t)screen_y * 320 + (uint16_t)cell_col * 8;
+    cursor_sx = (unsigned char)screen_x;
+    cursor_sy = (unsigned char)screen_y;
+    cursor_drawn = 1;
 
-            // Uses outer begin_draw from update_cursor (draw_depth > 0)
-            bmp[0] ^= xor_mask;
-            bmp[1] ^= xor_mask;
-            bmp[2] ^= xor_mask;
-            bmp[3] ^= xor_mask;
-            bmp[4] ^= xor_mask;
-            bmp[5] ^= xor_mask;
-            bmp[6] ^= xor_mask;
-            bmp[7] ^= xor_mask;
+    if (screen_mode == MODE_80COL) {
+        xor_cursor_cell(cursor_sx, cursor_sy);
+    } else {
+        int pos = screen_y * SCREEN_WIDTH + screen_x;
+        int len = strlen(lines[cursor_y]);
+
+        cursor_color = COLOR_RAM[pos];
+        if (cursor_x < len) {
+            SCREEN_RAM[pos] = to_screen((unsigned char)lines[cursor_y][cursor_x]) | 0x80;
+            COLOR_RAM[pos] = COL_WHITE;
         } else {
-            int pos = screen_y * SCREEN_WIDTH + screen_x;
-            int len = strlen(lines[cursor_y]);
-
-            if (cursor_x < len) {
-                SCREEN_RAM[pos] = to_screen((unsigned char)lines[cursor_y][cursor_x]) | 0x80;
-                COLOR_RAM[pos] = COL_WHITE;
-            } else {
-                SCREEN_RAM[pos] = CURSOR_CHAR;
-                COLOR_RAM[pos] = COL_WHITE;
-            }
+            SCREEN_RAM[pos] = CURSOR_CHAR;
+            COLOR_RAM[pos] = COL_WHITE;
         }
     }
+}
+
+static int layout_changed(int old_x, int old_y) {
+    int old_len = 0;
+    int new_len = 0;
+    int w = edit_width;
+    int before, after;
+
+    if (old_y < num_lines)
+        old_len = (int)strlen(lines[old_y]);
+    before = phantom_row_for(old_len, w, old_y < num_lines, old_x);
+    after = phantom_row_for(old_len, w, old_y == cursor_y && old_y < num_lines,
+                            cursor_x);
+    if (before != after)
+        return 1;
+    if (old_y == cursor_y)
+        return 0;
+    if (cursor_y < num_lines)
+        new_len = (int)strlen(lines[cursor_y]);
+    return phantom_row_for(new_len, w, cursor_y < num_lines, cursor_x) != 0;
+}
+
+static void paint_cursor_only(void) {
+    if (screen_mode == MODE_80COL)
+        screen80_begin_draw();
+    erase_cursor();
+    draw_title_pos();
+    draw_cursor();
+    if (screen_mode == MODE_80COL)
+        screen80_end_draw();
+}
+
+void refresh_move(int old_x, int old_y, int old_scroll) {
+    if (!mark_active && old_x == cursor_x && old_y == cursor_y
+        && old_scroll == scroll_offset)
+        return;
+    if (mark_active) {
+        update_cursor();
+        return;
+    }
+    fit_cursor();
+    if (layout_changed(old_x, old_y) || scroll_offset != old_scroll) {
+        update_cursor();
+        return;
+    }
+    paint_cursor_only();
 }
 
 // Fast update: only redraws the current line + title bar position + cursor.
@@ -538,19 +591,7 @@ void update_current_line(void) {
 
     if (screen_mode == MODE_80COL) screen80_begin_draw();
 
-    // Update position in title bar
-    {
-        char pos_info[12];
-        int global_line = current_page * LINES_PER_PAGE + cursor_y + 1;
-        int n;
-
-        sprintf(pos_info, " %d:%d", global_line, cursor_x + 1);
-        n = strlen(pos_info);
-        while (n < 9)
-            pos_info[n++] = ' ';
-        pos_info[n] = '\0';
-        cputs_at(8, 0, pos_info, COL_GREEN);
-    }
+    draw_title_pos();
 
     // Redraw only the current line
     if (screen_y >= 1 && screen_y <= EDIT_HEIGHT) {
