@@ -69,7 +69,10 @@ def load_and_run(prg_path):
 
 def read_mem(addr, length):
     """Read `length` bytes at `addr`; return bytes (binary response)."""
-    return _get(f"/v1/machine:readmem?address=0x{addr:X}&length={length}")
+    data = _get(f"/v1/machine:readmem?address=0x{addr:X}&length={length}")
+    if addr >= COLOR and addr < COLOR + 0x400:
+        data = bytes(b & 0x0F for b in data)
+    return data
 
 
 def write_mem(addr, hex_bytes):
@@ -182,6 +185,45 @@ def cmd_cursor():
         return 1
     if (after_s[1 * 40 + 4] & 0x80) == 0 or (after_c[1 * 40 + 4] & 0x0F) != 1:
         print("FAIL cursor did not land on R")
+        return 1
+    boot_editor()
+    line = list(b"10 GOTO 10") + [K_RETURN]
+    for _ in range(23):
+        inject_keys(line, settle=0.6)
+    inject_keys([K_HOME], settle=0.6)
+    inject_keys([K_F4], settle=1.0)
+    before_s, before_c = dump_rows(label="before downs")
+    status = row_text(before_s, 24)
+    if b"BASIC" not in status:
+        print("FAIL scroll setup lost BASIC status")
+        return 1
+    inject_keys([K_DOWN] * 22, settle=0.8)
+    mid_s, mid_c = dump_rows(label="down to last visible")
+    if row_text(mid_s, 24) != status:
+        print("FAIL in-window down cleared status")
+        return 1
+    inject_keys([K_DOWN], settle=0.6)
+    after_s, after_c = dump_rows(label="scroll down")
+    if row_text(after_s, 24) != status:
+        print("FAIL scroll cleared status row")
+        return 1
+
+    def plain(raw, row):
+        return bytes(b & 0x7F for b in raw[row * 40:(row + 1) * 40])
+
+    for r in range(1, 23):
+        if plain(after_s, r) != plain(mid_s, r + 1):
+            print(f"FAIL scroll screen row {r} did not follow the line")
+            return 1
+        if bytes(after_c[r * 40:(r + 1) * 40]) != bytes(mid_c[(r + 1) * 40:(r + 2) * 40]):
+            print(f"FAIL scroll color row {r}")
+            return 1
+    bottom = row_text(after_s, 23)
+    if bottom[0] != 0x32 or bottom[1] != 0x33:
+        print("FAIL bottom gutter is not 23")
+        return 1
+    if (after_c[22 * 40 + 6] & 0x0F) != 4:
+        print("FAIL GOTO did not stay purple after the shift")
         return 1
     print("ok")
     return 0

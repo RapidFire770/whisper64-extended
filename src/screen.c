@@ -561,6 +561,72 @@ static void paint_cursor_only(void) {
         screen80_end_draw();
 }
 
+static void shift_rows_40(int shift, int up) {
+    int rows = EDIT_HEIGHT - shift;
+    unsigned char *screen = SCREEN_RAM + SCREEN_WIDTH;
+    unsigned char *color = COLOR_RAM + SCREEN_WIDTH;
+    unsigned int bytes = (unsigned int)SCREEN_WIDTH * (unsigned int)rows;
+
+    if (up) {
+        memmove(screen, screen + SCREEN_WIDTH * shift, bytes);
+        memmove(color, color + SCREEN_WIDTH * shift, bytes);
+    } else {
+        memmove(screen + SCREEN_WIDTH * shift, screen, bytes);
+        memmove(color + SCREEN_WIDTH * shift, color, bytes);
+    }
+}
+
+static void shift_rows_80(int shift, int up) {
+    int rows = EDIT_HEIGHT - shift;
+    uint8_t *bmp = BITMAP_BASE + 320;
+    uint8_t *col = SCREEN_RAM_80 + 40;
+    unsigned int bmp_bytes = 320u * (unsigned int)rows;
+    unsigned int col_bytes = 40u * (unsigned int)rows;
+
+    if (up) {
+        memmove(bmp, bmp + 320 * shift, bmp_bytes);
+        memmove(col, col + 40 * shift, col_bytes);
+    } else {
+        memmove(bmp + 320 * shift, bmp, bmp_bytes);
+        memmove(col + 40 * shift, col, col_bytes);
+    }
+}
+
+static int shift_viewport(int old_scroll) {
+    int lens[LINES_PER_PAGE];
+    int n, i, shift, first, last, up;
+
+    n = num_lines;
+    if (n > LINES_PER_PAGE)
+        n = LINES_PER_PAGE;
+    for (i = 0; i < n; i++)
+        lens[i] = (int)strlen(lines[i]);
+    shift = scroll_rows(lens, n, old_scroll, scroll_offset, edit_width);
+    if (shift <= 0 || shift >= EDIT_HEIGHT)
+        return 0;
+    up = scroll_offset > old_scroll;
+    if (screen_mode == MODE_80COL)
+        screen80_begin_draw();
+    erase_cursor();
+    if (screen_mode == MODE_80COL)
+        shift_rows_80(shift, up);
+    else
+        shift_rows_40(shift, up);
+    if (up) {
+        first = EDIT_HEIGHT - shift + 1;
+        last = EDIT_HEIGHT;
+    } else {
+        first = 1;
+        last = shift;
+    }
+    draw_editor_band(first, last);
+    draw_title_pos();
+    draw_cursor();
+    if (screen_mode == MODE_80COL)
+        screen80_end_draw();
+    return 1;
+}
+
 void refresh_move(int old_x, int old_y, int old_scroll) {
     if (!mark_active && old_x == cursor_x && old_y == cursor_y
         && old_scroll == scroll_offset)
@@ -570,11 +636,16 @@ void refresh_move(int old_x, int old_y, int old_scroll) {
         return;
     }
     fit_cursor();
-    if (layout_changed(old_x, old_y) || scroll_offset != old_scroll) {
+    if (layout_changed(old_x, old_y)) {
         update_cursor();
         return;
     }
-    paint_cursor_only();
+    if (scroll_offset == old_scroll) {
+        paint_cursor_only();
+        return;
+    }
+    if (!shift_viewport(old_scroll))
+        update_cursor();
 }
 
 // Fast update: only redraws the current line + title bar position + cursor.
