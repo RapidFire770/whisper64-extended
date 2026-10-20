@@ -86,9 +86,9 @@ The current link (`build/whisper64.map`, regenerated on each build) is approxima
 |---|---|
 | `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
 | `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$AB6A`–`$BFEC` | BSS. `lines[]` is at `$B081`: 48 × 80 = 3840 bytes |
-| `$C00C` | Heap start |
-| `$D000` | Software stack (`__stack`). Grows down. About 4KB between heap and stack on this link. Stop adding editor code if `__bss_end` passes `$CC00` |
+| about `$B693`–`$CB1A` | BSS. `lines[]` is at `$BBAF`: 48 × 80 = 3840 bytes |
+| `$CB3A` | Heap start (`__heap_start`) |
+| `$D000` | Software stack (`__stack`). Grows down. About 1222 bytes between heap and stack on this link. `shift_rows_40`, `shift_rows_80`, and `shift_viewport` in `screen.c` are `noinline` because inlining them put `__bss_end` at `$CC32`. Stop adding editor code if `__bss_end` passes `$CC00` |
 | `$0100`–`$01FF` | 6502 hardware stack, still in use |
 | `$0400`–`$07E7` | 40-column screen RAM |
 | `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
@@ -210,4 +210,4 @@ N or Stop (PETSCII 3) at the another-file prompt returns from `main`. `-lexit-re
 
 The token table in `src/conv/token.c` is V2 token order and is separate from the editor highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host checks are `gcc -Wall -Wextra -Iinclude -o /tmp/test_renumber tools/test_renumber.c src/conv/renumber.c src/conv/token.c` and `python3 tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. The script name stayed. Do not treat a VICE run as that test, and do not run the script unless asked. It resets the Ultimate.
 
-Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current editor link has `__bss_end` at `$BFEC`, `__heap_start` at `$C00C`, and `__stack` at `$D000`. Help page 2 is kept short on purpose. Do not lengthen those strings without checking the map.
+Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current editor link has `__bss_end` at `$CB1A`, `__heap_start` at `$CB3A`, and `__stack` at `$D000`. Help page 2 is kept short on purpose. Do not lengthen those strings without checking the map.

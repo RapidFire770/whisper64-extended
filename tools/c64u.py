@@ -70,6 +70,7 @@ def load_and_run(prg_path):
 def read_mem(addr, length):
     """Read `length` bytes at `addr`; return bytes (binary response)."""
     data = _get(f"/v1/machine:readmem?address=0x{addr:X}&length={length}")
+    # Ultimate reads put noise in the color high nibble; VIC uses the low nibble.
     if addr >= COLOR and addr < COLOR + 0x400:
         data = bytes(b & 0x0F for b in data)
     return data
@@ -191,6 +192,7 @@ def cmd_cursor():
     for _ in range(23):
         inject_keys(line, settle=0.6)
     inject_keys([K_HOME], settle=0.6)
+    # settle 1.0: shorter pause left the status row blank after the line fill
     inject_keys([K_F4], settle=1.0)
     before_s, before_c = dump_rows(label="before downs")
     status = row_text(before_s, 24)

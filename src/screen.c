@@ -373,6 +373,7 @@ static void draw_title_pos(void) {
 
 static unsigned char cursor_drawn;
 static unsigned char cursor_color;
+static unsigned char cursor_screen_byte;
 static unsigned char cursor_sx, cursor_sy;
 
 static void draw_editor_band(int first, int last) {
@@ -494,7 +495,7 @@ static void erase_cursor(void) {
         xor_cursor_cell(cursor_sx, cursor_sy);
     } else {
         pos = cursor_sy * SCREEN_WIDTH + cursor_sx;
-        SCREEN_RAM[pos] &= 0x7F;
+        SCREEN_RAM[pos] = cursor_screen_byte;
         COLOR_RAM[pos] = cursor_color;
     }
     cursor_drawn = 0;
@@ -521,6 +522,7 @@ void draw_cursor() {
         int len = strlen(lines[cursor_y]);
 
         cursor_color = COLOR_RAM[pos];
+        cursor_screen_byte = SCREEN_RAM[pos];
         if (cursor_x < len) {
             SCREEN_RAM[pos] = to_screen((unsigned char)lines[cursor_y][cursor_x]) | 0x80;
             COLOR_RAM[pos] = COL_WHITE;
@@ -582,6 +584,7 @@ static unsigned int row_bytes(unsigned int stride, int rows) {
     return n;
 }
 
+/* Inlining pushed __bss_end past $CC00. */
 __attribute__((noinline)) static void shift_rows_40(int shift, int up) {
     int rows = EDIT_HEIGHT - shift;
     unsigned char *screen = (unsigned char *)(SCREEN_RAM + SCREEN_WIDTH);
@@ -597,6 +600,7 @@ __attribute__((noinline)) static void shift_rows_40(int shift, int up) {
     }
 }
 
+/* Inlining pushed __bss_end past $CC00. */
 __attribute__((noinline)) static void shift_rows_80(int shift, int up) {
     int rows = EDIT_HEIGHT - shift;
     uint8_t *bmp = BITMAP_BASE + 320;
@@ -613,6 +617,7 @@ __attribute__((noinline)) static void shift_rows_80(int shift, int up) {
     }
 }
 
+/* Inlining pushed __bss_end past $CC00. */
 __attribute__((noinline)) static int shift_viewport(int old_scroll) {
     int lens[LINES_PER_PAGE];
     int n, i, shift, first, last, up;
