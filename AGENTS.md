@@ -127,7 +127,7 @@ In BASIC mode the 80th character is not stored and the status row says `BASIC LI
 
 The cursor in 80-column mode XORs the glyph's nibble in the bitmap. In 40-column mode it sets reverse video on the screen code.
 
-`redraw_screen` blanks title row 0 across `screen_width`, then paints the name, line:col, tags, page, and drive. It also rebuilds every visible line and the status row. A line longer than `edit_width` takes more than one screen row, and the cursor row follows that. `update_current_line` rebuilds the title position, the current line, and the cursor while the line fits on one row. A wrap uses the full redraw. Arrow keys use the full redraw.
+`redraw_screen` blanks title row 0 across `screen_width`, then paints the name, line:col, tags, page, and drive. It also rebuilds every visible line and the status row. A line longer than `edit_width` takes more than one screen row, and the cursor row follows that. `update_current_line` rebuilds the title position, the current line, and the cursor while the line fits on one row. A wrap uses the full redraw. Arrow keys call `refresh_move`. When the viewport and the phantom row stay put, that restores the previous cursor cell, rewrites the 9-column line:col field, and draws the cursor. A scroll moves the editor rows and redraws the band that entered. Mark, a page change, a phantom-row change, and a jump of a full screen still call `update_cursor`. Arrow keys leave the status row alone.
 
 Directory, help, and the save prompt are laid out for 40 columns. In 80-column mode `cputs_at` still draws them, on the left side of the bitmap.
 
