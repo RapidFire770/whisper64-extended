@@ -18,7 +18,7 @@ This file defines how coding agents should work on the project. It exists to kee
 - Verify that any changes do not break existing functionality.
 - Keep this AGENTS.md file updated with information about the project that other AI agents would need to know to keep the project consistent from session to session. (Project layout/structure, technology stack, tool chain, coding standards & style, testing, pitfalls and conflicts to avoid, features, etc.)
 - When a bug is fixed or feature is implemented check it off the user's `docs/Todo-List.md` and include it in the commit for the final work.
-- Real C64U hardware is available for testing at http://192.168.100.193 via REST API or with the c64u.py in the tools folder. This hardware takes priority for testing over VICE. If the C64U is unreachable for testing, pause and ask the user to bring it back online.
+- Real C64U hardware is available for testing at http://192.168.100.193 via REST API. Use the installed c64u command line program and its agent skills or the c64u.py driver tool the projects tools folder (this tool can be modified if needed). This hardware takes priority for testing over VICE. The C64U is running with JiffyDOS ROMS for the system and its disk drives. If the C64U is unreachable for testing, pause and ask the user to bring it back online.
 
 ---
 
@@ -65,16 +65,16 @@ run_vice.sh
 CMakeLists.txt
 ```
 
-| Module | Role |
-|---|---|
-| `main.c` | Loop: `cbm_k_getin`, then key dispatch |
-| `editor.c` | Insert, delete, return, page swap |
-| `editor_state.c` | Globals: buffer, cursor, filename, BASIC flag, keyword list |
-| `screen.c` | Draw, keyword and mark colors, cursor, status line. Dispatches the bitmap to 80-column |
-| `screen80.c` | VIC bank 3 bitmap mode, 4x8 font, per-cell color |
-| `file_ops.c` | Directory, load, save, drive select, new file |
-| `reu.c` | REU detect, size probe, page DMA |
-| `search.c` `clipboard.c` `undo.c` `goto.c` `help.c` | Find/replace, mark/copy/paste, one-line undo, goto, help |
+| Module                                              | Role                                                                                   |
+|-----------------------------------------------------|----------------------------------------------------------------------------------------|
+| `main.c`                                            | Loop: `cbm_k_getin`, then key dispatch                                                 |
+| `editor.c`                                          | Insert, delete, return, page swap                                                      |
+| `editor_state.c`                                    | Globals: buffer, cursor, filename, BASIC flag, keyword list                            |
+| `screen.c`                                          | Draw, keyword and mark colors, cursor, status line. Dispatches the bitmap to 80-column |
+| `screen80.c`                                        | VIC bank 3 bitmap mode, 4x8 font, per-cell color                                       |
+| `file_ops.c`                                        | Directory, load, save, drive select, new file                                          |
+| `reu.c`                                             | REU detect, size probe, page DMA                                                       |
+| `search.c` `clipboard.c` `undo.c` `goto.c` `help.c` | Find/replace, mark/copy/paste, one-line undo, goto, help                               |
 
 Shared constants live in `include/whisper64.h`. KERNAL I/O goes through `cbm_k_*` (`cbm.h`). Hardware poking uses the `POKE` / `PEEK` macros.
 
@@ -82,18 +82,18 @@ Shared constants live in `include/whisper64.h`. KERNAL I/O goes through `cbm_k_*
 
 The current link (`build/whisper64.map`, regenerated on each build) is approximately:
 
-| Region | Use |
-|---|---|
-| `$0801` | LLVM-MOS BASIC stub (`SYS` to the program) |
-| `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000` |
-| about `$B693`–`$CB1A` | BSS. `lines[]` is at `$BBAF`: 48 × 80 = 3840 bytes |
-| `$CB3A` | Heap start (`__heap_start`) |
-| `$D000` | Software stack (`__stack`). Grows down. About 1222 bytes between heap and stack on this link. `shift_rows_40`, `shift_rows_80`, and `shift_viewport` in `screen.c` are `noinline` because inlining them put `__bss_end` at `$CC32`. Stop adding editor code if `__bss_end` passes `$CC00` |
-| `$0100`–`$01FF` | 6502 hardware stack, still in use |
-| `$0400`–`$07E7` | 40-column screen RAM |
-| `$D800`–`$DBE7` | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix |
-| `$E000`–`$FF3F` | 80-column bitmap, under KERNAL ROM. VIC sees it. The CPU sees it only while HIRAM is clear |
-| `$DF00`–`$DF0A` | REU registers. I/O must be mapped |
+| Region                | Use                                                                                                                                                                                                                                                                                       |
+|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `$0801`               | LLVM-MOS BASIC stub (`SYS` to the program)                                                                                                                                                                                                                                                |
+| `$080D`–about `$A000` | Code. BASIC ROM is unmapped at startup (`unmap-basic`), so code may sit under `$A000`                                                                                                                                                                                                     |
+| about `$B693`–`$CB1A` | BSS. `lines[]` is at `$BBAF`: 48 × 80 = 3840 bytes                                                                                                                                                                                                                                        |
+| `$CB3A`               | Heap start (`__heap_start`)                                                                                                                                                                                                                                                               |
+| `$D000`               | Software stack (`__stack`). Grows down. About 1222 bytes between heap and stack on this link. `shift_rows_40`, `shift_rows_80`, and `shift_viewport` in `screen.c` are `noinline` because inlining them put `__bss_end` at `$CC32`. Stop adding editor code if `__bss_end` passes `$CC00` |
+| `$0100`–`$01FF`       | 6502 hardware stack, still in use                                                                                                                                                                                                                                                         |
+| `$0400`–`$07E7`       | 40-column screen RAM                                                                                                                                                                                                                                                                      |
+| `$D800`–`$DBE7`       | With I/O mapped: color SRAM. With I/O mapped out: RAM that 80-column mode uses as the VIC video matrix                                                                                                                                                                                    |
+| `$E000`–`$FF3F`       | 80-column bitmap, under KERNAL ROM. VIC sees it. The CPU sees it only while HIRAM is clear                                                                                                                                                                                                |
+| `$DF00`–`$DF0A`       | REU registers. I/O must be mapped                                                                                                                                                                                                                                                         |
 
 Do not grow `lines[]`, the undo buffers, or the clipboard without checking `__bss_end` against `__stack`. A larger `MAX_LINE_LENGTH` multiplies by `LINES_PER_PAGE` (48). Crossing `$D000` collides with the stack.
 

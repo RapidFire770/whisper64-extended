@@ -8,7 +8,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [x] Lines longer than the screen were clipped in both 40- and 80-column mode. The same display wrap shows the rest on the next screen row. The gutter number is only on the first row. Load does not insert a break.
 - [x] Line splitting still occurs on the last line of the file if a manual return isn't added to create a new blank line. Upon saving a file the line gets split after the BASIC line number so 10 PRINT "HELLO" becomes just 10 with the PRINT "HELLO" being pushed to the next line bellow. If I manually hit return to create a blank line this does not occur an the saved file looks correct and coverts with the W64CONV program correctly. The last line had no CR, and load dropped the EOI byte.
 - [x] The top line of the program does not refresh correctly all the time / gets corrupted. If I enter the help screen and return to the main editing window it will display left over text "ELP" beside the numbers so I will see "1:11ELP". It appears to differ how the corruption of the line looks depending on the length of a loaded files filename. The title row was never blanked, so a shorter name, drive number, or page count left the previous characters.
-- [x] Check that all C64 characters are supported correctly as some characters seem to be showing up garbbled in 40 column mode but then display fine in 80 column mode. In 40 column the {} are being shown as a square dot and a L shaped graphic character or the [] show up as a large + and | but then display correctly in the 80 column mode. Appears to be some kind of incorrect mapping in one mode but correct in the other. 40-column draw maps `@` `[` `]` `|` and `a`–`z` onto the lowercase character set. `[]` are brackets. Braces, backslash, caret, underscore, backtick, and tilde are not in the character ROM, so those bytes stay the distinct ROM graphics and are not aliased onto the brackets. The buffer bytes are unchanged. 80-column mode still uses the ASCII 4x8 font.
+- [x] Check that all C64 characters are supported correctly as some characters seem to be showing up garbbled in 40 column mode but then display fine in 80 column mode. In 40 column the {} are being shown as a square dot and a L shaped graphic character or the \[\] show up as a large + and | but then display correctly in the 80 column mode. Appears to be some kind of incorrect mapping in one mode but correct in the other. 40-column draw maps `@` `[` `]` `|` and `a`–`z` onto the lowercase character set. `[]` are brackets. Braces, backslash, caret, underscore, backtick, and tilde are not in the character ROM, so those bytes stay the distinct ROM graphics and are not aliased onto the brackets. The buffer bytes are unchanged. 80-column mode still uses the ASCII 4x8 font.
 - [x] Cursor movement redraws the cursor cell, and a scroll redraws only the rows that entered. BASIC mode no longer scans every visible line on an arrow key. Mark, a page change, and a phantom-row change still redraw the window. Checked on the Ultimate in 40-column mode with `python3 tools/c64u.py cursor`, and in 80-column mode by watching arrow keys after CTRL+D.
 
 ## Features
@@ -26,6 +26,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 ---
 
 # W64TOOLS - Features
+
 - [x] Rename to W64TOOLS. The built program is `w64tools.prg`.
 - [x] Nicer interface and workflow. The screens are linked. They were not shown on a machine.
   - [x] Black background, gray border, Geen Text, Centered Title. Border gray 12, background black, text green 5, selected directory row yellow 7. The title is centered.
@@ -39,11 +40,18 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [ ] If a program is to large to load into the remaining memory of the C64 can we use a connected REU like the main editor to allow the program to still load and allow conversion and renumbering to occur.
 - [x] Show error messages in the color red. `put_err` draws them in VIC color 2. `USE 8-15`, `NO FILES`, and `finish` errors use it. `CANCELLED`, the menu, and the help glossary stay green. Checked on the Ultimate: color RAM under `USE 8-15`, `NO FILES`, and `BAD NAME` is 2, and under the menu, the help line, and `CANCELLED` is 5.
 
-## Bugs on real C64U hardware with 16MB REU enabled and .d64 disk inserted called W64 
-- [x] Label support is not working correctly. 
-    - If the label is on a line alone and a line of code bellow, it does is not numbered correctly, it gets corrupted, losing part of the code and getting a very large line number replacing the missing section of code.
-    - When a user is using labels they will not be writing line numbers on the lines with no label. Lines with no label should be getting auto line numbered but instead I get the no label error message. 
-    - It should also detect if a line is to long to add a line number and tell the user which lines these numbers are on. Renumber feature should probably do this as well if its not already.
-    - Host tests cover a lone label sharing the next code line (`start:` / `PRINT "HI"` / `GOTO start` becomes `10 PRINT "HI"` / `20 GOTO 10`) and `THEN PRINT` staying a statement. `LINE LONG` and `NO LABEL` include the source row. Not run on the Ultimate.
-- [ ] A BASIC program written on my desktop with VS64 in Visual Studio Code with the code in the /home/josh/Documents/Programming/C64/dice-roll folder when turned back into code from the prg file says trunc 14 when converted back, I am guessing this might mean 14 lines were truncated for some reason, the help menu does not mention what the message means. If I turn that converted code back into a prg and run it the error says "?TYPE MISMATCH ERROR IN 3"
+## Bugs on real C64U hardware with 16MB REU enabled and .d64 disk inserted called W64
+
+- [x] Label support is not working correctly.
+  - If the label is on a line alone and a line of code bellow, it does is not numbered correctly, it gets corrupted, losing part of the code and getting a very large line number replacing the missing section of code.
+  - When a user is using labels they will not be writing line numbers on the lines with no label. Lines with no label should be getting auto line numbered but instead I get the no label error message.
+  - It should also detect if a line is to long to add a line number and tell the user which lines these numbers are on. Renumber feature should probably do this as well if its not already.
+  - Host tests cover a lone label sharing the next code line (`start:` / `PRINT "HI"` / `GOTO start` becomes `10 PRINT "HI"` / `20 GOTO 10`) and `THEN PRINT` staying a statement. `LINE LONG` and `NO LABEL` include the source row. Not run on the Ultimate.
 - [x] When hitting the N to exit program after converting a file sometimes leaves the system in an frozen state. The screen colors change but you can not interact with the system anymore which then requires a system reset. I have noticed this happen mostly after using the label conversion to a prg. The converter had overwritten CHRGET at `$73`. `src/conv/basic_zp.S` saves `$02`–`$8F` in `.init.005` and restores it in `.fini.989` before unmap-basic writes `$3F` to `$01`. On the Ultimate, N after mode 4 (`start:` / `PRINT "HI"` / `GOTO start`, `WROTE 2`) and after mode 1 (`10 PRINT "HI"`, `WROTE 1`) showed READY, and `PRINT 1` printed `1`.
+- [ ] A BASIC program written on my desktop with VS64 in Visual Studio Code with the code in the /home/josh/Documents/Programming/C64/dice-roll folder when turned back into code from the prg file says trunc 14 when converted back, I am guessing this might mean 14 lines were truncated for some reason, the help menu does not mention what the message means. If I turn that converted code back into a prg and run it the error says "?TYPE MISMATCH ERROR IN 3"
+
+# Both Whisper64 Editor and W64TOOLS
+- [ ] Look into converting from standard .prg program file to a .crt cartridge file to reclaim the BASIC ROM area so we have extra RAM for features.
+  - [ ] Both programs on one cartridge file with a selection menu of which one the user wants to load into.
+  - [ ] Re-add the mouse and joystick support if space would be available.
+  - [ ] If this can be done both programs will need an option to return to the main program selection menu. The menu should have the option to exit back to the BASIC prompt so the user can run the programs they have written and converted.

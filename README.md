@@ -74,26 +74,26 @@ The menu is `1` SEQ to PRG, `2` PRG to SEQ, `3` renumber a SEQ, and `4` turn lab
 
 ## Key Commands
 
-| Key        | Function                           |
-|------------|------------------------------------|
-| **F1**     | Load file (directory browser)      |
-| **F2**     | Save file                          |
-| **F3**     | Select drive (8-15)                |
-| **F4**     | Toggle BASIC color on/off          |
-| **F5**     | Find text                          |
-| **F6**     | Find & replace                     |
-| **F7**     | Find next                          |
-| **F8**     | Help screen                        |
-| **CTRL+C** | Copy marked text                   |
-| **CTRL+D** | Toggle 40/80 column mode           |
-| **CTRL+G** | Goto line                          |
-| **CTRL+K** | Toggle mark mode                   |
-| **CTRL+V** | Paste text                         |
-| **CTRL+W** | New file (clear buffer)            |
-| **CTRL+Y** | Redo                               |
-| **CTRL+Z** | Undo                               |
-| **HOME**   | Go to start of file                |
-| **Arrows** | Move cursor                        |
+| Key        | Function                      |
+|------------|-------------------------------|
+| **F1**     | Load file (directory browser) |
+| **F2**     | Save file                     |
+| **F3**     | Select drive (8-15)           |
+| **F4**     | Toggle BASIC color on/off     |
+| **F5**     | Find text                     |
+| **F6**     | Find & replace                |
+| **F7**     | Find next                     |
+| **F8**     | Help screen                   |
+| **CTRL+C** | Copy marked text              |
+| **CTRL+D** | Toggle 40/80 column mode      |
+| **CTRL+G** | Goto line                     |
+| **CTRL+K** | Toggle mark mode              |
+| **CTRL+V** | Paste text                    |
+| **CTRL+W** | New file (clear buffer)       |
+| **CTRL+Y** | Redo                          |
+| **CTRL+Z** | Undo                          |
+| **HOME**   | Go to start of file           |
+| **Arrows** | Move cursor                   |
 
 ## 80-Column Mode
 
