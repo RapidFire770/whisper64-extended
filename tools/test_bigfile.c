@@ -222,6 +222,34 @@ static void check_label_slot(void) {
         fail("label slot");
 }
 
+static void check_tokenize(void) {
+    const unsigned char want[] = {0x01, 0x08, 0x07, 0x08, 0x0A, 0x00,
+                                  0x80, 0x00, 0x00, 0x00};
+    unsigned long out_at = 0, out_len = 0;
+    int wrote = -1, err = 99, row = 77, rc;
+
+    memset(mem, 0, sizeof mem);
+    memcpy(mem, "10 END\r", 7);
+    rc = tokenize_store(0, 7, 4096, &out_at, &out_len, &wrote, &err, &row);
+    if (rc != 0 || err != 0 || wrote != 1 || out_at != 7 || out_len != 10 ||
+        memcmp(mem + 7, want, 10) != 0)
+        fail("tokenize end");
+
+    memset(mem, 0, sizeof mem);
+    memcpy(mem, "PRINT \"HI\"\r", 12);
+    err = 99;
+    rc = tokenize_store(0, 12, 4096, &out_at, &out_len, &wrote, &err, &row);
+    if (rc != 5 || err != 5)
+        fail("tokenize nonum");
+
+    memset(mem, 0, sizeof mem);
+    memcpy(mem, "10 END\r", 7);
+    err = 99;
+    rc = tokenize_store(0, 7, 11, &out_at, &out_len, &wrote, &err, &row);
+    if (rc != 3 || err != 3)
+        fail("tokenize tight");
+}
+
 static void check_label_tight(void) {
     const char *in = "10 END\r20 END\r";
     unsigned long out_at = 1, out_len = 1;
@@ -251,5 +279,6 @@ int main(void) {
     check_label_dup_unsorted();
     check_label_slot();
     check_label_tight();
+    check_tokenize();
     return failed ? 1 : 0;
 }

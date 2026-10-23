@@ -109,6 +109,40 @@ static unsigned long cache_at;
 static unsigned int cache_n;
 static int cache_ok;
 static unsigned char store_line[80];
+static unsigned char tok_bytes[80];
+static unsigned char prg_chunk[256];
+static unsigned int prg_chunk_n;
+static unsigned long prg_pos;
+static unsigned long prg_ceiling;
+
+static int prg_emit_byte(unsigned char b) {
+    if (prg_pos + prg_chunk_n >= prg_ceiling)
+        return 3;
+    prg_chunk[prg_chunk_n++] = b;
+    if (prg_chunk_n >= 256) {
+        w64_store_put(prg_pos, prg_chunk, prg_chunk_n);
+        prg_pos += prg_chunk_n;
+        prg_chunk_n = 0;
+    }
+    return 0;
+}
+
+static int prg_emit_word(unsigned int w) {
+    int rc;
+
+    rc = prg_emit_byte((unsigned char)w);
+    if (rc)
+        return rc;
+    return prg_emit_byte((unsigned char)(w >> 8));
+}
+
+static void prg_flush(void) {
+    if (prg_chunk_n) {
+        w64_store_put(prg_pos, prg_chunk, prg_chunk_n);
+        prg_pos += prg_chunk_n;
+        prg_chunk_n = 0;
+    }
+}
 
 static unsigned char src_byte(unsigned long pos) {
     if (!cache_ok || pos < cache_at || pos >= cache_at + cache_n) {
@@ -1670,7 +1704,115 @@ done:
 int tokenize_store(unsigned long seq_at, unsigned long seq_len,
                    unsigned long reu_size, unsigned long *out_at,
                    unsigned long *out_len, int *wrote, int *err, int *err_row) {
-    (void)seq_at; (void)seq_len; (void)reu_size;
-    (void)out_at; (void)out_len; (void)wrote; (void)err; (void)err_row;
-    return 3;
+    unsigned long pos;
+    unsigned long out_base;
+    unsigned int addr = 0x0801;
+    int lines = 0;
+    int row = 0;
+    int rc = 0;
+
+    cache_ok = 0;
+    scan_lim = seq_at + seq_len;
+    out_base = seq_at + seq_len;
+    prg_pos = out_base;
+    prg_chunk_n = 0;
+    prg_ceiling = reu_size;
+    if (err_row)
+        *err_row = 0;
+
+    rc = prg_emit_word(0x0801);
+    if (rc)
+        goto done;
+
+    pos = seq_at;
+    while (pos < scan_lim) {
+        unsigned long end = pos;
+        unsigned int n = 0;
+        int past = 0;
+        int slen;
+        unsigned int line_no;
+        unsigned int next;
+        int j;
+
+        row++;
+        while (end < scan_lim && src_byte(end) != '\r') {
+            if (n < 79)
+                store_line[n++] = src_byte(end);
+            else
+                past = 1;
+            end++;
+        }
+        if (end < scan_lim)
+            end++;
+        if (past) {
+            if (err_row)
+                *err_row = row;
+            rc = 4;
+            goto done;
+        }
+        store_line[n] = '\0';
+        slen = conv_tokenize((char *)store_line, &line_no, tok_bytes, 79);
+        if (slen == -1) {
+            pos = end;
+            continue;
+        }
+        if (slen == -2) {
+            rc = 5;
+            goto done;
+        }
+        if (slen == -3) {
+            rc = 2;
+            goto done;
+        }
+        if (slen < 0) {
+            if (err_row)
+                *err_row = row;
+            rc = 4;
+            goto done;
+        }
+        next = addr + 4u + (unsigned int)slen + 1u;
+        if (next < addr) {
+            rc = 3;
+            goto done;
+        }
+        rc = prg_emit_word(next);
+        if (rc)
+            goto done;
+        rc = prg_emit_word(line_no);
+        if (rc)
+            goto done;
+        for (j = 0; j < slen; j++) {
+            rc = prg_emit_byte(tok_bytes[j]);
+            if (rc)
+                goto done;
+        }
+        rc = prg_emit_byte(0);
+        if (rc)
+            goto done;
+        addr = next;
+        lines++;
+        pos = end;
+    }
+    rc = prg_emit_word(0);
+    if (rc)
+        goto done;
+    prg_flush();
+    if (out_at)
+        *out_at = out_base;
+    if (out_len)
+        *out_len = prg_pos - out_base;
+    if (wrote)
+        *wrote = lines;
+    rc = 0;
+
+done:
+    if (rc == 3) {
+        prg_flush();
+        if (out_len)
+            *out_len = prg_pos - out_base;
+    }
+    cache_ok = 0;
+    if (err)
+        *err = rc;
+    return rc;
 }
