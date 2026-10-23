@@ -2,8 +2,8 @@
 
 **Project:** Whisper64-Extended — a text editor for the Commodore 64, aimed at real hardware and especially the C64 Ultimate. Forked from https://github.com/sandlbn/whisper64. This repo is https://github.com/RapidFire770/whisper64-extended.
 **Primary language:** C, cross-compiled with the LLVM-MOS SDK (`c64` platform). No Rust, no extra crates.
-**Status:** Editing, paging, SEQ load/save, two-color BASIC highlighting in 40- and 80-column mode, display wrap, file-wide goto, and page keys. F4 only toggles BASIC color. Full-file renumber and labels are `w64tools.prg`, not part of the editor. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is `docs/Todo-List.md`.
-**Last Updated:** October 19, 2026
+**Status:** Editing, paging, SEQ load/save, two-color BASIC highlighting in 40- and 80-column mode, display wrap, file-wide goto, and page keys. F4 only toggles BASIC color. SEQ/PRG conversion is `W64CONV`, full-file renumber is `W64RENUM`, and labels are `W64LABEL`. The editor does not link them. 80-column keyword color is one foreground color per hires cell (two glyphs share it). Mouse and joystick support was removed so the editor stays under `$D000`. Open work is `docs/Todo-List.md`.
+**Last Updated:** October 23, 2026
 
 This file defines how coding agents should work on the project. It exists to keep changes consistent. AGENTS.md takes priority over any older design notes. The sibling project `~/Documents/Programming/C64/BASIC-IDE` (Kick Assembler) is a separate, partly working attempt. Do not copy it in. Use it only as a record of tokenizer pitfalls.
 
@@ -40,7 +40,7 @@ cmake -DCMAKE_PREFIX_PATH=/home/josh/Documents/Programming/C64/tools/llvm-mos ..
 make
 ```
 
-`CMakeLists.txt` sets `LLVM_MOS_PLATFORM` to `c64` before `project()`. Output is `build/whisper64.prg` and `build/w64tools.prg`. The editor is `-Os`, `-ffunction-sections`, `--gc-sections`. `w64tools.prg` is `-Oz` with the same section flags: the label rewrite does not fit at `-Os`. A MinSizeRel cache still passes `-Os` first; the target `-Oz` comes after it and wins. Do not put `w64tools` back on `-Os` without checking `__heap_start`. `w64tools.prg` also links `-lexit-return` so a return from `main` reaches BASIC. The editor does not. A 512KB `whisper64.reu` image and `whisper64.d64` are created by the build and by `run_vice.sh`. Both are gitignored, as is `build/`.
+`CMakeLists.txt` sets `LLVM_MOS_PLATFORM` to `c64` before `project()`. Output is `build/whisper64.prg`, `build/w64conv.prg`, `build/w64renum.prg`, and `build/w64label.prg`. The editor is `-Os`, `-ffunction-sections`, `--gc-sections`. The three tools are `-Oz` with the same section flags. A MinSizeRel cache still passes `-Os` first; the target `-Oz` comes after it and wins. Do not compile the three at `-Os`. Each links `-lexit-return` so a return from `main` reaches BASIC. The editor does not. The October 23, 2026 maps put `__heap_start` at `$4A5D` (`w64conv`), `$60CA` (`w64renum`), and `$8E2E` (`w64label`), with `__stack` at `$D000` on each. A 512KB `whisper64.reu` image and `whisper64.d64` are created by the build and by `run_vice.sh`. Both are gitignored, as is `build/`.
 
 Run in VICE:
 
@@ -55,10 +55,10 @@ There is no unit-test target. Do not claim a C64 behavior works unless VICE or t
 ## Layout
 
 ```text
-include/     headers, one per module, plus font_4x8.h, whisper64.h, w64tools.h
+include/     headers, one per module, plus font_4x8.h, whisper64.h, w64tools.h, w64toolui.h, w64reu.h
 src/         editor .c files
-src/conv/    W64TOOLS tokenize, renumber, labels, and disk streaming
-tools/       c64u.py (Ultimate REST driver), test_basic_prg.py, test_renumber.c, test_w64conv_c64u.py
+src/conv/    W64CONV, W64RENUM, and W64LABEL
+tools/       c64u.py (Ultimate REST driver), test_basic_prg.py, test_renumber.c, test_bigfile.c, test_w64conv_c64u.py
 docs/        Todo-List.md, SDK path note, c64 programming books
 build/       cmake output, gitignored
 run_vice.sh
@@ -143,7 +143,7 @@ F2 always writes SEQ: `@0:name,S,W`, every page. Every SEQ line, including the l
 
 F4 turns `basic_mode` on (`BASIC MODE ON`) and off (`BASIC MODE OFF`). Highlighting and the 79-character cap are the only editor effects. The editor does not rewrite line numbers.
 
-W64TOOLS mode 3 renumbers a whole SEQ. The step prompt defaults to 10 when left empty. Mode 4 numbers labeled lines at step 10 and writes a PRG. Both live in `src/conv/renumber.c`.
+`W64RENUM` renumbers a whole SEQ. The step prompt defaults to 10 when left empty. `W64LABEL` numbers labeled lines at step 10 and writes a PRG. The store walks live in `src/conv/renumber.c`.
 
 ## Pointer
 
@@ -172,7 +172,7 @@ Match the surrounding file. C functions, globals in `editor_state`, KERNAL calls
 
 ## Todo-List feasibility
 
-80-column BASIC highlighting, display wrap, the 40-column screen-code map, quote/REM colors, the two-color V2 name list, file-wide goto, the page keys, the BASIC line-full warning, and the second help page are done. The editor does not renumber. Full-file renumber is W64TOOLS mode 3. Labels are mode 4. SEQ/PRG conversion is `w64tools`, not an editor feature. The mouse and the joystick pointer were removed for size.
+80-column BASIC highlighting, display wrap, the 40-column screen-code map, quote/REM colors, the two-color V2 name list, file-wide goto, the page keys, the BASIC line-full warning, and the second help page are done. The editor does not renumber. Full-file renumber is `W64RENUM`. Labels are `W64LABEL`. SEQ/PRG conversion is `W64CONV`, separate from the editor. The mouse and the joystick pointer were removed for size.
 
 ### 80-column BASIC highlighting — done
 
@@ -190,24 +190,36 @@ The rules live in "How the editor stores text". One editor line, up to 79 charac
 
 Removed so wrap fits under `$D000`. The port-select item is moot. Do not put the pointer back without a size check.
 
-## W64TOOLS
+## W64CONV, W64RENUM, and W64LABEL
 
-`src/conv/token.c`, `src/conv/renumber.c`, and `src/conv/main.c` build `w64tools.prg`. It is not linked into the editor. The header is `include/w64tools.h`. The editor saves SEQ only.
+Three programs replace the single converter. None of them is linked into the editor. The editor saves SEQ only. `include/w64toolui.h` declares the shared screen, directory, drive, probe line, and REU flush. `src/conv/toolui.c` defines them. `src/conv/reu_dma.c` and `include/w64reu.h` are linked into all three and are not linked into the editor. The editor's `src/reu.c` stays the page store. `include/w64tools.h` still holds the result codes. Each CMake target also compiles `src/conv/tool_reu.c`.
 
-The menu is `1` SEQ to PRG, `2` PRG to SEQ, `3` renumber a SEQ, `4` labels to numbered lines then a PRG, and `?` help. Mode 3 asks for a step; an empty step is 10. Mode 4 uses step 10 and does not ask. Read drive and write drive are separate, 8–15, and an empty entry is 8. The directory of the read drive is packed into `out_bytes` (18 bytes a slot, name in 0–15, NUL at 16, type at 17, at most 144 entries) and discarded when the file is read. SEQ modes list type S. Mode 2 lists type P. Skip the disk-header entry. `NO FILES` waits for a key and does not set `verify_code`, so the menu redraws and does not ask ANOTHER.
+| Program | Sources |
+|---|---|
+| `w64conv.prg` | `src/conv/conv_main.c`, `src/conv/toolui.c`, `src/conv/token.c`, `src/conv/reu_dma.c`, `src/conv/basic_zp.S` |
+| `w64renum.prg` | `src/conv/renum_main.c`, `src/conv/toolui.c`, `src/conv/renumber.c`, `src/conv/reu_dma.c`, `src/conv/basic_zp.S` |
+| `w64label.prg` | `src/conv/label_main.c`, `src/conv/toolui.c`, `src/conv/renumber.c`, `src/conv/token.c`, `src/conv/reu_dma.c`, `src/conv/basic_zp.S` |
 
-The screen is border gray 12, background black, text green 5, and the selected directory row yellow 7. The title `W64TOOLS` is centered. This SDK has no `conio.h`. The tool writes `$0400` and color RAM directly and reads keys with `cbm_k_getin`. It does not use `sprintf`. Error text from `put_err` is red (color 2). `CANCELLED` stays green.
+All three are `-Oz`, `--gc-sections`, and `-lexit-return`. A MinSizeRel cache still passes `-Os` first. The target `-Oz` comes after it and wins. Do not compile these three at `-Os`. `basic_zp.S` is compiled as C. The October 23, 2026 maps put `__heap_start` at `$4A5D` for `build/w64conv.map`, `$60CA` for `build/w64renum.map`, and `$8E2E` for `build/w64label.map`. Each has `__stack` at `$D000`. Keep the heap at or below `$C800`. Do not add a RAM file buffer, and do not raise the directory list past 144 entries.
+
+`W64CONV` menu `1` is SEQ to PRG and `2` is PRG to SEQ. `W64RENUM` renumbers a SEQ. An empty step is 10. `W64LABEL` numbers labels at step 10 and writes a PRG, and it does not ask for a step. Read drive and write drive are separate, 8–15, and an empty entry is 8. The directory is its own list: 144 entries, 18 bytes each, name in 0–15, NUL at 16, type at 17. It is discarded when the file is read. `W64CONV` lists SEQ for SEQ to PRG and PRG for PRG to SEQ. `W64RENUM` and `W64LABEL` list SEQ. Skip the disk-header entry. `NO FILES` waits for a key and does not set `verify_code`, so the menu redraws and does not ask ANOTHER.
+
+The screen is border gray 12, background black, text green 5, and the selected directory row yellow 7. The centered title is the disk name: `W64CONV`, `W64RENUM`, or `W64LABEL`. This SDK has no `conio.h`. The tool writes `$0400` and color RAM directly and reads keys with `cbm_k_getin`. It does not use `sprintf`. Error text from `tool_put_err` is red (color 2). `CANCELLED` stays green.
+
+Row 1 shows `REU: NONE` or `REU: nKB`. The largest value is `16320KB`. A job needs at least `128KB`. The menu, the directory, the drive prompts, and help work at any measured size. Choosing the job when the size is under 131072 bytes paints `REU 128KB REQUIRED` and returns to the menu. The probe runs once, in `main`, before the menu and before any file bytes are stored. It overwrites byte 0 of every bank it touches. After it runs, that program owns the REU until it exits, including unsaved editor pages. Do not probe again.
+
+The file is stored in the REU. `TOO BIG` means that REU filled. A tokenized program can still stop at `PRG TOO BIG` when a 16-bit link would wrap. Line numbers stop at 63999, and a line stops at 79 characters. `W64CONV` uses one region at address 0. `W64RENUM` and `W64LABEL` keep the source SEQ at address 0, grow the output upward from the end of that SEQ, and grow the map downward from the measured end. `W64LABEL` writes the PRG above the numbered SEQ. A renumber record is 6 bytes, packed little-endian. A label record is 14 bytes. On the C64 `unsigned int` is 16 bits, so do not assume the host's 16-byte `LabelEnt`.
 
 A 1541 has one data channel. Close the directory before opening the file. Do not open the output while the input is still open. The overwrite probe reads the DOS error channel. `cbm_k_open` returns 0 for a missing file; DOS code 62 means the name is free. A new file is `name,P,W` or `name,S,W`. `@0:` is only when the probe finds the name already there.
 
-`out_bytes` is 20096 bytes, not 32KB. Modes 1 and 2 use the whole array. Modes 3 and 4 keep the text in the front (`OUT_CAP - 2048`) and the map in the last 2048 bytes. Size that map with `2048 / sizeof` the entry. On the C64 `unsigned int` is 16 bits, so do not assume the host's 16-byte `LabelEnt`. The last `-Oz` link has `__heap_start` at `$C768` and `__stack` at `$D000` (2200 bytes between them). `basic_zp` is `$8E` bytes of `.noinit` at `$C546`. Keep the heap at or below `$C800`. At `-Os` this same source put the heap past `$D000`: `.bss` overflowed by 3073 bytes and `.noinit` by 3483. Do not raise `OUT_CAP` without relinking. Mode 4 moves the SEQ to the end of the array and writes the PRG in front of it, so a long SEQ has only `OUT_CAP - length` bytes for the PRG.
+New numbers are the step, then twice the step, and they stop at 63999. Check `63999u - step` before adding so a 16-bit step does not wrap. The store path returns 0, or 1 (step 0 or above 63999), 2 (a new or old number would pass 63999), 3 (the next byte would enter another region, or pass the measured end), 4 (a line would pass 79 characters), 5 (a GOTO, GOSUB, THEN, ELSE, GO TO, or GO SUB number is not in the map). The screen stores 3 as `TOO BIG` and 5 as `NO NUM`. Label codes add 6 (unknown name on GOTO or GOSUB), 7 (name longer than 11), and 8 (duplicate). The screen stores 6 as `NO LABEL`, 7 as `BAD NAME`, and 8 as `DUP LABEL`. Code 4 and code 6 append the 1-based source row when it is non-zero (`LINE LONG 12`, `NO LABEL 12`). A letter starts a label, then letters or digits, at most 11, then `:`. One space after the colon is stripped. A label with nothing after the colon shares the next code line's number, and that label line is not emitted. A blank line, or the end of the file, gives each of those labels its own empty numbered line. Digit-leading lines keep their numbers and are not labels. `THEN` and `ELSE` rewrite a mapped name, or a `GOTO` / `GOSUB` target. A V2 keyword after `THEN` or `ELSE` stays a statement, even when a label has that keyword's name. `GO TO` and `GO SUB` are renumber keywords, not label keywords.
 
-New numbers are the step, then twice the step, and they stop at 63999. Check `63999u - step` before adding so a 16-bit step does not wrap. Renumber returns 0, or 1 (step 0 or above 63999), 2 (a new or old number would pass 63999), 3 (more numbered lines than the map), 4 (a line would pass 79 characters or the text cap), 5 (a GOTO, GOSUB, THEN, ELSE, GO TO, or GO SUB number is not in the map). The rewrite is a dry walk and then `fit_line`, so every error code leaves the text alone. A target above 63999 is code 5. Label codes add 6 (unknown name on GOTO or GOSUB), 7 (name longer than 11), and 8 (duplicate). The screen stores renumber 5 as `NO NUM`, label 6 as `NO LABEL`, 7 as `BAD NAME`, and 8 as `DUP LABEL`. Code 4 and code 6 append the 1-based source row when it is non-zero (`LINE LONG 12`, `NO LABEL 12`). Do not add `CONV_*` codes for them. A letter starts a label, then letters or digits, at most 11, then `:`. One space after the colon is stripped. A label with nothing after the colon shares the next code line's number, and that label line is not emitted. A blank line, or the end of the file, gives each of those labels its own empty numbered line. Digit-leading lines keep their numbers and are not labels. `THEN` and `ELSE` rewrite a mapped name, or a `GOTO` / `GOSUB` target. A V2 keyword after `THEN` or `ELSE` stays a statement, even when a label has that keyword's name. `GO TO` and `GO SUB` are renumber keywords, not label keywords.
+`renumber_seq`, `labels_to_numbered`, and the RAM tokenizer stay in `src/conv/renumber.c` for the host tests. `W64RENUM` calls `renumber_seq_store`. `W64LABEL` calls `labels_to_numbered_store`, then `tokenize_store`. `W64CONV` tokenizes and detokenizes in `src/conv/conv_main.c`. `--gc-sections` leaves the RAM entry points out of the PRGs.
 
-KERNAL STATUS at `$90` is OR-ed. `chrin_fresh` clears it before each `CHRIN`. An EOF bit keeps that byte. A bare timeout is the end of the file. Renumber and labels split lines on CR only. Mode 1 still splits a SEQ on CR or LF.
+KERNAL STATUS at `$90` is OR-ed. `chrin_fresh` clears it before each `CHRIN`. An EOF bit keeps that byte. A bare timeout is the end of the file. Renumber and labels split lines on CR only. `W64CONV` splits a SEQ on CR or LF.
 
-N or Stop (PETSCII 3) at the another-file prompt returns from `main`. `-lexit-return` makes `__after_main` jump to `__exit_return`. `src/conv/basic_zp.S` copies `$02`–`$8F` into a `.noinit` buffer in `.init.005` and writes it back in `.fini.989`. Unmap-basic's `.fini.990` then stores `$3F` in `$01`, and the RTS goes back to the BASIC stub. Do not link `save-basic.o`: it also defines `_Exit`. CMake's `project(whisper64 C)` ignores a `.S` file unless `set_source_files_properties` sets `LANGUAGE C`. Menu Stop still says cancelled and waits. On the Ultimate, N after a label conversion and after SEQ-to-PRG showed `READY.`, and `PRINT 1` printed `1`.
+N or Stop (PETSCII 3) at the another-file prompt returns from `main`. `-lexit-return` makes `__after_main` jump to `__exit_return`. `src/conv/basic_zp.S` copies `$02`–`$8F` into a `.noinit` buffer in `.init.005` and writes it back in `.fini.989`. Unmap-basic's `.fini.990` then stores `$3F` in `$01`, and the RTS goes back to the BASIC stub. Do not link `save-basic.o`: it also defines `_Exit`. CMake's `project(whisper64 C)` ignores a `.S` file unless `set_source_files_properties` sets `LANGUAGE C`. Menu Stop still says cancelled and waits.
 
-The token table in `src/conv/token.c` is V2 token order and is separate from the editor highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host checks are `gcc -Wall -Wextra -Iinclude -o /tmp/test_renumber tools/test_renumber.c src/conv/renumber.c src/conv/token.c` and `python3 tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. The script name stayed. Do not treat a VICE run as that test, and do not run the script unless asked. It resets the Ultimate.
+The token table in `src/conv/token.c` is V2 token order and is separate from the editor highlight list. Do not merge them. Spaces between the line number and the first statement byte are not stored. LIST puts that space back. Host checks are `gcc -Wall -Wextra -Iinclude -o /tmp/test_renumber tools/test_renumber.c src/conv/renumber.c src/conv/token.c`, `gcc -Wall -Wextra -Iinclude -o /tmp/test_bigfile tools/test_bigfile.c src/conv/renumber.c src/conv/token.c`, and `python3 tools/test_basic_prg.py`. A disk round trip is `tools/test_w64conv_c64u.py` on the C64 Ultimate. The script name stayed. Do not treat a VICE run as that test, and do not run the script unless asked. It resets the Ultimate.
 
 Do not move the tokenizer back into the editor. That attempt put `__bss_end` at `$CF3D` (195 bytes under `$D000`) and the 80-column draw no longer fit. The current editor link has `__bss_end` at `$CB1A`, `__heap_start` at `$CB3A`, and `__stack` at `$D000`. Help page 2 is kept short on purpose. Do not lengthen those strings without checking the map.
