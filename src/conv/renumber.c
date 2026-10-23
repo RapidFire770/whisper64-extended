@@ -100,9 +100,147 @@ static int put_num(char *line, int *n, unsigned int v) {
     return 0;
 }
 
+static int store_mode;
+static int map_sorted;
+static unsigned long store_size;
+static unsigned long scan_lim;
+static unsigned char line_cache[128];
+static unsigned long cache_at;
+static unsigned int cache_n;
+static int cache_ok;
+static unsigned char store_line[80];
+
+static unsigned char src_byte(unsigned long pos) {
+    if (!cache_ok || pos < cache_at || pos >= cache_at + cache_n) {
+        unsigned int n = 128;
+        unsigned long room = scan_lim - pos;
+
+        if (room < n)
+            n = (unsigned int)room;
+        if (n == 0)
+            return 0;
+        w64_store_get(pos, line_cache, n);
+        cache_at = pos;
+        cache_n = n;
+        cache_ok = 1;
+    }
+    return line_cache[(unsigned int)(pos - cache_at)];
+}
+
+static unsigned long slot_addr(int i, int width) {
+    return store_size - (unsigned long)(i + 1) * (unsigned long)width;
+}
+
+static int slot_fits(int i, int width, unsigned long floor) {
+    return slot_addr(i, width) >= floor;
+}
+
+static void rec_renum_get(int i, unsigned int *old, unsigned int *neu, unsigned int *idx) {
+    unsigned char b[6];
+
+    w64_store_get(slot_addr(i, 6), b, 6);
+    *old = (unsigned int)b[0] | ((unsigned int)b[1] << 8);
+    *neu = (unsigned int)b[2] | ((unsigned int)b[3] << 8);
+    *idx = (unsigned int)b[4] | ((unsigned int)b[5] << 8);
+}
+
+static void rec_renum_put(int i, unsigned int old, unsigned int neu, unsigned int idx) {
+    unsigned char b[6];
+
+    b[0] = (unsigned char)old;
+    b[1] = (unsigned char)(old >> 8);
+    b[2] = (unsigned char)neu;
+    b[3] = (unsigned char)(neu >> 8);
+    b[4] = (unsigned char)idx;
+    b[5] = (unsigned char)(idx >> 8);
+    w64_store_put(slot_addr(i, 6), b, 6);
+}
+
+static unsigned int store_new(int idx) {
+    unsigned int old, neu, id;
+
+    rec_renum_get(idx, &old, &neu, &id);
+    return neu;
+}
+
+static int renum_before(int i, int j) {
+    unsigned int oi, ni, ii, oj, nj, ij;
+
+    rec_renum_get(i, &oi, &ni, &ii);
+    rec_renum_get(j, &oj, &nj, &ij);
+    if (oi != oj)
+        return oi < oj;
+    return ii < ij;
+}
+
+static void swap_renum(int i, int j) {
+    unsigned char a[6], b[6];
+
+    if (i == j)
+        return;
+    w64_store_get(slot_addr(i, 6), a, 6);
+    w64_store_get(slot_addr(j, 6), b, 6);
+    w64_store_put(slot_addr(i, 6), b, 6);
+    w64_store_put(slot_addr(j, 6), a, 6);
+}
+
+static void sift_renum(int start, int count) {
+    for (;;) {
+        int root = start;
+        int child = root * 2 + 1;
+
+        if (child >= count)
+            return;
+        if (child + 1 < count && renum_before(child, child + 1))
+            child++;
+        if (renum_before(root, child)) {
+            swap_renum(root, child);
+            start = child;
+        } else
+            return;
+    }
+}
+
+static void sort_renum(int count) {
+    int start;
+    int end;
+
+    if (count < 2)
+        return;
+    for (start = count / 2 - 1; start >= 0; start--)
+        sift_renum(start, count);
+    for (end = count - 1; end > 0; end--) {
+        swap_renum(end, 0);
+        sift_renum(0, end);
+    }
+}
+
 static int find_old(struct RenumEnt *map, int nmap, unsigned int old) {
     int i;
 
+    if (store_mode) {
+        int lo = 0;
+        int hi = nmap;
+
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            unsigned int oi, ni, ii;
+
+            rec_renum_get(mid, &oi, &ni, &ii);
+            if (oi < old)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        if (lo < nmap) {
+            unsigned int oi, ni, ii;
+
+            rec_renum_get(lo, &oi, &ni, &ii);
+            if (oi == old)
+                return lo;
+        }
+        return -1;
+    }
     for (i = 0; i < nmap; i++) {
         if (map[i].old_num == old)
             return i;
@@ -153,7 +291,7 @@ static int emit_refs(const unsigned char *s, unsigned int len, unsigned int *ip,
         idx = find_old(map, nmap, num);
         if (idx < 0)
             return 5;
-        if (put_num(line, n, map[idx].new_num))
+        if (put_num(line, n, store_mode ? store_new(idx) : map[idx].new_num))
             return 4;
         *ip = end;
 
@@ -921,12 +1059,184 @@ done:
     return rc;
 }
 
+static void store_line_prefix(unsigned long pos, unsigned long end,
+                              unsigned int *prefix_len, int *overflow80) {
+    unsigned long p = pos;
+    unsigned int n = 0;
+
+    *overflow80 = 0;
+    while (p < end) {
+        unsigned char c = src_byte(p);
+
+        if (n < 79)
+            store_line[n++] = c;
+        else
+            *overflow80 = 1;
+        p++;
+    }
+    *prefix_len = n;
+}
+
 int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
                        unsigned int step, unsigned long *out_at,
                        unsigned long *out_len, int *err, int *err_row) {
-    (void)text_len; (void)reu_size; (void)step;
-    (void)out_at; (void)out_len; (void)err; (void)err_row;
-    return 3;
+    unsigned long pos;
+    unsigned int next;
+    int nmap;
+    int rc;
+    int past;
+    int pass;
+    int row;
+    int map_i;
+    unsigned long map_floor;
+    unsigned long appended;
+
+    store_mode = 1;
+    map_sorted = 0;
+    cache_ok = 0;
+    scan_lim = text_len;
+    while (scan_lim > 0 && src_byte(scan_lim - 1) == '\0')
+        scan_lim--;
+    store_size = reu_size;
+    *err_row = 0;
+    rc = 0;
+    if (step == 0 || step > 63999u) {
+        rc = 1;
+        goto done;
+    }
+    if (scan_lim == 0) {
+        if (out_len)
+            *out_len = 0;
+        goto done;
+    }
+
+    nmap = 0;
+    next = step;
+    past = 0;
+    pos = 0;
+    while (pos < scan_lim) {
+        unsigned long end = pos;
+        unsigned int prefix_len;
+        int overflow80;
+        unsigned int old = 0;
+        unsigned int digits = 0;
+        unsigned int after = 0;
+        int kind;
+
+        while (end < scan_lim && src_byte(end) != '\r')
+            end++;
+        store_line_prefix(pos, end, &prefix_len, &overflow80);
+        kind = line_num_at(store_line, prefix_len, &old, &digits, &after);
+        if (kind < 0) {
+            rc = 2;
+            goto done;
+        }
+        if (kind > 0) {
+            if (!slot_fits(nmap, 6, text_len)) {
+                rc = 3;
+                goto done;
+            }
+            if (past) {
+                rc = 2;
+                goto done;
+            }
+            rec_renum_put(nmap, old, next, (unsigned int)nmap);
+            nmap++;
+            if (next > 63999u - step)
+                past = 1;
+            else
+                next += step;
+        }
+        pos = end;
+        if (pos < scan_lim)
+            pos++;
+    }
+
+    sort_renum(nmap);
+    map_sorted = 1;
+    map_floor = nmap > 0 ? slot_addr(nmap - 1, 6) : store_size;
+
+    for (pass = 0; pass < 2; pass++) {
+        pos = 0;
+        map_i = 0;
+        row = 0;
+        appended = 0;
+        while (pos < scan_lim) {
+            unsigned long end = pos;
+            unsigned int prefix_len;
+            int overflow80;
+            int has_cr;
+            unsigned int old = 0;
+            unsigned int digits = 0;
+            unsigned int after = 0;
+            int kind;
+            int new_len = 0;
+            unsigned int neu = 0;
+            char line[80];
+
+            while (end < scan_lim && src_byte(end) != '\r')
+                end++;
+            has_cr = end < scan_lim;
+            store_line_prefix(pos, end, &prefix_len, &overflow80);
+            row++;
+            if (overflow80) {
+                *err_row = row;
+                rc = 4;
+                goto done;
+            }
+            kind = line_num_at(store_line, prefix_len, &old, &digits, &after);
+            if (kind < 0) {
+                rc = 2;
+                goto done;
+            }
+            if (kind > 0)
+                neu = store_new(map_i);
+            rc = build_line(store_line, prefix_len, kind > 0,
+                            kind > 0 ? neu : 0, digits, after,
+                            NULL, nmap, line, &new_len);
+            if (rc) {
+                if (rc == 4)
+                    *err_row = row;
+                goto done;
+            }
+            if (kind > 0)
+                map_i++;
+            if (pass == 0) {
+                appended += (unsigned long)new_len;
+                if (has_cr)
+                    appended++;
+                if (text_len + appended > map_floor) {
+                    rc = 3;
+                    goto done;
+                }
+                pos = has_cr ? end + 1 : end;
+                continue;
+            }
+            w64_store_put(text_len + appended, line, (unsigned int)new_len);
+            appended += (unsigned long)new_len;
+            if (has_cr) {
+                unsigned char cr = '\r';
+
+                w64_store_put(text_len + appended, &cr, 1);
+                appended++;
+            }
+            pos = has_cr ? end + 1 : end;
+        }
+        if (pass == 1) {
+            if (out_at)
+                *out_at = text_len;
+            if (out_len)
+                *out_len = appended;
+        }
+    }
+    rc = 0;
+
+done:
+    store_mode = 0;
+    cache_ok = 0;
+    if (err)
+        *err = rc;
+    return rc;
 }
 
 int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
