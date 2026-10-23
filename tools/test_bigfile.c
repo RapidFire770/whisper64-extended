@@ -56,8 +56,8 @@ static void check_long(void) {
         memcpy(mem + n, line, (unsigned int)k);
         n += (unsigned int)k;
     }
-    memcpy(mem + n, "2001 GOTO 1\r", 13);
-    n += 13;
+    memcpy(mem + n, "2001 GOTO 1\r", 12);
+    n += 12;
     if (n <= OUT_CAP)
         fail("long setup");
     rc = renumber_seq_store(n, sizeof mem, 10, &out_at, &out_len, &err, &row);

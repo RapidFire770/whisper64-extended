@@ -1095,8 +1095,6 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
     map_sorted = 0;
     cache_ok = 0;
     scan_lim = text_len;
-    while (scan_lim > 0 && src_byte(scan_lim - 1) == '\0')
-        scan_lim--;
     store_size = reu_size;
     *err_row = 0;
     rc = 0;
