@@ -43,6 +43,30 @@ static void check_parity(void) {
         fail("store parity");
 }
 
+static void check_file_order(void) {
+    const char *in = "30 GOTO 10\r10 END\r";
+    const char *want = "10 GOTO 20\r20 END\r";
+    unsigned char buf[64];
+    struct RenumEnt map[8];
+    unsigned int used = (unsigned int)strlen(in);
+    unsigned long out_at = 0, out_len = 0;
+    int err = 99, row = 77, rc;
+
+    memset(buf, 0, sizeof buf);
+    memcpy(buf, in, used);
+    rc = renumber_seq(buf, &used, sizeof buf, map, 8, 10, &err, &row);
+    if (rc != 0 || used != strlen(want) || memcmp(buf, want, used) != 0)
+        fail("ram file order");
+    memset(mem, 0, sizeof mem);
+    memcpy(mem, in, strlen(in));
+    err = 99;
+    row = 77;
+    rc = renumber_seq_store(strlen(in), sizeof mem, 10, &out_at, &out_len, &err, &row);
+    if (rc != 0 || err != 0 || out_len != strlen(want) ||
+        memcmp(mem + out_at, want, out_len) != 0)
+        fail("store file order");
+}
+
 static void check_long(void) {
     unsigned long n = 0;
     unsigned int i;
@@ -111,6 +135,7 @@ static void check_tight(void) {
 
 int main(void) {
     check_parity();
+    check_file_order();
     check_long();
     check_many();
     check_missing();

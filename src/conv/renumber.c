@@ -127,15 +127,16 @@ static unsigned char src_byte(unsigned long pos) {
     return line_cache[(unsigned int)(pos - cache_at)];
 }
 
-static unsigned long slot_addr(int i, int width) {
-    return store_size - (unsigned long)(i + 1) * (unsigned long)width;
+static unsigned long slot_addr(unsigned long i, int width) {
+    return store_size - (i + 1UL) * (unsigned long)width;
 }
 
-static int slot_fits(int i, int width, unsigned long floor) {
+static int slot_fits(unsigned long i, int width, unsigned long floor) {
     return slot_addr(i, width) >= floor;
 }
 
-static void rec_renum_get(int i, unsigned int *old, unsigned int *neu, unsigned int *idx) {
+static void rec_renum_get(unsigned long i, unsigned int *old, unsigned int *neu,
+                          unsigned int *idx) {
     unsigned char b[6];
 
     w64_store_get(slot_addr(i, 6), b, 6);
@@ -144,7 +145,8 @@ static void rec_renum_get(int i, unsigned int *old, unsigned int *neu, unsigned 
     *idx = (unsigned int)b[4] | ((unsigned int)b[5] << 8);
 }
 
-static void rec_renum_put(int i, unsigned int old, unsigned int neu, unsigned int idx) {
+static void rec_renum_put(unsigned long i, unsigned int old, unsigned int neu,
+                          unsigned int idx) {
     unsigned char b[6];
 
     b[0] = (unsigned char)old;
@@ -156,14 +158,18 @@ static void rec_renum_put(int i, unsigned int old, unsigned int neu, unsigned in
     w64_store_put(slot_addr(i, 6), b, 6);
 }
 
-static unsigned int store_new(int idx) {
+static unsigned int store_new(unsigned long idx) {
     unsigned int old, neu, id;
 
     rec_renum_get(idx, &old, &neu, &id);
     return neu;
 }
 
-static int renum_before(int i, int j) {
+static unsigned int store_line_num(unsigned int file_i, unsigned int step) {
+    return step + file_i * step;
+}
+
+static int renum_before(unsigned long i, unsigned long j) {
     unsigned int oi, ni, ii, oj, nj, ij;
 
     rec_renum_get(i, &oi, &ni, &ii);
@@ -173,7 +179,7 @@ static int renum_before(int i, int j) {
     return ii < ij;
 }
 
-static void swap_renum(int i, int j) {
+static void swap_renum(unsigned long i, unsigned long j) {
     unsigned char a[6], b[6];
 
     if (i == j)
@@ -184,14 +190,14 @@ static void swap_renum(int i, int j) {
     w64_store_put(slot_addr(j, 6), a, 6);
 }
 
-static void sift_renum(int start, int count) {
+static void sift_renum(unsigned long start, unsigned long count) {
     for (;;) {
-        int root = start;
-        int child = root * 2 + 1;
+        unsigned long root = start;
+        unsigned long child = root * 2UL + 1UL;
 
         if (child >= count)
             return;
-        if (child + 1 < count && renum_before(child, child + 1))
+        if (child + 1UL < count && renum_before(child, child + 1UL))
             child++;
         if (renum_before(root, child)) {
             swap_renum(root, child);
@@ -201,15 +207,15 @@ static void sift_renum(int start, int count) {
     }
 }
 
-static void sort_renum(int count) {
-    int start;
-    int end;
+static void sort_renum(unsigned long count) {
+    long start;
+    unsigned long end;
 
     if (count < 2)
         return;
-    for (start = count / 2 - 1; start >= 0; start--)
-        sift_renum(start, count);
-    for (end = count - 1; end > 0; end--) {
+    for (start = (long)(count / 2UL) - 1L; start >= 0L; start--)
+        sift_renum((unsigned long)start, count);
+    for (end = count - 1UL; end > 0; end--) {
         swap_renum(end, 0);
         sift_renum(0, end);
     }
@@ -1150,9 +1156,9 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
             pos++;
     }
 
-    sort_renum(nmap);
+    sort_renum((unsigned long)nmap);
     map_sorted = 1;
-    map_floor = nmap > 0 ? slot_addr(nmap - 1, 6) : store_size;
+    map_floor = nmap > 0 ? slot_addr((unsigned long)nmap - 1UL, 6) : store_size;
 
     for (pass = 0; pass < 2; pass++) {
         pos = 0;
@@ -1188,7 +1194,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
                 goto done;
             }
             if (kind > 0)
-                neu = store_new(map_i);
+                neu = store_line_num((unsigned int)map_i, step);
             rc = build_line(store_line, prefix_len, kind > 0,
                             kind > 0 ? neu : 0, digits, after,
                             NULL, nmap, line, &new_len);
