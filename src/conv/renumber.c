@@ -144,6 +144,18 @@ static void prg_flush(void) {
     }
 }
 
+static void store_err_row(int *err_row, unsigned long row) {
+    unsigned int r;
+
+    if (!err_row)
+        return;
+    if (row > 65535ul)
+        r = 65535u;
+    else
+        r = (unsigned int)row;
+    *err_row = (int)r;
+}
+
 static unsigned char src_byte(unsigned long pos) {
     if (!cache_ok || pos < cache_at || pos >= cache_at + cache_n) {
         unsigned int n = 128;
@@ -1708,7 +1720,7 @@ int tokenize_store(unsigned long seq_at, unsigned long seq_len,
     unsigned long out_base;
     unsigned int addr = 0x0801;
     int lines = 0;
-    int row = 0;
+    unsigned long row = 0;
     int rc = 0;
 
     cache_ok = 0;
@@ -1745,8 +1757,7 @@ int tokenize_store(unsigned long seq_at, unsigned long seq_len,
         if (end < scan_lim)
             end++;
         if (past) {
-            if (err_row)
-                *err_row = row;
+            store_err_row(err_row, row);
             rc = 4;
             goto done;
         }
@@ -1765,8 +1776,7 @@ int tokenize_store(unsigned long seq_at, unsigned long seq_len,
             goto done;
         }
         if (slen < 0) {
-            if (err_row)
-                *err_row = row;
+            store_err_row(err_row, row);
             rc = 4;
             goto done;
         }
