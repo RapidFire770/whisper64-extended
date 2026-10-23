@@ -14,6 +14,8 @@
 #define CONV_BAD_NAME  10
 #define CONV_CANCEL    11
 
+#define OUT_CAP 20096
+
 /* >=0 statement length. -1 blank. -2 no number. -3 above 63999.
    -4 the statement would not fit in cap bytes. */
 int conv_tokenize(const char *line, unsigned int *line_no,
@@ -46,6 +48,18 @@ int labels_to_numbered(unsigned char *text, unsigned int *used,
                        unsigned int text_cap,
                        struct LabelEnt *map, int map_cap,
                        unsigned int step, int *err, int *err_row);
+
+int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
+                       unsigned int step, unsigned long *out_at,
+                       unsigned long *out_len, int *err, int *err_row);
+int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
+                             unsigned int step, unsigned long *out_at,
+                             unsigned long *out_len, int *err, int *err_row);
+/* *wrote is the BASIC line count. reu_size is the exclusive end of free
+   space (the first map byte when a map is still resident). */
+int tokenize_store(unsigned long seq_at, unsigned long seq_len,
+                   unsigned long reu_size, unsigned long *out_at,
+                   unsigned long *out_len, int *wrote, int *err, int *err_row);
 
 /* Volatile so a whole-program link keeps the bytes the Ultimate test reads. */
 extern volatile unsigned char verify_buf[256];

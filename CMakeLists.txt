@@ -42,6 +42,7 @@ add_executable(w64tools.prg
     src/conv/main.c
     src/conv/token.c
     src/conv/renumber.c
+    src/conv/reu_dma.c
     src/conv/basic_zp.S
 )
 set_source_files_properties(src/conv/basic_zp.S PROPERTIES LANGUAGE C)

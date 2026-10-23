@@ -1,4 +1,5 @@
 #include "w64tools.h"
+#include "w64reu.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -127,6 +128,18 @@ static void expect_label_err(const char *name, const char *in, int map_cap,
         show_bytes("orig", orig, used);
         failed = 1;
     }
+}
+
+void w64_store_get(unsigned long addr, void *dst, unsigned int n) {
+    (void)addr;
+    (void)dst;
+    (void)n;
+}
+
+void w64_store_put(unsigned long addr, const void *src, unsigned int n) {
+    (void)addr;
+    (void)src;
+    (void)n;
 }
 
 int main(void) {

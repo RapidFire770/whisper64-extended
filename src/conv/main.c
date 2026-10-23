@@ -62,7 +62,6 @@ static char text_line[80];
 /* A 1541 keeps one data file open. Bytes wait here until the input is closed.
    The menu, renumber code, and the BASIC return path sit in front of this
    array. Keep __heap_start at or below $C800. */
-#define OUT_CAP 20096
 static unsigned char out_bytes[OUT_CAP];
 static unsigned int out_used;
 

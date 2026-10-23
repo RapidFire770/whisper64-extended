@@ -1,4 +1,5 @@
 #include "w64tools.h"
+#include "w64reu.h"
 #include <ctype.h>
 #include <string.h>
 
@@ -918,4 +919,28 @@ done:
     if (err)
         *err = rc;
     return rc;
+}
+
+int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
+                       unsigned int step, unsigned long *out_at,
+                       unsigned long *out_len, int *err, int *err_row) {
+    (void)text_len; (void)reu_size; (void)step;
+    (void)out_at; (void)out_len; (void)err; (void)err_row;
+    return 3;
+}
+
+int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
+                             unsigned int step, unsigned long *out_at,
+                             unsigned long *out_len, int *err, int *err_row) {
+    (void)text_len; (void)reu_size; (void)step;
+    (void)out_at; (void)out_len; (void)err; (void)err_row;
+    return 3;
+}
+
+int tokenize_store(unsigned long seq_at, unsigned long seq_len,
+                   unsigned long reu_size, unsigned long *out_at,
+                   unsigned long *out_len, int *wrote, int *err, int *err_row) {
+    (void)seq_at; (void)seq_len; (void)reu_size;
+    (void)out_at; (void)out_len; (void)wrote; (void)err; (void)err_row;
+    return 3;
 }
