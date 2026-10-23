@@ -165,8 +165,8 @@ static unsigned int store_new(unsigned long idx) {
     return neu;
 }
 
-static unsigned int store_line_num(unsigned int file_i, unsigned int step) {
-    return step + file_i * step;
+static unsigned int store_line_num(unsigned long file_i, unsigned int step) {
+    return step + (unsigned int)(file_i * (unsigned long)step);
 }
 
 static int renum_before(unsigned long i, unsigned long j) {
@@ -221,18 +221,18 @@ static void sort_renum(unsigned long count) {
     }
 }
 
-static int find_old(struct RenumEnt *map, int nmap, unsigned int old) {
-    int i;
+static long find_old(struct RenumEnt *map, long nmap, unsigned int old) {
+    long i;
 
     if (store_mode) {
-        int lo = 0;
-        int hi = nmap;
+        long lo = 0;
+        long hi = nmap;
 
         while (lo < hi) {
-            int mid = lo + (hi - lo) / 2;
+            long mid = lo + (hi - lo) / 2;
             unsigned int oi, ni, ii;
 
-            rec_renum_get(mid, &oi, &ni, &ii);
+            rec_renum_get((unsigned long)mid, &oi, &ni, &ii);
             if (oi < old)
                 lo = mid + 1;
             else
@@ -241,17 +241,17 @@ static int find_old(struct RenumEnt *map, int nmap, unsigned int old) {
         if (lo < nmap) {
             unsigned int oi, ni, ii;
 
-            rec_renum_get(lo, &oi, &ni, &ii);
+            rec_renum_get((unsigned long)lo, &oi, &ni, &ii);
             if (oi == old)
                 return lo;
         }
-        return -1;
+        return -1L;
     }
     for (i = 0; i < nmap; i++) {
         if (map[i].old_num == old)
             return i;
     }
-    return -1;
+    return -1L;
 }
 
 static int read_num(const unsigned char *s, unsigned int len, unsigned int i,
@@ -273,7 +273,7 @@ static int read_num(const unsigned char *s, unsigned int len, unsigned int i,
 }
 
 static int emit_refs(const unsigned char *s, unsigned int len, unsigned int *ip,
-                     char *line, int *n, struct RenumEnt *map, int nmap) {
+                     char *line, int *n, struct RenumEnt *map, long nmap) {
     for (;;) {
         unsigned int at = *ip;
         unsigned int num = 0;
@@ -281,7 +281,7 @@ static int emit_refs(const unsigned char *s, unsigned int len, unsigned int *ip,
         unsigned int j;
         unsigned int k;
         int kind;
-        int idx;
+        long idx;
 
         while (*ip < len && s[*ip] == ' ')
             (*ip)++;
@@ -297,7 +297,8 @@ static int emit_refs(const unsigned char *s, unsigned int len, unsigned int *ip,
         idx = find_old(map, nmap, num);
         if (idx < 0)
             return 5;
-        if (put_num(line, n, store_mode ? store_new(idx) : map[idx].new_num))
+        if (put_num(line, n,
+                    store_mode ? store_new((unsigned long)idx) : map[idx].new_num))
             return 4;
         *ip = end;
 
@@ -319,7 +320,7 @@ static int emit_refs(const unsigned char *s, unsigned int len, unsigned int *ip,
 
 static int build_line(const unsigned char *s, unsigned int len, int numbered,
                       unsigned int new_num, unsigned int digits,
-                      unsigned int after, struct RenumEnt *map, int nmap,
+                      unsigned int after, struct RenumEnt *map, long nmap,
                       char *line, int *out_len) {
     int n = 0;
     unsigned int i = 0;
@@ -1088,12 +1089,12 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
                        unsigned long *out_len, int *err, int *err_row) {
     unsigned long pos;
     unsigned int next;
-    int nmap;
+    long nmap;
     int rc;
     int past;
     int pass;
     int row;
-    int map_i;
+    long map_i;
     unsigned long map_floor;
     unsigned long appended;
 
@@ -1136,7 +1137,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
             goto done;
         }
         if (kind > 0) {
-            if (!slot_fits(nmap, 6, text_len)) {
+            if (!slot_fits((unsigned long)nmap, 6, text_len)) {
                 rc = 3;
                 goto done;
             }
@@ -1144,7 +1145,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
                 rc = 2;
                 goto done;
             }
-            rec_renum_put(nmap, old, next, (unsigned int)nmap);
+            rec_renum_put((unsigned long)nmap, old, next, (unsigned int)nmap);
             nmap++;
             if (next > 63999u - step)
                 past = 1;
@@ -1158,7 +1159,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
 
     sort_renum((unsigned long)nmap);
     map_sorted = 1;
-    map_floor = nmap > 0 ? slot_addr((unsigned long)nmap - 1UL, 6) : store_size;
+    map_floor = nmap > 0L ? slot_addr((unsigned long)nmap - 1UL, 6) : store_size;
 
     for (pass = 0; pass < 2; pass++) {
         pos = 0;
@@ -1194,7 +1195,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
                 goto done;
             }
             if (kind > 0)
-                neu = store_line_num((unsigned int)map_i, step);
+                neu = store_line_num((unsigned long)map_i, step);
             rc = build_line(store_line, prefix_len, kind > 0,
                             kind > 0 ? neu : 0, digits, after,
                             NULL, nmap, line, &new_len);
