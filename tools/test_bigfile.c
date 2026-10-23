@@ -133,6 +133,110 @@ static void check_tight(void) {
         fail("tight");
 }
 
+static void check_label_text(const char *ram_name, const char *store_name,
+                             const char *in, const char *want) {
+    unsigned char buf[128];
+    unsigned char tail[2048];
+    int cap = 2048 / (int)sizeof(struct LabelEnt);
+    unsigned int used = (unsigned int)strlen(in);
+    unsigned long out_at = 0, out_len = 0;
+    int err = 99, row = 77, rc;
+
+    memset(buf, 0, sizeof buf);
+    memcpy(buf, in, used);
+    rc = labels_to_numbered(buf, &used, sizeof buf,
+                            (struct LabelEnt *)tail, cap, 10, &err, &row);
+    if (rc != 0 || used != strlen(want) || memcmp(buf, want, used) != 0)
+        fail(ram_name);
+    memset(mem, 0, sizeof mem);
+    memcpy(mem, in, strlen(in));
+    err = 99;
+    row = 77;
+    rc = labels_to_numbered_store(strlen(in), sizeof mem, 10,
+                                  &out_at, &out_len, &err, &row);
+    if (rc != 0 || err != 0 || out_len != strlen(want) ||
+        memcmp(mem + out_at, want, out_len) != 0)
+        fail(store_name);
+}
+
+static void check_labels(void) {
+    check_label_text("ram labels", "store labels",
+                     "start:\rPRINT \"HI\"\rGOTO start",
+                     "10 PRINT \"HI\"\r20 GOTO 10");
+}
+
+static void check_label_order(void) {
+    check_label_text("ram label order", "store label order",
+                     "c: END\ra: END\rb:\rGOTO b",
+                     "10 END\r20 END\r30 GOTO 30");
+}
+
+static void check_label_blank(void) {
+    check_label_text("ram label blank", "store label blank",
+                     "a:\r\rGOTO a",
+                     "10\r\r20 GOTO 10");
+}
+
+static void check_label_dup(void) {
+    const char *in = "a: END\ra: END";
+    unsigned char orig[32];
+    unsigned long out_at = 0, out_len = 0;
+    int err = 99, row = 77, rc;
+
+    memset(mem, 0, sizeof mem);
+    memcpy(mem, in, strlen(in));
+    memcpy(orig, in, strlen(in));
+    rc = labels_to_numbered_store(strlen(in), sizeof mem, 10,
+                                  &out_at, &out_len, &err, &row);
+    if (rc != 8 || err != 8 || memcmp(mem, orig, strlen(in)) != 0)
+        fail("label dup");
+}
+
+static void check_label_dup_unsorted(void) {
+    const char *in = "b: END\ra: END\rb: END";
+    unsigned char orig[32];
+    unsigned long out_at = 0, out_len = 0;
+    int err = 99, row = 77, rc;
+
+    memset(mem, 0, sizeof mem);
+    memcpy(mem, in, strlen(in));
+    memcpy(orig, in, strlen(in));
+    rc = labels_to_numbered_store(strlen(in), sizeof mem, 10,
+                                  &out_at, &out_len, &err, &row);
+    if (rc != 8 || err != 8 || memcmp(mem, orig, strlen(in)) != 0)
+        fail("label dup unsorted");
+}
+
+static void check_label_slot(void) {
+    const char *in = "a: END";
+    unsigned long out_at = 1, out_len = 1;
+    int err = 99, row = 77, rc;
+    unsigned char orig[16];
+
+    memset(mem, 0xA5, sizeof mem);
+    memcpy(mem, in, strlen(in));
+    memcpy(orig, in, strlen(in));
+    rc = labels_to_numbered_store(strlen(in), strlen(in), 10,
+                                  &out_at, &out_len, &err, &row);
+    if (rc != 3 || err != 3 || memcmp(mem, orig, strlen(in)) != 0)
+        fail("label slot");
+}
+
+static void check_label_tight(void) {
+    const char *in = "10 END\r20 END\r";
+    unsigned long out_at = 1, out_len = 1;
+    int err = 99, row = 77, rc;
+    unsigned char orig[16];
+
+    memset(mem, 0xA5, sizeof mem);
+    memcpy(mem, in, strlen(in));
+    memcpy(orig, in, strlen(in));
+    rc = labels_to_numbered_store(strlen(in), strlen(in), 10,
+                                  &out_at, &out_len, &err, &row);
+    if (rc != 3 || err != 3 || memcmp(mem, orig, strlen(in)) != 0)
+        fail("label tight");
+}
+
 int main(void) {
     check_parity();
     check_file_order();
@@ -140,5 +244,12 @@ int main(void) {
     check_many();
     check_missing();
     check_tight();
+    check_labels();
+    check_label_order();
+    check_label_blank();
+    check_label_dup();
+    check_label_dup_unsorted();
+    check_label_slot();
+    check_label_tight();
     return failed ? 1 : 0;
 }

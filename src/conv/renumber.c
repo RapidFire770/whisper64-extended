@@ -132,7 +132,12 @@ static unsigned long slot_addr(unsigned long i, int width) {
 }
 
 static int slot_fits(unsigned long i, int width, unsigned long floor) {
-    return slot_addr(i, width) >= floor;
+    unsigned long need = (i + 1UL) * (unsigned long)width;
+
+    /* A wrapped store_size - need compares as a high address and looks free. */
+    if (need > store_size)
+        return 0;
+    return store_size - need >= floor;
 }
 
 static void rec_renum_get(unsigned long i, unsigned int *old, unsigned int *neu,
@@ -219,6 +224,37 @@ static void sort_renum(unsigned long count) {
         swap_renum(end, 0);
         sift_renum(0, end);
     }
+}
+
+static void label_put(unsigned long i, const char *name) {
+    unsigned char b[14];
+    unsigned int k;
+
+    for (k = 0; k < 14; k++)
+        b[k] = 0;
+    for (k = 0; k < 11 && name[k]; k++)
+        b[k] = (unsigned char)name[k];
+    w64_store_put(slot_addr(i, 14), b, 14);
+}
+
+static void label_set_num(unsigned long i, unsigned int num) {
+    unsigned char b[2];
+
+    b[0] = (unsigned char)num;
+    b[1] = (unsigned char)(num >> 8);
+    w64_store_put(slot_addr(i, 14) + 12, b, 2);
+}
+
+static void label_name(unsigned long i, char *dst) {
+    w64_store_get(slot_addr(i, 14), dst, 12);
+    dst[11] = '\0';
+}
+
+static unsigned int label_num(unsigned long i) {
+    unsigned char b[2];
+
+    w64_store_get(slot_addr(i, 14) + 12, b, 2);
+    return (unsigned int)b[0] | ((unsigned int)b[1] << 8);
 }
 
 static long find_old(struct RenumEnt *map, long nmap, unsigned int old) {
@@ -579,14 +615,60 @@ static int same_name(const char *a, const char *b) {
     return *a == *b;
 }
 
-static int find_label(struct LabelEnt *map, int nmap, const char *name) {
-    int i;
+/* Same walk as same_name. Negative when a sorts first. */
+static int name_order(const char *a, const char *b) {
+    while (*a && *a == *b) {
+        a++;
+        b++;
+    }
+    if ((unsigned char)*a < (unsigned char)*b)
+        return -1;
+    if ((unsigned char)*a > (unsigned char)*b)
+        return 1;
+    return 0;
+}
 
+static long find_label(struct LabelEnt *map, long nmap, const char *name) {
+    long i;
+
+    if (store_mode) {
+        if (map_sorted) {
+            long lo = 0;
+            long hi = nmap;
+
+            while (lo < hi) {
+                long mid = lo + (hi - lo) / 2;
+                char got[12];
+
+                label_name((unsigned long)mid, got);
+                if (name_order(got, name) < 0)
+                    lo = mid + 1;
+                else
+                    hi = mid;
+            }
+            if (lo < nmap) {
+                char got[12];
+
+                label_name((unsigned long)lo, got);
+                if (same_name(got, name))
+                    return lo;
+            }
+            return -1L;
+        }
+        for (i = 0; i < nmap; i++) {
+            char got[12];
+
+            label_name((unsigned long)i, got);
+            if (same_name(got, name))
+                return i;
+        }
+        return -1L;
+    }
     for (i = 0; i < nmap; i++) {
         if (same_name(map[i].name, name))
             return i;
     }
-    return -1;
+    return -1L;
 }
 
 /* A kept line number at or above the counter jumps the counter past it.
@@ -614,13 +696,13 @@ static int take_number(int numbered, unsigned int old, unsigned int *counter,
 }
 
 static int emit_names(const unsigned char *s, unsigned int len, unsigned int *ip,
-                      char *line, int *n, struct LabelEnt *map, int nmap, int list) {
+                      char *line, int *n, struct LabelEnt *map, long nmap, int list) {
     for (;;) {
         unsigned int at = *ip;
         unsigned int i;
         unsigned int nlen = 0;
         char tmp[12];
-        int idx;
+        long idx;
         unsigned int j;
         unsigned int k;
 
@@ -645,7 +727,7 @@ static int emit_names(const unsigned char *s, unsigned int len, unsigned int *ip
         idx = find_label(map, nmap, tmp);
         if (idx < 0)
             return 6;
-        if (put_num(line, n, map[idx].num))
+        if (put_num(line, n, store_mode ? label_num((unsigned long)idx) : map[idx].num))
             return 4;
         *ip = i;
         if (!list)
@@ -669,13 +751,13 @@ static int emit_names(const unsigned char *s, unsigned int len, unsigned int *ip
 /* THEN/ELSE: a keyword is a statement. A mapped name is a jump.
    GOTO and GOSUB keep their targets. Anything else stays text. */
 static int emit_then(const unsigned char *s, unsigned int len, unsigned int *ip,
-                     char *line, int *n, struct LabelEnt *map, int nmap) {
+                     char *line, int *n, struct LabelEnt *map, long nmap) {
     unsigned int at = *ip;
     unsigned int i;
     unsigned int nlen = 0;
     char tmp[12];
     int kn;
-    int idx;
+    long idx;
 
     while (*ip < len && s[*ip] == ' ')
         (*ip)++;
@@ -718,14 +800,14 @@ static int emit_then(const unsigned char *s, unsigned int len, unsigned int *ip,
     }
     if (put_span(line, n, s + at, *ip - at))
         return 4;
-    if (put_num(line, n, map[idx].num))
+    if (put_num(line, n, store_mode ? label_num((unsigned long)idx) : map[idx].num))
         return 4;
     *ip = i;
     return 0;
 }
 
 static int write_refs(const unsigned char *s, unsigned int from, unsigned int len,
-                      char *line, int *n, struct LabelEnt *map, int nmap) {
+                      char *line, int *n, struct LabelEnt *map, long nmap) {
     static const char *kws[] = { "GOSUB", "GOTO", "THEN", "ELSE", NULL };
     unsigned int i = from;
     int quote = 0;
@@ -781,7 +863,7 @@ static int write_refs(const unsigned char *s, unsigned int from, unsigned int le
 
 static int build_label_line(const unsigned char *s, unsigned int len, int mode,
                             unsigned int new_num, unsigned int after,
-                            unsigned int stmt, struct LabelEnt *map, int nmap,
+                            unsigned int stmt, struct LabelEnt *map, long nmap,
                             char *line, int *out_len) {
     int n = 0;
     int rc;
@@ -1244,12 +1326,345 @@ done:
     return rc;
 }
 
+static int label_before(unsigned long i, unsigned long j) {
+    char a[12];
+    char b[12];
+
+    label_name(i, a);
+    label_name(j, b);
+    return name_order(a, b) < 0;
+}
+
+static void swap_label(unsigned long i, unsigned long j) {
+    unsigned char a[14];
+    unsigned char b[14];
+
+    if (i == j)
+        return;
+    w64_store_get(slot_addr(i, 14), a, 14);
+    w64_store_get(slot_addr(j, 14), b, 14);
+    w64_store_put(slot_addr(i, 14), b, 14);
+    w64_store_put(slot_addr(j, 14), a, 14);
+}
+
+static void sift_label(unsigned long start, unsigned long count) {
+    for (;;) {
+        unsigned long root = start;
+        unsigned long child = root * 2UL + 1UL;
+
+        if (child >= count)
+            return;
+        if (child + 1UL < count && label_before(child, child + 1UL))
+            child++;
+        if (label_before(root, child)) {
+            swap_label(root, child);
+            start = child;
+        } else
+            return;
+    }
+}
+
+static void sort_label(unsigned long count) {
+    long start;
+    unsigned long end;
+
+    if (count < 2)
+        return;
+    for (start = (long)(count / 2UL) - 1L; start >= 0L; start--)
+        sift_label((unsigned long)start, count);
+    for (end = count - 1UL; end > 0; end--) {
+        swap_label(end, 0);
+        sift_label(0, end);
+    }
+}
+
+static int flush_label_hold(long nmap, long *hold, unsigned int *counter,
+                            int *past, unsigned int step) {
+    while (*hold) {
+        unsigned int assigned = 0;
+        int rc = take_number(0, 0, counter, past, step, &assigned);
+
+        if (rc)
+            return rc;
+        label_set_num((unsigned long)(nmap - *hold), assigned);
+        (*hold)--;
+    }
+    return 0;
+}
+
+/* Skip further label-only lines. 0 on a blank line or end of file. */
+static int next_is_code_store(unsigned long pos) {
+    while (pos < scan_lim) {
+        unsigned char buf[80];
+        unsigned int n = 0;
+        int overflow = 0;
+        unsigned int start = 0;
+        unsigned int nlen = 0;
+        unsigned int stmt = 0;
+        int lab;
+        int has_cr = 0;
+
+        while (pos < scan_lim) {
+            unsigned char c = src_byte(pos);
+
+            if (c == '\r') {
+                has_cr = 1;
+                break;
+            }
+            if (n < 79)
+                buf[n++] = c;
+            else
+                overflow = 1;
+            pos++;
+        }
+        if (n == 0 && !overflow)
+            return 0;
+        lab = take_label(buf, n, &start, &nlen, &stmt);
+        if (lab == 1 && stmt == n && !overflow) {
+            if (has_cr)
+                pos++;
+            continue;
+        }
+        return 1;
+    }
+    return 0;
+}
+
 int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
                              unsigned int step, unsigned long *out_at,
                              unsigned long *out_len, int *err, int *err_row) {
-    (void)text_len; (void)reu_size; (void)step;
-    (void)out_at; (void)out_len; (void)err; (void)err_row;
-    return 3;
+    unsigned long pos;
+    unsigned int counter;
+    long nmap;
+    long hold;
+    int rc;
+    int past;
+    int pass;
+    int row;
+    unsigned long map_floor;
+    unsigned long appended;
+
+    store_mode = 1;
+    map_sorted = 0;
+    cache_ok = 0;
+    scan_lim = text_len;
+    store_size = reu_size;
+    *err_row = 0;
+    rc = 0;
+    if (step == 0 || step > 63999u) {
+        rc = 1;
+        goto done;
+    }
+    if (scan_lim == 0) {
+        if (out_len)
+            *out_len = 0;
+        goto done;
+    }
+
+    nmap = 0;
+    hold = 0;
+    counter = step;
+    past = 0;
+    pos = 0;
+    while (pos < scan_lim) {
+        unsigned long end = pos;
+        unsigned int prefix_len;
+        int overflow80;
+        unsigned int old = 0;
+        unsigned int digits = 0;
+        unsigned int after = 0;
+        unsigned int start = 0;
+        unsigned int nlen = 0;
+        unsigned int stmt = 0;
+        unsigned int assigned = 0;
+        int kind;
+        int lab = 0;
+
+        while (end < scan_lim && src_byte(end) != '\r')
+            end++;
+        if (end == pos) {
+            rc = flush_label_hold(nmap, &hold, &counter, &past, step);
+            if (rc)
+                goto done;
+            pos = end < scan_lim ? end + 1 : end;
+            continue;
+        }
+        store_line_prefix(pos, end, &prefix_len, &overflow80);
+        kind = line_num_at(store_line, prefix_len, &old, &digits, &after);
+        if (kind < 0) {
+            rc = 2;
+            goto done;
+        }
+        if (kind == 0) {
+            lab = take_label(store_line, prefix_len, &start, &nlen, &stmt);
+            if (lab < 0) {
+                rc = 7;
+                goto done;
+            }
+            if (lab == 1) {
+                char tmp[12];
+
+                if (!slot_fits((unsigned long)nmap, 14, text_len)) {
+                    rc = 3;
+                    goto done;
+                }
+                memcpy(tmp, store_line + start, nlen);
+                tmp[nlen] = '\0';
+                if (find_label(NULL, nmap, tmp) >= 0) {
+                    rc = 8;
+                    goto done;
+                }
+                label_put((unsigned long)nmap, tmp);
+                if (stmt == prefix_len && !overflow80) {
+                    nmap++;
+                    hold++;
+                    pos = end < scan_lim ? end + 1 : end;
+                    continue;
+                }
+            }
+        }
+        rc = take_number(kind > 0, old, &counter, &past, step, &assigned);
+        if (rc)
+            goto done;
+        if (hold) {
+            long slot;
+
+            for (slot = nmap - hold; slot < nmap; slot++)
+                label_set_num((unsigned long)slot, assigned);
+            hold = 0;
+        }
+        if (lab == 1) {
+            label_set_num((unsigned long)nmap, assigned);
+            nmap++;
+        }
+        pos = end;
+        if (pos < scan_lim)
+            pos++;
+    }
+    rc = flush_label_hold(nmap, &hold, &counter, &past, step);
+    if (rc)
+        goto done;
+
+    sort_label((unsigned long)nmap);
+    map_sorted = 1;
+    map_floor = nmap > 0L ? slot_addr((unsigned long)nmap - 1UL, 14) : store_size;
+
+    for (pass = 0; pass < 2; pass++) {
+        pos = 0;
+        row = 0;
+        appended = 0;
+        counter = step;
+        past = 0;
+        while (pos < scan_lim) {
+            unsigned long end = pos;
+            unsigned int prefix_len;
+            int overflow80;
+            int has_cr;
+            unsigned int old = 0;
+            unsigned int digits = 0;
+            unsigned int after = 0;
+            unsigned int start = 0;
+            unsigned int nlen = 0;
+            unsigned int stmt = 0;
+            unsigned int assigned = 0;
+            int kind;
+            int lab = 0;
+            int mode;
+            int new_len = 0;
+            char line[80];
+
+            while (end < scan_lim && src_byte(end) != '\r')
+                end++;
+            has_cr = end < scan_lim;
+            row++;
+            if (end == pos) {
+                if (pass == 0) {
+                    if (has_cr)
+                        appended++;
+                    if (text_len + appended > map_floor) {
+                        rc = 3;
+                        goto done;
+                    }
+                } else if (has_cr) {
+                    unsigned char cr = '\r';
+
+                    w64_store_put(text_len + appended, &cr, 1);
+                    appended++;
+                }
+                pos = has_cr ? end + 1 : end;
+                continue;
+            }
+            store_line_prefix(pos, end, &prefix_len, &overflow80);
+            if (overflow80) {
+                *err_row = row;
+                rc = 4;
+                goto done;
+            }
+            kind = line_num_at(store_line, prefix_len, &old, &digits, &after);
+            if (kind < 0) {
+                rc = 2;
+                goto done;
+            }
+            if (kind == 0)
+                lab = take_label(store_line, prefix_len, &start, &nlen, &stmt);
+            if (lab == 1 && stmt == prefix_len &&
+                next_is_code_store(has_cr ? end + 1 : end)) {
+                pos = has_cr ? end + 1 : end;
+                continue;
+            }
+            rc = take_number(kind > 0, old, &counter, &past, step, &assigned);
+            if (rc)
+                goto done;
+            if (kind > 0)
+                mode = 1;
+            else if (lab == 1)
+                mode = 2;
+            else
+                mode = 0;
+            rc = build_label_line(store_line, prefix_len, mode, assigned, after,
+                                  stmt, NULL, nmap, line, &new_len);
+            if (rc) {
+                if (rc == 4 || rc == 6)
+                    *err_row = row;
+                goto done;
+            }
+            if (pass == 0) {
+                appended += (unsigned long)new_len;
+                if (has_cr)
+                    appended++;
+                if (text_len + appended > map_floor) {
+                    rc = 3;
+                    goto done;
+                }
+                pos = has_cr ? end + 1 : end;
+                continue;
+            }
+            w64_store_put(text_len + appended, line, (unsigned int)new_len);
+            appended += (unsigned long)new_len;
+            if (has_cr) {
+                unsigned char cr = '\r';
+
+                w64_store_put(text_len + appended, &cr, 1);
+                appended++;
+            }
+            pos = has_cr ? end + 1 : end;
+        }
+        if (pass == 1) {
+            if (out_at)
+                *out_at = text_len;
+            if (out_len)
+                *out_len = appended;
+        }
+    }
+    rc = 0;
+
+done:
+    store_mode = 0;
+    map_sorted = 0;
+    cache_ok = 0;
+    if (err)
+        *err = rc;
+    return rc;
 }
 
 int tokenize_store(unsigned long seq_at, unsigned long seq_len,
