@@ -1478,7 +1478,8 @@ static int next_is_code_store(unsigned long pos) {
 
 int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
                              unsigned int step, unsigned long *out_at,
-                             unsigned long *out_len, int *err, int *err_row) {
+                             unsigned long *out_len, int *err, int *err_row,
+                             unsigned long *ceiling) {
     unsigned long pos;
     unsigned int counter;
     long nmap;
@@ -1504,6 +1505,8 @@ int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
     if (scan_lim == 0) {
         if (out_len)
             *out_len = 0;
+        if (ceiling)
+            *ceiling = store_size;
         goto done;
     }
 
@@ -1594,6 +1597,8 @@ int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
     sort_label((unsigned long)nmap);
     map_sorted = 1;
     map_floor = nmap > 0L ? slot_addr((unsigned long)nmap - 1UL, 14) : store_size;
+    if (ceiling)
+        *ceiling = map_floor;
 
     for (pass = 0; pass < 2; pass++) {
         pos = 0;

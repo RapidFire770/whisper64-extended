@@ -52,9 +52,11 @@ int labels_to_numbered(unsigned char *text, unsigned int *used,
 int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
                        unsigned int step, unsigned long *out_at,
                        unsigned long *out_len, int *err, int *err_row);
+/* *ceiling is the first map byte, or reu_size when the map is empty. */
 int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
                              unsigned int step, unsigned long *out_at,
-                             unsigned long *out_len, int *err, int *err_row);
+                             unsigned long *out_len, int *err, int *err_row,
+                             unsigned long *ceiling);
 /* *wrote is the BASIC line count. reu_size is the exclusive end of free
    space (the first map byte when a map is still resident). */
 int tokenize_store(unsigned long seq_at, unsigned long seq_len,

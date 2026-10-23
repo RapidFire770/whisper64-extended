@@ -139,7 +139,7 @@ static void check_label_text(const char *ram_name, const char *store_name,
     unsigned char tail[2048];
     int cap = 2048 / (int)sizeof(struct LabelEnt);
     unsigned int used = (unsigned int)strlen(in);
-    unsigned long out_at = 0, out_len = 0;
+    unsigned long out_at = 0, out_len = 0, ceiling = 0;
     int err = 99, row = 77, rc;
 
     memset(buf, 0, sizeof buf);
@@ -153,8 +153,9 @@ static void check_label_text(const char *ram_name, const char *store_name,
     err = 99;
     row = 77;
     rc = labels_to_numbered_store(strlen(in), sizeof mem, 10,
-                                  &out_at, &out_len, &err, &row);
+                                  &out_at, &out_len, &err, &row, &ceiling);
     if (rc != 0 || err != 0 || out_len != strlen(want) ||
+        ceiling <= strlen(in) || ceiling < out_at + out_len ||
         memcmp(mem + out_at, want, out_len) != 0)
         fail(store_name);
 }
@@ -180,14 +181,14 @@ static void check_label_blank(void) {
 static void check_label_dup(void) {
     const char *in = "a: END\ra: END";
     unsigned char orig[32];
-    unsigned long out_at = 0, out_len = 0;
+    unsigned long out_at = 0, out_len = 0, ceiling = 0;
     int err = 99, row = 77, rc;
 
     memset(mem, 0, sizeof mem);
     memcpy(mem, in, strlen(in));
     memcpy(orig, in, strlen(in));
     rc = labels_to_numbered_store(strlen(in), sizeof mem, 10,
-                                  &out_at, &out_len, &err, &row);
+                                  &out_at, &out_len, &err, &row, &ceiling);
     if (rc != 8 || err != 8 || memcmp(mem, orig, strlen(in)) != 0)
         fail("label dup");
 }
@@ -195,21 +196,21 @@ static void check_label_dup(void) {
 static void check_label_dup_unsorted(void) {
     const char *in = "b: END\ra: END\rb: END";
     unsigned char orig[32];
-    unsigned long out_at = 0, out_len = 0;
+    unsigned long out_at = 0, out_len = 0, ceiling = 0;
     int err = 99, row = 77, rc;
 
     memset(mem, 0, sizeof mem);
     memcpy(mem, in, strlen(in));
     memcpy(orig, in, strlen(in));
     rc = labels_to_numbered_store(strlen(in), sizeof mem, 10,
-                                  &out_at, &out_len, &err, &row);
+                                  &out_at, &out_len, &err, &row, &ceiling);
     if (rc != 8 || err != 8 || memcmp(mem, orig, strlen(in)) != 0)
         fail("label dup unsorted");
 }
 
 static void check_label_slot(void) {
     const char *in = "a: END";
-    unsigned long out_at = 1, out_len = 1;
+    unsigned long out_at = 1, out_len = 1, ceiling = 0;
     int err = 99, row = 77, rc;
     unsigned char orig[16];
 
@@ -217,7 +218,7 @@ static void check_label_slot(void) {
     memcpy(mem, in, strlen(in));
     memcpy(orig, in, strlen(in));
     rc = labels_to_numbered_store(strlen(in), strlen(in), 10,
-                                  &out_at, &out_len, &err, &row);
+                                  &out_at, &out_len, &err, &row, &ceiling);
     if (rc != 3 || err != 3 || memcmp(mem, orig, strlen(in)) != 0)
         fail("label slot");
 }
@@ -252,7 +253,7 @@ static void check_tokenize(void) {
 
 static void check_label_tight(void) {
     const char *in = "10 END\r20 END\r";
-    unsigned long out_at = 1, out_len = 1;
+    unsigned long out_at = 1, out_len = 1, ceiling = 0;
     int err = 99, row = 77, rc;
     unsigned char orig[16];
 
@@ -260,7 +261,7 @@ static void check_label_tight(void) {
     memcpy(mem, in, strlen(in));
     memcpy(orig, in, strlen(in));
     rc = labels_to_numbered_store(strlen(in), strlen(in), 10,
-                                  &out_at, &out_len, &err, &row);
+                                  &out_at, &out_len, &err, &row, &ceiling);
     if (rc != 3 || err != 3 || memcmp(mem, orig, strlen(in)) != 0)
         fail("label tight");
 }

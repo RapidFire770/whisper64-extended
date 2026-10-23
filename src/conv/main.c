@@ -1,4 +1,5 @@
 #include "w64tools.h"
+#include "w64reu.h"
 #include <cbm.h>
 #include <ctype.h>
 #include <string.h>
@@ -64,6 +65,17 @@ static char text_line[80];
    array. Keep __heap_start at or below $C800. */
 static unsigned char out_bytes[OUT_CAP];
 static unsigned int out_used;
+
+static unsigned long reu_bytes;
+static int dest_reu;
+static unsigned long dest_len;
+/* DMA while a file channel is open stays at 256 bytes, between KERNAL calls. */
+static unsigned char reu_chunk[256];
+static unsigned int reu_chunk_n;
+static unsigned long reu_pos;
+static int reu_noted;
+static int spilled;
+static unsigned long spill_len;
 
 static void paint_row(unsigned char row, const char *msg, unsigned char color) {
     unsigned char i;
@@ -217,7 +229,39 @@ static void close_ch(unsigned char lfn) {
 
 static void finish(unsigned char code, const char *msg);
 
+static void note_reu(void) {
+    if (reu_noted)
+        return;
+    put_row(8, "USING REU");
+    reu_noted = 1;
+}
+
+static int stash_reu(unsigned char b) {
+    if (reu_pos + reu_chunk_n >= reu_bytes) {
+        finish(CONV_TOO_BIG, "TOO BIG");
+        return -1;
+    }
+    note_reu();
+    reu_chunk[reu_chunk_n++] = b;
+    if (reu_chunk_n == 256) {
+        w64_store_put(reu_pos, reu_chunk, reu_chunk_n);
+        reu_pos += reu_chunk_n;
+        reu_chunk_n = 0;
+    }
+    return 0;
+}
+
+static void stash_flush(void) {
+    if (reu_chunk_n == 0)
+        return;
+    w64_store_put(reu_pos, reu_chunk, reu_chunk_n);
+    reu_pos += reu_chunk_n;
+    reu_chunk_n = 0;
+}
+
 static int stash(unsigned char b) {
+    if (dest_reu)
+        return stash_reu(b);
     if (out_used >= OUT_CAP) {
         finish(CONV_TOO_BIG, "TOO BIG");
         return -1;
@@ -242,6 +286,31 @@ static int flush_out(const char *spec) {
     cbm_k_chkout(3);
     for (i = 0; i < out_used; i++)
         cbm_k_chrout(out_bytes[i]);
+    close_ch(3);
+    return 0;
+}
+
+static int flush_at(const char *spec, unsigned long start, unsigned long nbytes) {
+    unsigned char chunk[256];
+    unsigned long off = 0;
+
+    if (open_ch(3, write_drive, spec) != 0) {
+        finish(CONV_OPEN_FAIL, "OPEN FAIL");
+        return -1;
+    }
+    cbm_k_chkout(3);
+    while (off < nbytes) {
+        unsigned int n = 256;
+        unsigned int i;
+        unsigned long left = nbytes - off;
+
+        if (left < n)
+            n = (unsigned int)left;
+        w64_store_get(start + off, chunk, n);
+        for (i = 0; i < n; i++)
+            cbm_k_chrout(chunk[i]);
+        off += n;
+    }
     close_ch(3);
     return 0;
 }
@@ -434,6 +503,8 @@ static int seq_pass(int writing) {
 
     if (writing) {
         out_used = 0;
+        reu_pos = 0;
+        reu_chunk_n = 0;
         if (stash_word(0x0801) < 0)
             return -1;
     }
@@ -493,8 +564,23 @@ static int seq_pass(int writing) {
         }
     }
 
-    if (writing && stash_word(0) < 0)
-        return -1;
+    if (writing) {
+        if (stash_word(0) < 0)
+            return -1;
+        stash_flush();
+    } else {
+        unsigned long length = (unsigned long)(addr - 0x0801) + 4;
+
+        if (length <= (unsigned long)OUT_CAP)
+            dest_reu = 0;
+        else if (length <= reu_bytes)
+            dest_reu = 1;
+        else {
+            finish(CONV_TOO_BIG, "TOO BIG");
+            return -1;
+        }
+        dest_len = length;
+    }
     close_ch(2);
     return wrote;
 }
@@ -528,6 +614,7 @@ static int prg_pass(int writing) {
     int trunc = 0;
     int ml = 0;
     int first = 1;
+    unsigned long seq_bytes = 0;
 
     file_spec(spec, 0, in_name, ",P,R");
     if (open_ch(2, read_drive, spec) != 0) {
@@ -535,8 +622,11 @@ static int prg_pass(int writing) {
         return -1;
     }
     cbm_k_chkin(2);
-    if (writing)
+    if (writing) {
         out_used = 0;
+        reu_pos = 0;
+        reu_chunk_n = 0;
+    }
     lo = read_byte(2, &eof);
     hi = read_byte(2, &eof);
     if (lo != 0x01 || hi != 0x08) {
@@ -609,8 +699,12 @@ static int prg_pass(int writing) {
                         if (stash((unsigned char)text_line[j]) < 0)
                             return -1;
                     }
-                    first = 0;
+                } else {
+                    if (!first)
+                        seq_bytes++;
+                    seq_bytes += (unsigned long)len;
                 }
+                first = 0;
             }
         }
         addr = link;
@@ -623,9 +717,21 @@ static int prg_pass(int writing) {
     }
 
     ml = trailing_ml(&eof);
-    close_ch(2);
-    if (!writing)
+    if (!writing) {
+        if (seq_bytes <= (unsigned long)OUT_CAP)
+            dest_reu = 0;
+        else if (seq_bytes <= reu_bytes)
+            dest_reu = 1;
+        else {
+            finish(CONV_TOO_BIG, "TOO BIG");
+            return -1;
+        }
+        dest_len = seq_bytes;
+        close_ch(2);
         return wrote;
+    }
+    stash_flush();
+    close_ch(2);
     {
         char msg[32];
         set_str(msg, "SEQ ");
@@ -687,6 +793,9 @@ static void seq_to_prg(void) {
     int wrote;
     int replace;
 
+    dest_reu = 0;
+    reu_noted = 0;
+    spilled = 0;
     file_spec(probe, 0, out_name, ",P,R");
     replace = confirm_overwrite(probe);
     if (!replace)
@@ -697,7 +806,10 @@ static void seq_to_prg(void) {
     if (wrote < 0)
         return;
     file_spec(spec, replace, out_name, ",P,W");
-    if (flush_out(spec) < 0)
+    if (dest_reu) {
+        if (flush_at(spec, 0, dest_len) < 0)
+            return;
+    } else if (flush_out(spec) < 0)
         return;
     if (!drive_status_ok())
         return;
@@ -719,6 +831,9 @@ static void prg_to_seq(void) {
     int wrote;
     int replace;
 
+    dest_reu = 0;
+    reu_noted = 0;
+    spilled = 0;
     file_spec(probe, 0, out_name, ",S,R");
     replace = confirm_overwrite(probe);
     if (!replace)
@@ -729,7 +844,10 @@ static void prg_to_seq(void) {
     if (wrote < 0)
         return;
     file_spec(spec, replace, out_name, ",S,W");
-    if (flush_out(spec) < 0)
+    if (dest_reu) {
+        if (flush_at(spec, 0, dest_len) < 0)
+            return;
+    } else if (flush_out(spec) < 0)
         return;
     if (!drive_status_ok())
         return;
@@ -781,8 +899,12 @@ static int read_text(unsigned int cap) {
     }
     cbm_k_chkin(2);
     out_used = 0;
+    spill_len = 0;
+    reu_pos = 0;
+    reu_chunk_n = 0;
     for (;;) {
         int c = read_byte(2, &eof);
+        unsigned int off;
 
         if (c == -2) {
             char msg[12];
@@ -793,12 +915,28 @@ static int read_text(unsigned int cap) {
         }
         if (c < 0)
             break;
-        if (out_used >= cap) {
-            finish(CONV_TOO_BIG, "TOO BIG");
-            return -1;
+        if (!spilled && out_used < cap) {
+            out_bytes[out_used++] = (unsigned char)c;
+            continue;
         }
-        out_bytes[out_used++] = (unsigned char)c;
+        if (!spilled) {
+            if (reu_bytes == 0 || (unsigned long)out_used >= reu_bytes) {
+                finish(CONV_TOO_BIG, "TOO BIG");
+                return -1;
+            }
+            spilled = 1;
+            for (off = 0; off < out_used; off++) {
+                if (stash_reu(out_bytes[off]) < 0)
+                    return -1;
+                spill_len++;
+            }
+        }
+        if (stash_reu((unsigned char)c) < 0)
+            return -1;
+        spill_len++;
     }
+    if (spilled)
+        stash_flush();
     close_ch(2);
     return 0;
 }
@@ -823,18 +961,37 @@ static void renumber_job(unsigned int step) {
     struct RenumEnt *map = (struct RenumEnt *)(out_bytes + TEXT_CAP);
     int cap = 2048 / (int)sizeof(struct RenumEnt);
 
+    spilled = 0;
+    reu_noted = 0;
     file_spec(probe, 0, out_name, ",S,R");
     replace = confirm_overwrite(probe);
     if (!replace)
         return;
     if (read_text(TEXT_CAP) < 0)
         return;
-    if (renumber_seq(out_bytes, &out_used, TEXT_CAP, map, cap, step, &err, &row)) {
-        show_tool_err(err, row);
-        return;
+    if (!spilled) {
+        if (renumber_seq(out_bytes, &out_used, TEXT_CAP, map, cap, step, &err, &row)) {
+            show_tool_err(err, row);
+            return;
+        }
+        if (write_named("S,W", replace) < 0)
+            return;
+    } else {
+        unsigned long out_at = 0;
+        unsigned long out_len = 0;
+        char spec[28];
+
+        if (renumber_seq_store(spill_len, reu_bytes, step, &out_at, &out_len,
+                               &err, &row)) {
+            show_tool_err(err, row);
+            return;
+        }
+        file_spec(spec, replace, out_name, ",S,W");
+        if (flush_at(spec, out_at, out_len) < 0)
+            return;
+        if (!drive_status_ok())
+            return;
     }
-    if (write_named("S,W", replace) < 0)
-        return;
     put_row(12, "RENUMBERED");
     file_spec(probe, 0, out_name, ",S,R");
     remember_output(probe);
@@ -940,22 +1097,49 @@ static void label_job(void) {
     struct LabelEnt *map = (struct LabelEnt *)(out_bytes + TEXT_CAP);
     int cap = 2048 / (int)sizeof(struct LabelEnt);
 
+    spilled = 0;
+    reu_noted = 0;
     file_spec(probe, 0, out_name, ",P,R");
     replace = confirm_overwrite(probe);
     if (!replace)
         return;
     if (read_text(TEXT_CAP) < 0)
         return;
-    if (labels_to_numbered(out_bytes, &out_used, TEXT_CAP, map, cap, 10, &err, &row)) {
-        show_tool_err(err, row);
-        return;
+    if (!spilled) {
+        if (labels_to_numbered(out_bytes, &out_used, TEXT_CAP, map, cap, 10, &err, &row)) {
+            show_tool_err(err, row);
+            return;
+        }
+        text_len = out_used;
+        wrote = tokenize_buffer(text_len);
+        if (wrote < 0)
+            return;
+        if (write_named("P,W", replace) < 0)
+            return;
+    } else {
+        unsigned long out_at = 0;
+        unsigned long out_len = 0;
+        unsigned long ceiling = 0;
+        unsigned long prg_at = 0;
+        unsigned long prg_len = 0;
+        char spec[28];
+
+        if (labels_to_numbered_store(spill_len, reu_bytes, 10, &out_at, &out_len,
+                                     &err, &row, &ceiling)) {
+            show_tool_err(err, row);
+            return;
+        }
+        if (tokenize_store(out_at, out_len, ceiling, &prg_at, &prg_len,
+                           &wrote, &err, &row)) {
+            show_tool_err(err, row);
+            return;
+        }
+        file_spec(spec, replace, out_name, ",P,W");
+        if (flush_at(spec, prg_at, prg_len) < 0)
+            return;
+        if (!drive_status_ok())
+            return;
     }
-    text_len = out_used;
-    wrote = tokenize_buffer(text_len);
-    if (wrote < 0)
-        return;
-    if (write_named("P,W", replace) < 0)
-        return;
     if (wrote == 0)
         put_row(12, "EMPTY PRG");
     else {
@@ -1080,9 +1264,25 @@ static int load_dir(void) {
     return nent;
 }
 
+static void paint_reu(void) {
+    char msg[16];
+    unsigned int kb;
+
+    if (reu_bytes == 0) {
+        put_row(1, "REU: NONE");
+        return;
+    }
+    set_str(msg, "REU: ");
+    kb = (unsigned int)(reu_bytes >> 10);
+    add_dec(msg, kb);
+    add_str(msg, "KB");
+    put_row(1, msg);
+}
+
 static void draw_title(void) {
     clrscr();
     cputs_at((40 - 8) / 2, 0, "W64TOOLS", COL_GREEN);
+    paint_reu();
 }
 
 static void draw_menu(void) {
@@ -1097,6 +1297,7 @@ static void draw_menu(void) {
 static void show_help(void) {
     clrscr();
     put_row(0, "W64TOOLS HELP");
+    paint_reu();
     put_row(2, "1. SEQ > PRG - CONVERTS SEQ TO PRG");
     put_row(3, "2. PRG > SEQ - CONVERTS PRG TO SEQ");
     put_row(4, "3. RENUMBER - RENUMBERS LINES IN SEQ");
@@ -1106,7 +1307,7 @@ static void show_help(void) {
     put_row(9, "NO NUM:    LINE HAS NO NUMBER");
     put_row(10, "NUM BIG:   PAST 63999");
     put_row(11, "LINE LONG: PAST 79 CHARACTERS");
-    put_row(12, "TOO BIG:   BUFFER IS FULL");
+    put_row(12, "TOO BIG:   RAM OR REU FULL");
     put_row(13, "OPEN FAIL: DRIVE DID NOT OPEN");
     put_row(14, "BAD NAME:  EMPTY OR , : * ? @");
     put_row(15, "NO LABEL:  GOTO NAME MISSING");
@@ -1234,6 +1435,8 @@ static int another(void) {
 int main(void) {
     *(unsigned char *)0xD020 = 12;
     *(unsigned char *)0xD021 = 0;
+    w64_reu_probe();
+    reu_bytes = w64_reu_bytes();
     for (;;) {
         int mode;
         unsigned int step = 10;
