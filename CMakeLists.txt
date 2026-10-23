@@ -59,6 +59,14 @@ add_w64_tool(w64conv.prg
     src/conv/reu_dma.c
     src/conv/basic_zp.S)
 
+add_w64_tool(w64renum.prg
+    src/conv/renum_main.c
+    src/conv/toolui.c
+    src/conv/tool_reu.c
+    src/conv/renumber.c
+    src/conv/reu_dma.c
+    src/conv/basic_zp.S)
+
 # Create blank REU image file (512KB) if it doesn't exist
 set(REU_IMAGE "${CMAKE_SOURCE_DIR}/whisper64.reu")
 set(REU_SIZE_KB 512)
