@@ -38,19 +38,26 @@ target_compile_options(whisper64.prg PRIVATE -Os -ffunction-sections)
 
 target_link_options(whisper64.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=whisper64.map)
 
-add_executable(w64tools.prg
-    src/conv/main.c
-    src/conv/token.c
-    src/conv/renumber.c
-    src/conv/reu_dma.c
-    src/conv/basic_zp.S
-)
-set_source_files_properties(src/conv/basic_zp.S PROPERTIES LANGUAGE C)
 # -Oz, not -Os. The label rewrite overflows RAM at -Os (heap past $D000).
 # MinSizeRel injects -Os first; this later -Oz is what clang compiles.
-# The link line stays -Os. Full LTO does not grow it back to the -Os size.
-target_compile_options(w64tools.prg PRIVATE -Oz -ffunction-sections)
-target_link_options(w64tools.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=w64tools.map -Wl,-lexit-return)
+set_source_files_properties(src/conv/basic_zp.S PROPERTIES LANGUAGE C)
+
+function(add_w64_tool target)
+    add_executable(${target} ${ARGN})
+    target_compile_options(${target} PRIVATE -Oz -ffunction-sections)
+    # Heap checks read build/w64conv.map. ${target}.map would be w64conv.prg.map.
+    string(REPLACE ".prg" "" _w64map "${target}")
+    target_link_options(${target} PRIVATE -Wl,--gc-sections -Wl,-s
+        -Wl,-Map=${_w64map}.map -Wl,-lexit-return)
+endfunction()
+
+add_w64_tool(w64conv.prg
+    src/conv/conv_main.c
+    src/conv/toolui.c
+    src/conv/tool_reu.c
+    src/conv/token.c
+    src/conv/reu_dma.c
+    src/conv/basic_zp.S)
 
 # Create blank REU image file (512KB) if it doesn't exist
 set(REU_IMAGE "${CMAKE_SOURCE_DIR}/whisper64.reu")
