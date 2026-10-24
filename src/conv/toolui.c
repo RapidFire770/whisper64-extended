@@ -767,6 +767,13 @@ void tool_show_err(int rc, int row) {
         tool_finish(CONV_BAD_BASIC, "NO NUM");
 }
 
+static void clear_dir_rows(void) {
+    unsigned char y;
+
+    for (y = 2; y < 20; y++)
+        tool_put_row(y, "");
+}
+
 int tool_prepare(char want) {
     if (tool_ask_drive(8, "READ DRIVE (8-15): ", &read_drive) < 0)
         return -1;
@@ -778,6 +785,7 @@ int tool_prepare(char want) {
         return -1;
     if (out_name[0] == '\0')
         tool_set_str(out_name, in_name);
+    clear_dir_rows();
     if (out_name[0] == '\0' || !tool_name_ok(out_name)) {
         tool_finish(CONV_BAD_NAME, "BAD NAME");
         return -1;
