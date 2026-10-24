@@ -151,11 +151,11 @@ int main(void) {
         }
         if (tool_prepare('S') < 0) {
             if (verify_code != 0 && !tool_another())
-                return 0;
+                tool_exit_ready(8);
             continue;
         }
         label_job();
         if (!tool_another())
-            return 0;
+            tool_exit_ready(8);
     }
 }

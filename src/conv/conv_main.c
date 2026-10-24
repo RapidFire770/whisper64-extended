@@ -338,7 +338,7 @@ int main(void) {
         }
         if (tool_prepare(mode == 2 ? 'P' : 'S') < 0) {
             if (verify_code != 0 && !tool_another())
-                return 0;
+                tool_exit_ready(8);
             continue;
         }
         if (mode == 1)
@@ -346,6 +346,6 @@ int main(void) {
         else
             prg_to_seq();
         if (!tool_another())
-            return 0;
+            tool_exit_ready(8);
     }
 }

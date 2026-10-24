@@ -49,6 +49,7 @@ unsigned long tool_stored(void);
 int tool_pick_file(char want);
 int tool_another(void);
 void tool_stay(void) __attribute__((noreturn));
+void tool_exit_ready(unsigned char device) __attribute__((noreturn));
 void tool_show_err(int rc, int row);
 int tool_parse_step(const char *s, unsigned int *step);
 void tool_remember_output(const char *spec);

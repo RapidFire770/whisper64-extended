@@ -723,10 +723,13 @@ int tool_another(void) {
             return 1;
         }
         if (ch == 'N' || ch == 'n' || ch == 3) {
-            *(unsigned char *)0xD020 = 14;
-            *(unsigned char *)0xD021 = 6;
-            tool_clrscr();
-            return 0;
+            unsigned char dev = 8;
+
+            if (write_drive >= 8 && write_drive <= 15)
+                dev = write_drive;
+            else if (read_drive >= 8 && read_drive <= 15)
+                dev = read_drive;
+            tool_exit_ready(dev);
         }
     }
 }
