@@ -131,8 +131,8 @@ int main(void) {
             continue;
         }
         if (tool_prepare('S') < 0) {
-            if (verify_code != 0 && !tool_another())
-                tool_exit_ready(8);
+            if (verify_code != 0)
+                tool_another();
             continue;
         }
         {
@@ -140,19 +140,17 @@ int main(void) {
             unsigned int step;
 
             if (tool_read_field(21, "STEP: ", buf, 8) < 0) {
-                if (verify_code != 0 && !tool_another())
-                    tool_exit_ready(8);
+                if (verify_code != 0)
+                    tool_another();
                 continue;
             }
             if (tool_parse_step(buf, &step) < 0) {
                 tool_finish(CONV_NUM_BIG, "NUM BIG");
-                if (!tool_another())
-                    tool_exit_ready(8);
+                tool_another();
                 continue;
             }
             renumber_job(step);
         }
-        if (!tool_another())
-            tool_exit_ready(8);
+        tool_another();
     }
 }

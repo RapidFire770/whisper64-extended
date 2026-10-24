@@ -150,12 +150,11 @@ int main(void) {
             continue;
         }
         if (tool_prepare('S') < 0) {
-            if (verify_code != 0 && !tool_another())
-                tool_exit_ready(8);
+            if (verify_code != 0)
+                tool_another();
             continue;
         }
         label_job();
-        if (!tool_another())
-            tool_exit_ready(8);
+        tool_another();
     }
 }

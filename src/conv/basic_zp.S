@@ -11,6 +11,10 @@
 basic_zp:
   .space 0x8e
 
+.section .bss,"aw",@nobits
+drain_left:
+  .space 1
+
 .section .init.005,"ax",@progbits
   ldx #0
 save_zp:
@@ -59,14 +63,15 @@ tool_exit_ready:
   ldx #15
   jsr $ffc6
   bcs exit_close15
-  ldy #0
+  lda #0
+  sta drain_left
 exit_drain:
   jsr $ffb7
   bne exit_close15
   jsr $ffcf
   cmp #$0d
   beq exit_close15
-  dey
+  dec drain_left
   bne exit_drain
 exit_close15:
   jsr $ffcc
