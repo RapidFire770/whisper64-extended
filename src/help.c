@@ -26,21 +26,26 @@ static void help_page(int page) {
         cputs_at(2, 19, "HOME - GO TO TOP", COL_WHITE);
         cputs_at(2, 20, "ARROWS - MOVE CURSOR", COL_WHITE);
 
-        cputs_at(0, 21, "BASIC MODE (F4)", COL_CYAN);
-        cputs_at(2, 22, "CTRL+D - 40/80 COLUMNS", COL_WHITE);
-        cputs_at(0, 23, "<> PAGE", COL_CYAN);
+        cputs_at(0, 23, "> NEXT PAGE", COL_CYAN);
         return;
     }
 
     cputs_at(0, 0, "WHISPER64 - HELP 2", COL_YELLOW);
-    cputs_at(0, 2, "W64CONV SEQ/PRG", COL_CYAN);
-    cputs_at(0, 3, "W64RENUM RENUMBER", COL_CYAN);
-    cputs_at(0, 4, "W64LABEL LABELS", COL_CYAN);
-    cputs_at(2, 6, "CTRL+N NEXT  CTRL+B BACK", COL_WHITE);
-    cputs_at(2, 7, "CTRL+G TITLE LINE", COL_WHITE);
-    cputs_at(2, 9, "F4 BASIC COLOR ON, AGAIN OFF", COL_WHITE);
-    cputs_at(2, 10, "BASIC LINE STOPS AT 79", COL_WHITE);
-    cputs_at(0, 23, "LEFT PAGE  STOP EXITS", COL_CYAN);
+    
+    cputs_at(2, 2, "CTRL+D - 40/80 COLUMNS", COL_WHITE);
+    cputs_at(2, 3, "CTRL+N NEXT PAGE  CTRL+B BACK", COL_WHITE);
+    cputs_at(2, 4, "BASIC LINE STOPS AT 79 CHARACTERS", COL_WHITE);
+
+    cputs_at(0, 6, "TOOL PROGRAMS:", COL_CYAN);
+    cputs_at(0, 7, "W64CONV SEQ/PRG:", COL_YELLOW);
+    cputs_at(1, 8, "READS A SEQ BASIC FILE AND WRITES A PRG", COL_WHITE);
+    cputs_at(1, 9, "CONVERTS A PRG BACK TO A SEQ BASIC FILE", COL_WHITE);
+    cputs_at(0, 10, "W64RENUM RENUMBER:", COL_YELLOW);
+    cputs_at(1, 11, "RENUMBERS A SEQ BASIC FILE", COL_WHITE);
+    cputs_at(0, 12, "W64LABEL LABELS:", COL_YELLOW);
+    cputs_at(1, 13, "CONVERTS A LABELED BASIC FILE TO A PRG", COL_WHITE);
+
+    cputs_at(0, 23, "< PREVIOUS PAGE - STOP EXITS", COL_CYAN);
 }
 
 void show_help() {
