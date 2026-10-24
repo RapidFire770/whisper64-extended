@@ -40,7 +40,7 @@ cmake -DCMAKE_PREFIX_PATH=/home/josh/Documents/Programming/C64/tools/llvm-mos ..
 make
 ```
 
-`CMakeLists.txt` sets `LLVM_MOS_PLATFORM` to `c64` before `project()`. Output is `build/whisper64.prg`, `build/w64conv.prg`, `build/w64renum.prg`, and `build/w64label.prg`. The editor is `-Os`, `-ffunction-sections`, `--gc-sections`. The three tools are `-Oz` with the same section flags. A MinSizeRel cache still passes `-Os` first; the target `-Oz` comes after it and wins. Do not compile the three at `-Os`. Each links `-lexit-return` so a return from `main` reaches BASIC. The editor does not. The October 23, 2026 maps put `__heap_start` at `$4A5D` (`w64conv`), `$60CA` (`w64renum`), and `$8E2E` (`w64label`), with `__stack` at `$D000` on each. A 512KB `whisper64.reu` image and `whisper64.d64` are created by the build and by `run_vice.sh`. Both are gitignored, as is `build/`.
+`CMakeLists.txt` sets `LLVM_MOS_PLATFORM` to `c64` before `project()`. Output is `build/whisper64.prg`, `build/w64conv.prg`, `build/w64renum.prg`, and `build/w64label.prg`. The editor is `-Os`, `-ffunction-sections`, `--gc-sections`. The three tools are `-Oz` with the same section flags. A MinSizeRel cache still passes `-Os` first; the target `-Oz` comes after it and wins. Do not compile the three at `-Os`. Each links `-lexit-return` so a return from `main` reaches BASIC. The editor does not. The October 23, 2026 maps put `__heap_start` at `$4A72` (`w64conv`), `$6197` (`w64renum`), and `$8EAA` (`w64label`), with `__stack` at `$D000` on each. A 512KB `whisper64.reu` image and `whisper64.d64` are created by the build and by `run_vice.sh`. Both are gitignored, as is `build/`.
 
 Run in VICE:
 
