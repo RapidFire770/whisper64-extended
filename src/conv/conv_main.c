@@ -337,15 +337,14 @@ int main(void) {
             continue;
         }
         if (tool_prepare(mode == 2 ? 'P' : 'S') < 0) {
-            if (verify_code != 0 && !tool_another())
-                return 0;
+            if (verify_code != 0)
+                tool_another();
             continue;
         }
         if (mode == 1)
             seq_to_prg();
         else
             prg_to_seq();
-        if (!tool_another())
-            return 0;
+        tool_another();
     }
 }
