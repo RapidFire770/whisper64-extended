@@ -5,3 +5,4 @@ whisper64.d64
 docs/manuals_and_books/
 docs/superpowers/
 .worktrees/
+__pycache__
