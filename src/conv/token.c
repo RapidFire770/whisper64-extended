@@ -145,78 +145,19 @@ int conv_tokenize(const char *line, unsigned int *line_no,
     return n;
 }
 
-static int put_piece(char *text, int *len, int cap, const char *bytes, int n,
-                     int *truncated) {
-    int i;
-
-    if (*len + n >= cap) {
-        *truncated = 1;
-        return -1;
-    }
-    for (i = 0; i < n; i++)
-        text[*len + i] = bytes[i];
-    *len += n;
-    return 0;
-}
-
 int conv_format_line(unsigned int line_no, const unsigned char *stmt, int slen,
                      char *text, int cap, int *truncated) {
-    char body[80];
     char num[8];
-    int blen = 0;
-    int state = 0;
-    int i;
-    int nlen;
+    int nlen = 0;
     int pos;
+    int mark;
+    int state;
+    int started;
+    int i;
 
+    /* A colon inside quotes, REM, or a quoted DATA item is not a statement
+       break. The editor line stops on the last real break that fits. */
     *truncated = 0;
-    for (i = 0; i < slen; i++) {
-        unsigned char b = stmt[i];
-        const char *piece;
-        char one[1];
-        int plen;
-        char kwbuf[8];
-
-        if (state == 2 || state == 4 || state == 3 || state == 1) {
-            one[0] = (char)b;
-            piece = one;
-            plen = 1;
-            if (state == 4 && b == '"')
-                state = 3;
-            else if (state == 3 && b == '"')
-                state = 4;
-            else if (state == 3 && b == ':')
-                state = 0;
-            else if (state == 1 && b == '"')
-                state = 0;
-        } else if (b == '"') {
-            state = 1;
-            one[0] = '"';
-            piece = one;
-            plen = 1;
-        } else if (b >= 0x80 && b <= 0xCB) {
-            const char *kw = keywords[b - 0x80];
-            plen = 0;
-            while (kw[plen] && plen < 7) {
-                kwbuf[plen] = kw[plen];
-                plen++;
-            }
-            kwbuf[plen] = '\0';
-            piece = kwbuf;
-            if (b == 0x8F)
-                state = 2;
-            else if (b == 0x83)
-                state = 3;
-        } else {
-            one[0] = (char)b;
-            piece = one;
-            plen = 1;
-        }
-        put_piece(body, &blen, 80, piece, plen, truncated);
-    }
-    body[blen] = '\0';
-
-    nlen = 0;
     {
         unsigned int v = line_no;
         char rev[8];
@@ -231,16 +172,82 @@ int conv_format_line(unsigned int line_no, const unsigned char *stmt, int slen,
             num[nlen++] = rev[--r];
     }
     num[nlen] = '\0';
+    if (nlen >= cap) {
+        *truncated = 1;
+        return -1;
+    }
 
     pos = 0;
-    for (i = 0; i < nlen && pos < cap - 1; i++)
+    for (i = 0; i < nlen; i++)
         text[pos++] = num[i];
-    if (blen > 0 && body[0] != ' ' && pos < cap - 1)
-        text[pos++] = ' ';
-    for (i = 0; i < blen && pos < cap - 1; i++)
-        text[pos++] = body[i];
-    if (nlen + (blen > 0 && body[0] != ' ') + blen > cap - 1)
-        *truncated = 1;
+    mark = -1;
+    state = 0;
+    started = 0;
+    for (i = 0; i < slen; i++) {
+        unsigned char b = stmt[i];
+        char piece[8];
+        int plen;
+        int sep;
+        int gap;
+        int k;
+        int old = state;
+        int next = old;
+
+        sep = (b == ':' && (old == 0 || old == 3));
+        if (old == 2 || old == 4 || old == 3 || old == 1) {
+            piece[0] = (char)b;
+            plen = 1;
+            if (old == 4 && b == '"')
+                next = 3;
+            else if (old == 3 && b == '"')
+                next = 4;
+            else if (old == 3 && b == ':')
+                next = 0;
+            else if (old == 1 && b == '"')
+                next = 0;
+        } else if (b == '"') {
+            next = 1;
+            piece[0] = '"';
+            plen = 1;
+        } else if (b >= 0x80 && b <= 0xCB) {
+            const char *kw = keywords[b - 0x80];
+            plen = 0;
+            while (kw[plen] && plen < 7) {
+                piece[plen] = kw[plen];
+                plen++;
+            }
+            if (b == 0x8F)
+                next = 2;
+            else if (b == 0x83)
+                next = 3;
+        } else {
+            piece[0] = (char)b;
+            plen = 1;
+        }
+        gap = (!started && piece[0] != ' ') ? 1 : 0;
+        if (pos + gap + plen >= cap) {
+            *truncated = 1;
+            /* The colon itself did not fit. The statement before it did. */
+            if (sep) {
+                text[pos] = '\0';
+                return pos;
+            }
+            if (mark < 0) {
+                text[0] = '\0';
+                return -1;
+            }
+            text[mark] = '\0';
+            return mark;
+        }
+        if (gap)
+            text[pos++] = ' ';
+        for (k = 0; k < plen; k++)
+            text[pos++] = piece[k];
+        started = 1;
+        state = next;
+        if (sep)
+            mark = pos - 1;
+    }
     text[pos] = '\0';
     return pos;
 }

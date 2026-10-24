@@ -95,59 +95,48 @@ def tokenize_stmt(line):
     return len(out), num, bytes(out)
 
 
-def detok_statement(stmt):
-    """Expand one statement. Returns (text, truncated) for a 79-char cap."""
-    text = []
+def editor_line(line_no, stmt):
+    """Match conv_format_line. (None, True) when the first statement does not fit."""
+    text = str(line_no)
+    mark = None
     state = 0
-    truncated = False
-    cap = 79
+    started = False
     for b in stmt:
-        if state == 2:
-            piece = bytes([b])
-        elif state == 4:
-            piece = bytes([b])
-            if b == 0x22:
+        old = state
+        sep = b == ord(":") and old in (0, 3)
+        if old in (1, 2, 3, 4):
+            piece = bytes([b]).decode("latin1")
+            if old == 4 and b == 0x22:
                 state = 3
-        elif state == 3:
-            piece = bytes([b])
-            if b == 0x22:
+            elif old == 3 and b == 0x22:
                 state = 4
-            elif b == ord(":"):
+            elif old == 3 and b == ord(":"):
                 state = 0
-        elif state == 1:
-            piece = bytes([b])
-            if b == 0x22:
+            elif old == 1 and b == 0x22:
                 state = 0
         elif b == 0x22:
             state = 1
-            piece = b'"'
+            piece = '"'
         elif 0x80 <= b <= 0xCB:
-            piece = KEYWORDS[b - 0x80].encode("ascii")
+            piece = KEYWORDS[b - 0x80]
             if b == TOKEN["REM"]:
                 state = 2
             elif b == TOKEN["DATA"]:
                 state = 3
         else:
-            piece = bytes([b])
-        if len(text) + len(piece) > cap:
-            truncated = True
-            if b == TOKEN["REM"]:
-                state = 2
-            continue
-        text.extend(piece)
-    return bytes(text).decode("latin1"), truncated
-
-
-def editor_line(line_no, stmt):
-    body, truncated = detok_statement(stmt)
-    text = str(line_no)
-    if body and not body.startswith(" "):
-        text += " "
-    text += body
-    if len(text) > 79:
-        text = text[:79]
-        truncated = True
-    return text, truncated
+            piece = bytes([b]).decode("latin1")
+        gap = " " if not started and not piece.startswith(" ") else ""
+        if len(text) + len(gap) + len(piece) >= 80:
+            if sep:
+                return text, True
+            if mark is None:
+                return None, True
+            return text[:mark], True
+        text += gap + piece
+        started = True
+        if sep:
+            mark = len(text) - 1
+    return text, False
 
 
 def build_prg(lines):
@@ -307,10 +296,27 @@ def main():
         "20 GOTO 10",
     ]
 
-    # Twenty PRINT tokens expand past 79 characters and must truncate.
+    # Twenty PRINT tokens have no colon, so the line is refused.
     packed = bytes([TOKEN["PRINT"]]) * 20
     text, truncated = editor_line(10, packed)
-    assert truncated and len(text) <= 79
+    assert text is None and truncated
+
+    code, num, stmt = tokenize_stmt(
+        '3 B1$=CHR$(180):B2$=CHR$(170):BL$=CHR$(108):BR$=CHR$(186):'
+        'BB$=CHR$(175):TB$=CHR$(183)'
+    )
+    assert num == 3
+    text, truncated = editor_line(num, stmt)
+    assert truncated
+    assert text == (
+        '3 B1$=CHR$(180):B2$=CHR$(170):BL$=CHR$(108):BR$=CHR$(186):BB$=CHR$(175)'
+    )
+
+    exact = '10 PRINT "' + ('X' * 68) + '"'
+    code, num, stmt = tokenize_stmt(exact + ':REM HI')
+    assert code > 0 and len(exact) == 79
+    text, truncated = editor_line(num, stmt)
+    assert truncated and text == exact
 
     code, _num, stmt = tokenize_stmt("10 INPUT#1,A")
     assert TOKEN["INPUT#"] in stmt and TOKEN["INPUT"] not in stmt

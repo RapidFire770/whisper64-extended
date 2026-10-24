@@ -25,8 +25,10 @@ int conv_tokenize(const char *line, unsigned int *line_no,
    keyword that ends in a letter or digit. TAB( and SPC( keep the paren. */
 int conv_keyword_len(const unsigned char *s, unsigned int len, unsigned int i);
 
-/* Writes the editor text for one statement, capped at cap-1 characters.
-   *truncated is set when a byte did not fit. Returns the length. */
+/* Writes one editor line, at most cap-1 characters. A line that does not
+   fit ends on the last colon outside quotes, REM, and quoted DATA.
+   *truncated is set when that tail was dropped. Returns the length, or -1
+   when the first statement does not fit. */
 int conv_format_line(unsigned int line_no, const unsigned char *stmt, int slen,
                      char *text, int cap, int *truncated);
 

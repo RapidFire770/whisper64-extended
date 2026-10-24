@@ -173,7 +173,14 @@ static int prg_store(unsigned int *wrote_out) {
                 int cut = 0;
                 int len = conv_format_line(line_no, tok, slen, text_line, 80, &cut);
                 int j;
-                if (cut || cut_stmt)
+                if (len < 0 || (cut_stmt && !cut)) {
+                    char msg[20];
+                    tool_set_str(msg, "LINE LONG ");
+                    tool_add_dec(msg, line_no);
+                    tool_finish(CONV_LINE_LONG, msg);
+                    return -1;
+                }
+                if (cut)
                     trunc++;
                 if (!first && tool_stash_byte(13) < 0)
                     return -1;
@@ -284,6 +291,9 @@ static void show_help(void) {
     tool_put_row(13, "OPEN FAIL:   DRIVE DID NOT OPEN");
     tool_put_row(14, "BAD NAME:    EMPTY OR , : * ? @");
     tool_put_row(15, "DISK:        SEE THE DOS TEXT");
+    tool_put_row(17, "* STATUS *");
+    tool_put_row(18, "TRUNC t:     t LINES CUT AT A COLON");
+    tool_put_row(19, "ML 1:        EXTRA BYTES NOT COPIED");
     tool_put_row(23, "STOP EXITS THIS PAGE");
     tool_cgetc();
 }
