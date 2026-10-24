@@ -259,23 +259,9 @@ static void prg_to_seq(void) {
     tool_remember_output(probe);
 }
 
-static void title_at(const char *s) {
-    unsigned char x = (40 - 8) / 2;
-    unsigned char *screen = (unsigned char *)0x0400;
-    unsigned char *color = (unsigned char *)0xD800;
-    unsigned int pos = x;
-
-    while (*s && x < 39) {
-        screen[pos] = (unsigned char)*s++;
-        color[pos] = COL_GREEN;
-        pos++;
-        x++;
-    }
-}
-
 static void draw_menu(void) {
     tool_clrscr();
-    title_at("W64CONV");
+    tool_center_row(0, "W64CONV");
     tool_paint_reu();
     tool_put_row(3, "1 SEQ TO PRG");
     tool_put_row(4, "2 PRG TO SEQ");
@@ -284,7 +270,7 @@ static void draw_menu(void) {
 
 static void show_help(void) {
     tool_clrscr();
-    tool_put_row(0, "W64CONV HELP");
+    tool_center_row(0, "W64CONV HELP");
     tool_paint_reu();
     tool_put_row(3, "1. SEQ > PRG - CONVERTS SEQ TO PRG");
     tool_put_row(4, "2. PRG > SEQ - CONVERTS PRG TO SEQ");

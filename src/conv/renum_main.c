@@ -65,23 +65,9 @@ static void renumber_job(unsigned int step) {
     tool_remember_output(probe);
 }
 
-static void title_at(const char *s) {
-    unsigned char x = (40 - 8) / 2;
-    unsigned char *screen = (unsigned char *)0x0400;
-    unsigned char *color = (unsigned char *)0xD800;
-    unsigned int pos = x;
-
-    while (*s && x < 39) {
-        screen[pos] = (unsigned char)*s++;
-        color[pos] = COL_GREEN;
-        pos++;
-        x++;
-    }
-}
-
 static void draw_menu(void) {
     tool_clrscr();
-    title_at("W64RENUM");
+    tool_center_row(0, "W64RENUM");
     tool_paint_reu();
     tool_put_row(3, "1 RENUMBER SEQ");
     tool_put_row(4, "? HELP");
@@ -89,7 +75,7 @@ static void draw_menu(void) {
 
 static void show_help(void) {
     tool_clrscr();
-    tool_put_row(0, "W64RENUM HELP");
+    tool_center_row(0, "W64RENUM HELP");
     tool_paint_reu();
     tool_put_row(3, "1. RENUMBER - RENUMBERS LINES IN SEQ");
     tool_put_row(4, "STEP EMPTY IS 10");

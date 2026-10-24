@@ -82,6 +82,20 @@ void tool_put_err(unsigned char row, const char *msg) {
     paint_row(row, msg, COL_RED);
 }
 
+void tool_center_row(unsigned char row, const char *msg) {
+    unsigned char len = 0;
+    unsigned char x = 0;
+    unsigned char i;
+
+    while (msg[len])
+        len++;
+    for (i = 0; i < 39; i++)
+        cputc_at(i, row, ' ', COL_GREEN);
+    if (len < 40)
+        x = (unsigned char)((40 - len) >> 1);
+    cputs_at(x, row, msg, COL_GREEN);
+}
+
 /* One shared formatter. sprintf pulls in about 4KB of printf. */
 void tool_set_str(char *dst, const char *src) {
     while (*src)
@@ -387,14 +401,14 @@ void tool_paint_reu(void) {
     unsigned int kb;
 
     if (reu_bytes == 0) {
-        tool_put_row(1, "REU: NONE");
+        tool_center_row(1, "REU: NONE");
         return;
     }
     tool_set_str(msg, "REU: ");
     kb = (unsigned int)(reu_bytes >> 10);
     tool_add_dec(msg, kb);
     tool_add_str(msg, "KB");
-    tool_put_row(1, msg);
+    tool_center_row(1, msg);
 }
 
 void tool_stash_reset(void) {

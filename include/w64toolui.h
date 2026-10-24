@@ -26,6 +26,7 @@ void tool_file_spec(char *dst, int replace, const char *name, const char *tail);
 int tool_name_ok(const char *s);
 void tool_put_row(unsigned char row, const char *msg);
 void tool_put_err(unsigned char row, const char *msg);
+void tool_center_row(unsigned char row, const char *msg);
 void tool_paint_reu(void);
 void tool_lowercase(void);
 void tool_clrscr(void);
