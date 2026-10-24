@@ -196,11 +196,11 @@ Three programs replace the single converter. None of them is linked into the edi
 
 | Program | Sources |
 |---|---|
-| `w64conv.prg` | `src/conv/conv_main.c`, `src/conv/toolui.c`, `src/conv/token.c`, `src/conv/reu_dma.c`, `src/conv/basic_zp.S` |
-| `w64renum.prg` | `src/conv/renum_main.c`, `src/conv/toolui.c`, `src/conv/renumber.c`, `src/conv/reu_dma.c`, `src/conv/basic_zp.S` |
-| `w64label.prg` | `src/conv/label_main.c`, `src/conv/toolui.c`, `src/conv/renumber.c`, `src/conv/token.c`, `src/conv/reu_dma.c`, `src/conv/basic_zp.S` |
+| `w64conv.prg` | `src/conv/conv_main.c`, `src/conv/toolui.c`, `src/conv/token.c`, `src/conv/reu_dma.c`, `src/conv/tool_reu.c`, `src/conv/basic_zp.S` |
+| `w64renum.prg` | `src/conv/renum_main.c`, `src/conv/toolui.c`, `src/conv/renumber.c`, `src/conv/reu_dma.c`, `src/conv/tool_reu.c`, `src/conv/basic_zp.S` |
+| `w64label.prg` | `src/conv/label_main.c`, `src/conv/toolui.c`, `src/conv/renumber.c`, `src/conv/token.c`, `src/conv/reu_dma.c`, `src/conv/tool_reu.c`, `src/conv/basic_zp.S` |
 
-All three are `-Oz`, `--gc-sections`, and `-lexit-return`. A MinSizeRel cache still passes `-Os` first. The target `-Oz` comes after it and wins. Do not compile these three at `-Os`. `basic_zp.S` is compiled as C. The October 23, 2026 maps put `__heap_start` at `$4A5D` for `build/w64conv.map`, `$60CA` for `build/w64renum.map`, and `$8E2E` for `build/w64label.map`. Each has `__stack` at `$D000`. Keep the heap at or below `$C800`. Do not add a RAM file buffer, and do not raise the directory list past 144 entries.
+All three are `-Oz`, `--gc-sections`, and `-lexit-return`. A MinSizeRel cache still passes `-Os` first. The target `-Oz` comes after it and wins. Do not compile these three at `-Os`. `basic_zp.S` is compiled as C. The October 23, 2026 maps put `__heap_start` at `$4A72` for `build/w64conv.map`, `$6197` for `build/w64renum.map`, and `$8EAA` for `build/w64label.map`. Each has `__stack` at `$D000`. Keep the heap at or below `$C800`. Do not add a RAM file buffer, and do not raise the directory list past 144 entries.
 
 `W64CONV` menu `1` is SEQ to PRG and `2` is PRG to SEQ. `W64RENUM` renumbers a SEQ. An empty step is 10. `W64LABEL` numbers labels at step 10 and writes a PRG, and it does not ask for a step. Read drive and write drive are separate, 8–15, and an empty entry is 8. The directory is its own list: 144 entries, 18 bytes each, name in 0–15, NUL at 16, type at 17. It is discarded when the file is read. `W64CONV` lists SEQ for SEQ to PRG and PRG for PRG to SEQ. `W64RENUM` and `W64LABEL` list SEQ. Skip the disk-header entry. `NO FILES` waits for a key and does not set `verify_code`, so the menu redraws and does not ask ANOTHER.
 

@@ -38,6 +38,11 @@ static void cputc_at(unsigned char x, unsigned char y, char c, unsigned char col
     COLOR_RAM[pos] = color;
 }
 
+/* PETSCII 14. Title bytes $41-$5A are capitals in the lowercase/uppercase set. */
+void tool_lowercase(void) {
+    cbm_k_chrout(14);
+}
+
 void tool_clrscr(void) {
     unsigned int i;
     for (i = 0; i < 1000; i++) {
@@ -266,7 +271,8 @@ int tool_drive_status_ok(void) {
     cbm_k_setnam("");
     if (cbm_k_open() != 0) {
         cbm_k_close(15);
-        return 1;
+        tool_finish(CONV_OPEN_FAIL, "OPEN FAIL");
+        return 0;
     }
     cbm_k_chkin(15);
     while (j < 39) {

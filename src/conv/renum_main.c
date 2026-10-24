@@ -125,6 +125,7 @@ static int menu_key(void) {
 int main(void) {
     *(unsigned char *)0xD020 = 12;
     *(unsigned char *)0xD021 = 0;
+    tool_lowercase();
     w64_reu_probe();
     reu_bytes = w64_reu_bytes();
     for (;;) {

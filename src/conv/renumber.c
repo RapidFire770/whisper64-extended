@@ -1221,7 +1221,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
     int rc;
     int past;
     int pass;
-    int row;
+    unsigned long row;
     long map_i;
     unsigned long map_floor;
     unsigned long appended;
@@ -1313,7 +1313,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
             store_line_prefix(pos, end, &prefix_len, &overflow80);
             row++;
             if (overflow80) {
-                *err_row = row;
+                store_err_row(err_row, row);
                 rc = 4;
                 goto done;
             }
@@ -1329,7 +1329,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
                             NULL, nmap, line, &new_len);
             if (rc) {
                 if (rc == 4)
-                    *err_row = row;
+                    store_err_row(err_row, row);
                 goto done;
             }
             if (kind > 0)
@@ -1487,7 +1487,7 @@ int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
     int rc;
     int past;
     int pass;
-    int row;
+    unsigned long row;
     unsigned long map_floor;
     unsigned long appended;
 
@@ -1647,7 +1647,7 @@ int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
             }
             store_line_prefix(pos, end, &prefix_len, &overflow80);
             if (overflow80) {
-                *err_row = row;
+                store_err_row(err_row, row);
                 rc = 4;
                 goto done;
             }
@@ -1676,7 +1676,7 @@ int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
                                   stmt, NULL, nmap, line, &new_len);
             if (rc) {
                 if (rc == 4 || rc == 6)
-                    *err_row = row;
+                    store_err_row(err_row, row);
                 goto done;
             }
             if (pass == 0) {
