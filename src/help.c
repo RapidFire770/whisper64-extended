@@ -23,7 +23,7 @@ static void help_page(int page) {
         cputs_at(2, 16, "CTRL+Y - REDO LAST CHANGE", COL_WHITE);
         cputs_at(2, 17, "CTRL+G - GOTO LINE NUMBER", COL_WHITE);
         cputs_at(2, 18, "CTRL+W - NEW FILE", COL_WHITE);
-        cputs_at(2, 19, "HOME - GO TO TOP", COL_WHITE);
+        cputs_at(2, 19, "HOME   - GO TO TOP", COL_WHITE);
         cputs_at(2, 20, "ARROWS - MOVE CURSOR", COL_WHITE);
 
         cputs_at(0, 23, "> NEXT PAGE", COL_CYAN);
