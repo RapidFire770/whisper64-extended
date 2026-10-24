@@ -51,9 +51,13 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [ ] A BASIC program written on my desktop with VS64 in Visual Studio Code with the code in the /home/josh/Documents/Programming/C64/dice-roll folder when turned back into code from the prg file says trunc 14 when converted back, I am guessing this might mean 14 lines were truncated for some reason, the help menu does not mention what the message means. If I turn that converted code back into a prg and run it the error says "?TYPE MISMATCH ERROR IN 3"
 - [x] Center the REU message under the program name / title on line 0. Help screens should also have the title and REU message centered on the screen to be consistent with the main menu screen. Checked on the C64 Ultimate: menu titles start at column 16, `W64CONV HELP` starts at column 14, `W64RENUM HELP` and `W64LABEL HELP` start at column 13, and row 1 was `REU: 16320KB` at column 14. The title cell's low color nibble was 5.
 - [x] In all 3 utility programs once a file has been selected from the menu and name has been given the file list needs to be cleared from the screen so it doesn't interfere with the display of status information and error messages. Right now the file list stays on screen and if it is too long the status information and other messages are getting printed overtop of filenames from the selection list. `tool_prepare` blanks rows 2–19 after the output name. On the Ultimate, `W64RENUM` waited at `STEP:` with those rows clear and `OUTPUT FILENAME: T6UI` still on row 20. The shared `tool_prepare` path covers `W64CONV` and `W64LABEL`.
+- [ ] Exit to ready prompt does not seem to work as intended. Once at the blue screen with ready on it the load commands don't work to view the files on a disk or load one.
 
-# Both Whisper64 Editor and W64TOOLS
-- [ ] Look into converting from standard .prg program file to a .crt cartridge file to reclaim the BASIC ROM area so we have extra RAM for features.
-  - [ ] Both programs on one cartridge file with a selection menu of which one the user wants to load into.
-  - [ ] Re-add the mouse and joystick support if space would be available.
-  - [ ] If this can be done both programs will need an option to return to the main program selection menu. The menu should have the option to exit back to the BASIC prompt so the user can run the programs they have written and converted.
+# Both Whisper64 Editor and Utility programs
+- [ ] Look into converting from standard .prg program file to a .crt cartridge file will all programs on it. I read that this can reclaim the BASIC ROM area. If true that may allow some extra RAM space for features and bug fixes.
+  - [ ] All programs on one cartridge file with a selection menu of which one the user wants to load into.
+  - [ ] Re-add the mouse and joystick support to the editor if space would be available.
+  - [ ] If this can be done all programs will need an option to return to the main program selection menu. The menu should have the option to exit back to the BASIC prompt so the user can run the programs they have written and converted.
+
+# Conversion Tool for BASIC .bas files
+- [ ] Look into a creation of a small utility to convert BASIC files written on the PC in the .bas file format and convert them to a seq file that can be copied to the c64 and opened with the Whisper64 editor.
