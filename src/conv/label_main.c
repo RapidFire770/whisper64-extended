@@ -99,29 +99,29 @@ static void draw_menu(void) {
     tool_clrscr();
     title_at("W64LABEL");
     tool_paint_reu();
-    tool_put_row(2, "1 LABELS TO PRG");
-    tool_put_row(3, "? HELP");
+    tool_put_row(3, "1 LABELS TO PRG");
+    tool_put_row(4, "? HELP");
 }
 
 static void show_help(void) {
     tool_clrscr();
     tool_put_row(0, "W64LABEL HELP");
     tool_paint_reu();
-    tool_put_row(2, "1. LABELS - LABELED LINE SEQ TO PRG");
-    tool_put_row(3, "STEP IS 10");
-    tool_put_row(4, "?  HELP - SHOWS THIS HELP SCREEN");
-    tool_put_row(6, "* ERRORS *");
-    tool_put_row(7, "NO NUM:    LINE HAS NO NUMBER");
-    tool_put_row(8, "NUM BIG:   PAST 63999");
-    tool_put_row(9, "LINE LONG: PAST 79 CHARACTERS");
-    tool_put_row(10, "TOO BIG:   REU FULL");
-    tool_put_row(11, "PRG TOO BIG: 16-BIT LINK");
-    tool_put_row(12, "NO LABEL:  GOTO NAME MISSING");
-    tool_put_row(13, "DUP LABEL: SAME NAME TWICE");
-    tool_put_row(14, "BAD NAME:  EMPTY OR , : * ? @");
-    tool_put_row(15, "OPEN FAIL: DRIVE DID NOT OPEN");
-    tool_put_row(16, "DISK:      SEE THE DOS TEXT");
-    tool_put_row(18, "STOP EXITS THIS PAGE");
+    tool_put_row(3, "1. LABELS - LABELED LINE SEQ TO PRG");
+    tool_put_row(4, "STEP IS 10");
+    tool_put_row(5, "?  HELP - SHOWS THIS HELP SCREEN");
+    tool_put_row(7, "* ERRORS *");
+    tool_put_row(8, "NO NUM:      LINE HAS NO NUMBER");
+    tool_put_row(9, "NUM BIG:     PAST 63999");
+    tool_put_row(10, "LINE LONG:   PAST 79 CHARACTERS");
+    tool_put_row(11, "TOO BIG:     REU FULL");
+    tool_put_row(12, "PRG TOO BIG:   16-BIT LINK");
+    tool_put_row(13, "NO LABEL:    GOTO NAME MISSING");
+    tool_put_row(14, "DUP LABEL:   SAME NAME TWICE");
+    tool_put_row(15, "BAD NAME:    EMPTY OR , : * ? @");
+    tool_put_row(16, "OPEN FAIL:   DRIVE DID NOT OPEN");
+    tool_put_row(17, "DISK:        SEE THE DOS TEXT");
+    tool_put_row(23, "STOP EXITS THIS PAGE");
     tool_cgetc();
 }
 

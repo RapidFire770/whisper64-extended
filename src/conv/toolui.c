@@ -254,9 +254,9 @@ void tool_finish(unsigned char code, const char *msg) {
     cbm_k_close(3);
     verify_code = code;
     if (code == CONV_CANCEL)
-        tool_put_row(12, msg);
+        tool_put_row(18, msg);
     else
-        tool_put_err(12, msg);
+        tool_put_err(18, msg);
 }
 
 int tool_drive_status_ok(void) {
@@ -334,7 +334,7 @@ int tool_confirm_overwrite(const char *spec) {
 
     if (dos_missing(spec))
         return 1;
-    tool_put_row(9, "OVERWRITE? Y/N");
+    tool_put_row(17, "OVERWRITE? Y/N");
     ch = tool_cgetc();
     if (ch != 'Y' && ch != 'y') {
         tool_finish(CONV_CANCEL, "CANCELLED");
