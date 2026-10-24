@@ -58,7 +58,8 @@ int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
                              unsigned long *out_len, int *err, int *err_row,
                              unsigned long *ceiling);
 /* *wrote is the BASIC line count. reu_size is the exclusive end of free
-   space (the first map byte when a map is still resident). */
+   space (the first map byte when a map is still resident).
+   A 16-bit link wrap returns 9. A collision with that end returns 3. */
 int tokenize_store(unsigned long seq_at, unsigned long seq_len,
                    unsigned long reu_size, unsigned long *out_at,
                    unsigned long *out_len, int *wrote, int *err, int *err_row);

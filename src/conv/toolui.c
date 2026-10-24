@@ -747,6 +747,8 @@ void tool_show_err(int rc, int row) {
         tool_finish(CONV_BAD_NAME, "BAD NAME");
     else if (rc == 8)
         tool_finish(CONV_BAD_BASIC, "DUP LABEL");
+    else if (rc == 9)
+        tool_finish(CONV_TOO_BIG, "PRG TOO BIG");
     else
         tool_finish(CONV_BAD_BASIC, "NO NUM");
 }

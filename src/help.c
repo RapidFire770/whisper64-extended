@@ -33,9 +33,9 @@ static void help_page(int page) {
     }
 
     cputs_at(0, 0, "WHISPER64 - HELP 2", COL_YELLOW);
-    cputs_at(0, 2, "W64TOOLS", COL_CYAN);
-    cputs_at(2, 3, "1 SEQ>PRG   2 PRG>SEQ", COL_WHITE);
-    cputs_at(2, 4, "3 RENUMBER  4 LABELS", COL_WHITE);
+    cputs_at(0, 2, "W64CONV SEQ/PRG", COL_CYAN);
+    cputs_at(0, 3, "W64RENUM RENUMBER", COL_CYAN);
+    cputs_at(0, 4, "W64LABEL LABELS", COL_CYAN);
     cputs_at(2, 6, "CTRL+N NEXT  CTRL+B BACK", COL_WHITE);
     cputs_at(2, 7, "CTRL+G TITLE LINE", COL_WHITE);
     cputs_at(2, 9, "F4 BASIC COLOR ON, AGAIN OFF", COL_WHITE);

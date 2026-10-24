@@ -337,6 +337,7 @@ int main(void) {
         }
         if (!tool_reu_ok(reu_bytes)) {
             tool_put_err(12, "REU 128KB REQUIRED");
+            tool_cgetc();
             continue;
         }
         if (tool_prepare(mode == 2 ? 'P' : 'S') < 0) {

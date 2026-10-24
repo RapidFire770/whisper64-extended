@@ -78,7 +78,7 @@ RUN
 
 `W64CONV` menu `1` is SEQ to PRG and `2` is PRG to SEQ. `W64RENUM` renumbers a SEQ, and an empty step is 10. `W64LABEL` numbers labels at step 10 and writes a PRG. Each one asks for a read drive and a write drive, 8–15, and an empty entry is 8. The editor's F2 save stays a SEQ. N or Stop at the another-file prompt leaves the tool.
 
-- Row 1 shows `REU: NONE` or `REU: nKB`. The largest value is `16320KB`. A job needs at least `128KB`.
+- Row 1 shows `REU: NONE` or `REU: nKB`. The largest value is `16320KB`. A job needs at least `128KB`. Below that, the job paints `REU 128KB REQUIRED` and waits for a key.
 - The file is stored in the REU. `TOO BIG` means that REU filled. A tokenized program can still stop at `PRG TOO BIG` when a 16-bit link would wrap.
 - Line numbers stop at 63999, and a line stops at 79 characters.
 - Running any of the three overwrites the REU. Save from the editor first when other pages of the open file exist only in the REU.

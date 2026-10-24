@@ -1787,7 +1787,7 @@ int tokenize_store(unsigned long seq_at, unsigned long seq_len,
         }
         next = addr + 4u + (unsigned int)slen + 1u;
         if (next < addr) {
-            rc = 3;
+            rc = 9;
             goto done;
         }
         rc = prg_emit_word(next);
