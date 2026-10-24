@@ -54,9 +54,8 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [ ] Exit to ready prompt does not seem to work as intended. Text is in lower case when at the blue screen with ready on it. The load commands don't work to view the files on a disk or to load a program on the insterted disk.
 
 # Both Whisper64 Editor and Utility programs
-- [ ] Look into converting from standard .prg program files to a .crt cartridge file will all programs on it. I read that this can reclaim the BASIC ROM area. If true that may allow some extra RAM space for features and bug fixes.
+- [ ] Look into converting from standard .prg program files to a .crt cartridge file will all programs on it.
   - [ ] All programs on one cartridge file with a selection menu of which one the user wants to load into.
-  - [ ] Re-add the mouse and joystick support to the editor if space would be available.
   - [ ] If this can be done all programs should be able to return to the main program selection menu. The menu should have the option to exit back to the BASIC prompt so the user can run the programs they have written and converted.
 
 # Conversion Tool for BASIC .bas files
