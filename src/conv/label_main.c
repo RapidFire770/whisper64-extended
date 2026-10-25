@@ -87,6 +87,7 @@ static void draw_menu(void) {
     tool_paint_reu();
     tool_put_row(3, "1 LABELS TO PRG");
     tool_put_row(4, "? HELP");
+    tool_put_row(5, "RUN/STOP EXITS THE PROGRAM");
 }
 
 static void show_help(void) {
@@ -139,11 +140,8 @@ int main(void) {
         verify_code = 0;
         draw_menu();
         mode = menu_key();
-        if (mode < 0) {
-            verify_code = CONV_CANCEL;
-            tool_put_row(12, "CANCELLED");
-            tool_stay();
-        }
+        if (mode < 0)
+            tool_exit();
         if (!tool_reu_ok(reu_bytes)) {
             tool_put_err(12, "REU 128KB REQUIRED");
             tool_cgetc();
