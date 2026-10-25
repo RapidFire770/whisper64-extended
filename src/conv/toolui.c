@@ -722,21 +722,19 @@ int tool_another(void) {
             verify_code = 0;
             return 1;
         }
-        if (ch == 'N' || ch == 'n' || ch == 3) {
-            unsigned char dev = 8;
-
-            if (write_drive >= 8 && write_drive <= 15)
-                dev = write_drive;
-            else if (read_drive >= 8 && read_drive <= 15)
-                dev = read_drive;
-            tool_exit_ready(dev);
-        }
+        if (ch == 'N' || ch == 'n' || ch == 3)
+            tool_exit();
     }
 }
 
-void tool_stay(void) {
-    for (;;)
-        ;
+void tool_exit(void) {
+    unsigned char dev = 8;
+
+    if (write_drive >= 8 && write_drive <= 15)
+        dev = write_drive;
+    else if (read_drive >= 8 && read_drive <= 15)
+        dev = read_drive;
+    tool_exit_ready(dev);
 }
 
 void tool_show_err(int rc, int row) {
