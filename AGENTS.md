@@ -58,7 +58,8 @@ There is no unit-test target. Do not claim a C64 behavior works unless VICE or t
 include/     headers, one per module, plus font_4x8.h, whisper64.h, w64tools.h, w64toolui.h, w64reu.h
 src/         editor .c files
 src/conv/    W64CONV, W64RENUM, and W64LABEL
-tools/       c64u.py (Ultimate REST driver), test_basic_prg.py, test_renumber.c, test_bigfile.c, test_format_line.c, test_w64conv_c64u.py
+tools/       c64u.py (Ultimate REST driver), test_basic_prg.py, test_renumber.c, test_bigfile.c, test_format_line.c, test_w64conv_c64u.py, test_bas2seq.py
+tools/bas2seq/  host Textual TUI; writes SEQ for the editor, does not link into the editor; check: `python3 tools/test_bas2seq.py`
 docs/        Todo-List.md, SDK path note, c64 programming books
 build/       cmake output, gitignored
 run_vice.sh
