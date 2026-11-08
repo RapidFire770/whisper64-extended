@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from rich.text import Text
-from textual import on
+from textual import events, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
@@ -316,12 +316,6 @@ class LineScreen(Screen):
 
 
 class UnresolvedScreen(Screen):
-    BINDINGS = [
-        Binding("escape", "back", "Back"),
-        Binding("enter", "back", "Continue", show=False),
-        Binding("space", "back", "Continue", show=False),
-    ]
-
     def compose(self) -> ComposeResult:
         yield Static("Unresolved lines:", id="title")
         with VerticalScroll(id="list"):
@@ -337,6 +331,10 @@ class UnresolvedScreen(Screen):
 
     def action_back(self) -> None:
         self.app.goto_file()  # type: ignore[attr-defined]
+
+    def on_key(self, event: events.Key) -> None:
+        event.stop()
+        self.action_back()
 
 
 class RenameScreen(Screen):
@@ -416,12 +414,6 @@ class WarningScreen(Screen):
 
 
 class DoneScreen(Screen):
-    BINDINGS = [
-        Binding("escape", "back", "Back"),
-        Binding("enter", "back", "Continue", show=False),
-        Binding("space", "back", "Continue", show=False),
-    ]
-
     def compose(self) -> ComposeResult:
         yield Static("", id="summary")
         yield Static("Press a key to return to files.", id="hint")
@@ -437,6 +429,10 @@ class DoneScreen(Screen):
 
     def action_back(self) -> None:
         self.app.goto_file()  # type: ignore[attr-defined]
+
+    def on_key(self, event: events.Key) -> None:
+        event.stop()
+        self.action_back()
 
 
 def main() -> None:
