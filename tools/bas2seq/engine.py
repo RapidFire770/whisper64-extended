@@ -118,6 +118,9 @@ def take_label(text):
     return text[start:i]
 
 
+_STMT_PUNCT = "=(),#"
+
+
 def illegal_label(text):
     """True when a leading token reaches a colon through a character a label cannot hold."""
     i = 0
@@ -127,6 +130,8 @@ def illegal_label(text):
         return False
     saw_bad = False
     while i < len(text) and text[i] not in " :\"":
+        if text[i] in _STMT_PUNCT:
+            return False
         if not is_name_char(text[i]):
             saw_bad = True
         i += 1
@@ -329,7 +334,14 @@ def _drop_comment(text):
     if head == "":
         return None
     if head.endswith(":"):
-        head = head[:-1].rstrip(" ")
+        strip = True
+        name = take_label(text)
+        if name is not None:
+            lead = len(text) - len(text.lstrip())
+            if lead + len(name) == len(head) - 1:
+                strip = False
+        if strip:
+            head = head[:-1].rstrip(" ")
     if len(head) <= 79:
         return head
     return None
@@ -572,6 +584,32 @@ def _line_numbers(session):
     return found
 
 
+def _then_else_assign(line, end):
+    i = end
+    if i < len(line) and line[i] in "$%":
+        i += 1
+    while i < len(line) and line[i] == " ":
+        i += 1
+    if i < len(line) and line[i] == "(":
+        depth = 0
+        j = i
+        while j < len(line):
+            if line[j] == "(":
+                depth += 1
+            elif line[j] == ")":
+                depth -= 1
+                if depth == 0:
+                    j += 1
+                    break
+            j += 1
+        if depth != 0:
+            return False
+        i = j
+    while i < len(line) and line[i] == " ":
+        i += 1
+    return i < len(line) and line[i] == "="
+
+
 def _read_targets(session, line, index, out, names, finals, numbers, allow_keyword):
     while True:
         while index < len(line) and line[index] == " ":
@@ -595,10 +633,7 @@ def _read_targets(session, line, index, out, names, finals, numbers, allow_keywo
             while end < len(line) and is_name_char(line[end]):
                 end += 1
             word = line[index:end]
-            nxt = end
-            while nxt < len(line) and line[nxt] == " ":
-                nxt += 1
-            if allow_keyword and nxt < len(line) and line[nxt] == "=":
+            if allow_keyword and _then_else_assign(line, end):
                 return index, None, set()
             final = names.get(word, word)
             if final not in finals:
@@ -801,6 +836,8 @@ def resolve(session, accepted, accept_map):
     if session.renames and not accept_map:
         blocked = True
     if blocked:
+        return outcome
+    if session.pending:
         return outcome
     built = []
     proposals = {item.line_no: item for item in session.items if item.replacement}

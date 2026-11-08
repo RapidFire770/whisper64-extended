@@ -186,7 +186,17 @@ class SaveScreen(Screen):
             return
         app.begin_after_save()
 
+    def _clear_overwrite(self) -> None:
+        self._confirm_overwrite = False
+        self.query_one("#prompt", Static).update("")
+
     def try_submit(self) -> None:
+        name = self.query_one("#name", Input).value
+        if name.strip() == "":
+            self._clear_overwrite()
+            self.query_one("#err", Static).update("Enter a file name.")
+            return
+        self.query_one("#err", Static).update("")
         path = self.output_path()
         if path.exists():
             if not self._confirm_overwrite:
@@ -195,14 +205,30 @@ class SaveScreen(Screen):
                     "File exists. Y to replace, N to stay."
                 )
             return
-        self._confirm_overwrite = False
-        self.query_one("#prompt", Static).update("")
+        self._clear_overwrite()
         self._finish_path()
+
+    @on(Input.Changed)
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id in ("dir", "name"):
+            self._clear_overwrite()
 
     @on(Input.Submitted)
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id in ("dir", "name"):
             self.try_submit()
+
+    @on(events.Key)
+    def on_key(self, event: events.Key) -> None:
+        if not self._confirm_overwrite:
+            return
+        key = event.key.lower()
+        if key == "y":
+            event.stop()
+            self.action_overwrite_yes()
+        elif key == "n":
+            event.stop()
+            self.action_overwrite_no()
 
 
 class NameScreen(Screen):

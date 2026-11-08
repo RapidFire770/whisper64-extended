@@ -92,6 +92,42 @@ def main():
         assert doc.items[0].phrase == "label character"
         assert doc.items[0].line_no == 1
 
+    def statement_not_label_character():
+        for line in (
+            "B1$=CHR$(180):B2$=CHR$(170)",
+            "R=0: REM NOTE",
+            "GET#1,A$,B$: REM EAT",
+        ):
+            doc = load(line + "\n")
+            assert not any(item.phrase == "label character" for item in doc.items), line
+        bad = load("labelLDN$xt:\n")
+        assert bad.items[0].phrase == "label character"
+
+    def then_else_assignments():
+        src = (
+            "10 IF A THEN B = 1\n"
+            "20 IF A THEN M$ = \"*\"\n"
+            "30 IF A THEN SI(ND) = 6\n"
+            "40 IF A THEN DN$(ND)=\"X\"\n"
+        )
+        doc = load(src)
+        prepare(doc)
+        assert not any(item.phrase == "unknown label" for item in doc.items)
+
+    def label_comment_keeps_colon():
+        body = "labelFoo: REM " + "word " * 30
+        assert len(body) > 79
+        doc = load(body + "\n")
+        prepare(doc)
+        assert doc.items[0].replacement[0].startswith("labelFoo:")
+        assert all(len(part) <= 79 for part in doc.items[0].replacement)
+
+    def resolve_blocked_while_pending():
+        doc = load("labelStartSelRoll:\nGOTO labelStartSelRoll\n")
+        assert doc.pending == ["labelStartSelRoll"]
+        out = resolve(doc, {}, True)
+        assert out.lines is None
+
     def ladder_stops_early():
         spaced = "PRINT" + " " * 71 + '"HI"'
         assert len(spaced) > 79
@@ -261,6 +297,10 @@ def main():
     check("prefix", label_prefix_rules)
     check("dup-label", duplicate_label_blocks)
     check("underscore", underscore_label_blocks)
+    check("stmt-not-label", statement_not_label_character)
+    check("then-else-assign", then_else_assignments)
+    check("label-rem-colon", label_comment_keeps_colon)
+    check("pending-resolve", resolve_blocked_while_pending)
     check("ladder-early", ladder_stops_early)
     check("splits", splits_and_wraps)
     def sample_fixture():
