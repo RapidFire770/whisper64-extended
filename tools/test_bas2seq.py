@@ -286,6 +286,35 @@ def main():
 
     check("jumps", jumps_warnings_and_write)
     check("sample", sample_fixture)
+
+    def colors_match_editor_and_scan():
+        import re
+        from bas2seq.highlight import EDITOR, spans
+        text = Path("src/editor_state.c").read_text()
+        names = re.findall(r'"([^"]*)"', text.split("basic_keywords[]")[1].split("NULL")[0])
+        colors = re.findall(r"COL_(PURPLE|BLUE)", text.split("basic_colors[]")[1].split("};")[0])
+        role = {"PURPLE": "statement", "BLUE": "function"}
+        assert EDITOR == [(name, role[color]) for name, color in zip(names, colors)]
+
+        def roles(line):
+            return spans(line)
+
+        def paint(line, role_name):
+            return "".join(text for text, role in roles(line) if role == role_name)
+
+        assert "PRINT" in paint('PRINT "PRINT" : GOTO 10', "statement")
+        assert "GOTO" in paint('PRINT "PRINT" : GOTO 10', "statement")
+        assert paint('PRINT "PRINT"', "statement") == "PRINT"
+        assert "SGN" in paint("X = SGN(1)", "function")
+        assert "CHR$" in paint('A$ = CHR$(65)', "function")
+        assert paint('?"HI"', "statement") == "?"
+        rem = paint("REM GOTO PRINT", "statement")
+        assert rem == "REM"
+        assert paint("TAB(10)", "function") == "TAB("
+        assert paint("print", "statement") == ""
+        assert paint("REMEMBER", "statement") == ""
+
+    check("colors", colors_match_editor_and_scan)
     print(checks, "checks")
 
 
