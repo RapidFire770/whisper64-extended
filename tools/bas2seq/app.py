@@ -188,12 +188,15 @@ class SaveScreen(Screen):
 
     def try_submit(self) -> None:
         path = self.output_path()
-        if path.exists() and not self._confirm_overwrite:
-            self._confirm_overwrite = True
-            self.query_one("#prompt", Static).update(
-                "File exists. Y to replace, N to stay."
-            )
+        if path.exists():
+            if not self._confirm_overwrite:
+                self._confirm_overwrite = True
+                self.query_one("#prompt", Static).update(
+                    "File exists. Y to replace, N to stay."
+                )
             return
+        self._confirm_overwrite = False
+        self.query_one("#prompt", Static).update("")
         self._finish_path()
 
     @on(Input.Submitted)
