@@ -835,13 +835,9 @@ def prepare(session):
         for old in used:
             session.uses.setdefault(old, []).append(line_no)
         if err:
-            if err in ("unknown label", "unknown line") and len(line) > 79:
-                working = line
-            else:
-                finished.append(Block(line_no, err, EXPLAIN[err], line))
-                continue
-        else:
-            working = text
+            finished.append(Block(line_no, err, EXPLAIN[err], line))
+            continue
+        working = text
         early = _propose_early(working)
         if early == ("same",):
             continue

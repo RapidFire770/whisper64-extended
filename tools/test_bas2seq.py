@@ -135,7 +135,7 @@ def main():
     def splits_and_wraps():
         line = 'labelFoo: X$ = "' + "A" * 60 + '": GOTO labelBar'
         assert len(line) > 79
-        doc = load(line + "\n")
+        doc = load(line + "\nlabelBar:\n")
         prepare(doc)
         assert doc.items[0].replacement == [
             'labelFoo: X$ = "' + "A" * 60 + '"',
