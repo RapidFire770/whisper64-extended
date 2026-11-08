@@ -7,9 +7,11 @@ from textual import events, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
+from textual.message import Message
 from textual.screen import Screen
-from textual.widgets import DirectoryTree, Footer, Input, Static
+from textual.widgets import Footer, Input, ListItem, ListView, Static
 
+from bas2seq.browser import Entry, list_entries, normalize
 from bas2seq.engine import (
     load_path,
     mapping,
@@ -35,6 +37,17 @@ def rich_line(line: str) -> Text:
 
 class Bas2SeqApp(App):
     TITLE = "BAS to SEQ"
+    CSS = """
+    Screen > Vertical {
+        height: 1fr;
+    }
+    DirList {
+        height: 1fr;
+    }
+    #where {
+        height: 1;
+    }
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -44,9 +57,10 @@ class Bas2SeqApp(App):
         self.outcome = None
         self.source_path: Path | None = None
         self.save_error: str | None = None
+        self.file_start: Path | None = None
 
     def on_mount(self) -> None:
-        self.push_screen(FileScreen())
+        self.push_screen(FileScreen(self.file_start))
 
     def reset_session(self) -> None:
         self.session = None
@@ -58,7 +72,7 @@ class Bas2SeqApp(App):
 
     def goto_file(self) -> None:
         self.reset_session()
-        self.switch_screen(FileScreen())
+        self.switch_screen(FileScreen(self.file_start))
 
     def after_prepare(self) -> None:
         if self.session.items:
@@ -94,22 +108,83 @@ class Bas2SeqApp(App):
         self.after_prepare()
 
 
+class DirRow(ListItem):
+    def __init__(self, entry: Entry) -> None:
+        super().__init__(Static(entry.label))
+        self.entry = entry
+
+
+class DirList(ListView):
+    class Moved(Message):
+        def __init__(self, folder: Path) -> None:
+            super().__init__()
+            self.folder = folder
+
+    class Opened(Message):
+        def __init__(self, path: Path) -> None:
+            super().__init__()
+            self.path = path
+
+    def __init__(self, start: Path, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.folder = normalize(start)
+
+    async def on_mount(self) -> None:
+        await self.show_folder(self.folder)
+
+    async def show_folder(self, folder: Path) -> None:
+        self.folder = normalize(folder)
+        entries = list_entries(self.folder)
+        await self.clear()
+        if entries:
+            await self.mount(*(DirRow(entry) for entry in entries))
+            self.index = 0
+        self.post_message(self.Moved(self.folder))
+
+    def _on_list_item__child_clicked(self, event: ListItem._ChildClicked) -> None:
+        # clear() removes the row before a click on it is handled.
+        if event.item not in self._nodes:
+            event.stop()
+            return
+        super()._on_list_item__child_clicked(event)
+
+    async def on_list_view_selected(self, event: ListView.Selected) -> None:
+        event.stop()
+        item = event.item
+        if not isinstance(item, DirRow):
+            return
+        if item.entry.kind == "file":
+            self.post_message(self.Opened(item.entry.path))
+            return
+        await self.show_folder(item.entry.path)
+
+
 class FileScreen(Screen):
     BINDINGS = [
         Binding("escape", "quit_app", "Quit"),
     ]
 
+    def __init__(self, start: Path | None = None) -> None:
+        super().__init__()
+        self.start = start if start is not None else Path.cwd()
+
     def compose(self) -> ComposeResult:
-        yield DirectoryTree(str(Path.cwd()), id="tree")
+        yield Static(str(normalize(self.start)), id="where")
+        yield DirList(self.start, id="tree")
         yield Static("", id="error")
         yield Footer()
+
+    def on_dir_list_moved(self, event: DirList.Moved) -> None:
+        self.query_one("#where", Static).update(str(event.folder))
+
+    def on_mount(self) -> None:
+        self.query_one(DirList).focus()
 
     def action_quit_app(self) -> None:
         self.app.exit()
 
-    @on(DirectoryTree.FileSelected)
-    def on_tree_file(self, event: DirectoryTree.FileSelected) -> None:
-        path = Path(str(event.path))
+    def on_dir_list_opened(self, event: DirList.Opened) -> None:
+        path = event.path
         if path.suffix.lower() != ".bas":
             return
         app: Bas2SeqApp = self.app  # type: ignore[assignment]
@@ -151,13 +226,24 @@ class SaveScreen(Screen):
     def __init__(self) -> None:
         super().__init__()
         self._confirm_overwrite = False
+        self._browser_fill: tuple[str, str] | None = None
+        self._listed_dir: str | None = None
 
     def compose(self) -> ComposeResult:
+        app: Bas2SeqApp = self.app  # type: ignore[assignment]
+        start = Path.cwd()
+        name = ""
+        if app.source_path is not None:
+            src = Path(app.source_path)
+            start = src.parent
+            name = src.stem + ".seq"
         with Vertical():
+            yield Static(str(normalize(start)), id="where")
+            yield DirList(start, id="browser")
             yield Static("Output directory:")
-            yield SaveInput(id="dir")
+            yield SaveInput(str(normalize(start)), id="dir")
             yield Static("Output name:")
-            yield SaveInput(id="name")
+            yield SaveInput(name, id="name")
             yield Static("", id="prompt")
             yield Static("", id="err")
         yield Footer()
@@ -165,13 +251,18 @@ class SaveScreen(Screen):
     def on_mount(self) -> None:
         app: Bas2SeqApp = self.app  # type: ignore[assignment]
         src = Path(app.source_path)
-        self.query_one("#dir", Input).value = str(src.parent)
-        self.query_one("#name", Input).value = src.stem + ".seq"
+        directory = self.query_one("#dir", Input)
+        name = self.query_one("#name", Input)
+        if directory.value == "":
+            directory.value = str(normalize(src.parent))
+        if name.value == "":
+            name.value = src.stem + ".seq"
         err = self.query_one("#err", Static)
         if app.save_error:
             err.update(app.save_error)
         else:
             err.update("")
+        self.query_one(DirList).focus()
 
     def action_back(self) -> None:
         self.app.goto_file()  # type: ignore[attr-defined]
@@ -227,10 +318,35 @@ class SaveScreen(Screen):
         self._clear_overwrite()
         self._finish_path()
 
+    def on_dir_list_moved(self, event: DirList.Moved) -> None:
+        folder = str(event.folder)
+        self.query_one("#where", Static).update(folder)
+        field = self.query_one("#dir", Input)
+        if self._listed_dir is None and field.value not in ("", folder):
+            self._listed_dir = folder
+            return
+        field.value = folder
+        self._listed_dir = folder
+
+    def on_dir_list_opened(self, event: DirList.Opened) -> None:
+        directory = str(event.path.parent)
+        name = event.path.name
+        self._browser_fill = (directory, name)
+        self.query_one("#dir", Input).value = directory
+        self.query_one("#name", Input).value = name
+        self.try_submit()
+
     @on(Input.Changed)
     def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id in ("dir", "name"):
-            self._clear_overwrite()
+        if event.input.id not in ("dir", "name"):
+            return
+        if self._browser_fill is not None:
+            directory = self.query_one("#dir", Input).value
+            name = self.query_one("#name", Input).value
+            if (directory, name) == self._browser_fill:
+                return
+            self._browser_fill = None
+        self._clear_overwrite()
 
     @on(Input.Submitted)
     def on_input_submitted(self, event: Input.Submitted) -> None:

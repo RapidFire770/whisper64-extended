@@ -59,7 +59,7 @@ include/     headers, one per module, plus font_4x8.h, whisper64.h, w64tools.h, 
 src/         editor .c files
 src/conv/    W64CONV, W64RENUM, and W64LABEL
 tools/       c64u.py (Ultimate REST driver), test_basic_prg.py, test_renumber.c, test_bigfile.c, test_format_line.c, test_w64conv_c64u.py, test_bas2seq.py
-tools/bas2seq/  host Textual TUI; writes SEQ for the editor, does not link into the editor; check: `python3 tools/test_bas2seq.py`
+tools/bas2seq/  host Textual TUI; writes SEQ for the editor, does not link into the editor; check: `python3 tools/test_bas2seq.py`. `browser.py` lists one folder and puts `..` first so the list can leave the working directory. The save screen uses the same list and still has the directory and name fields.
 docs/        Todo-List.md, SDK path note, c64 programming books
 build/       cmake output, gitignored
 run_vice.sh

@@ -366,10 +366,10 @@ def main():
         inside.mkdir()
         (root / "outside.bas").write_text('10 PRINT "HI"\n', encoding="utf-8")
         (inside / "stay.bas").write_text("20 END\n", encoding="utf-8")
-        (inside / "sub").mkdir()
-        (inside / "Bdir").mkdir()
+        (inside / "Sub").mkdir()
+        (inside / "bdir").mkdir()
         here = list_entries(inside)
-        assert [row.label for row in here] == ["..", "Bdir/", "sub/", "stay.bas"]
+        assert [row.label for row in here] == ["..", "bdir/", "Sub/", "stay.bas"]
         assert here[0].kind == "up"
         assert here[0].path == inside.resolve().parent
         assert [row.kind for row in here] == ["up", "dir", "dir", "file"]
@@ -399,6 +399,91 @@ def main():
         assert rows[0].path == root.resolve()
 
     check("browser-locked", browser_unreadable_keeps_parent)
+
+    def browser_screen_leaves_the_launch_folder():
+        try:
+            import textual  # noqa: F401
+        except ImportError:
+            print("SKIP browser-screen")
+            return
+        import asyncio
+
+        from bas2seq.app import Bas2SeqApp, DirList, DirRow
+        from bas2seq.browser import Entry
+
+        root = Path(tempfile.mkdtemp())
+        inside = root / "inside"
+        inside.mkdir()
+        (inside / "sub").mkdir()
+        (inside / "stay.bas").write_text("20 END\n", encoding="utf-8")
+        outside = root / "outside.bas"
+        outside.write_text('10 PRINT "HI"\n', encoding="utf-8")
+
+        async def labels(pilot, browser, expected):
+            last = None
+            for _ in range(40):
+                await pilot.pause()
+                last = [row.entry.label for row in browser.query(DirRow)]
+                if last == expected and browser.index == 0:
+                    return
+            raise AssertionError(last)
+
+        async def run():
+            app = Bas2SeqApp()
+            app.file_start = inside
+            async with app.run_test(size=(80, 24)) as pilot:
+                browser = app.screen.query_one(DirList)
+                await labels(pilot, browser, ["..", "sub/", "stay.bas"])
+                stray = DirRow(Entry("file", Path("nope.txt"), "nope.txt"))
+                browser._on_list_item__child_clicked(DirRow._ChildClicked(stray))
+                assert browser.index == 0
+                where = str(app.screen.query_one("#where").content)
+                assert where == str(inside.resolve())
+                await pilot.press("enter")
+                await labels(
+                    pilot,
+                    app.screen.query_one(DirList),
+                    ["..", "inside/", "outside.bas"],
+                )
+                await pilot.press("down", "down", "enter")
+                for _ in range(40):
+                    await pilot.pause()
+                    if app.screen.query("#name"):
+                        break
+                else:
+                    raise AssertionError(type(app.screen).__name__)
+                assert app.screen.query_one("#dir").value == str(root.resolve())
+                assert app.screen.query_one("#name").value == "outside.seq"
+                save_list = app.screen.query_one(DirList)
+                await labels(pilot, save_list, ["..", "inside/", "outside.bas"])
+                await pilot.press("down", "enter")
+                for _ in range(40):
+                    await pilot.pause()
+                    if app.screen.query_one("#dir").value == str(inside.resolve()):
+                        break
+                else:
+                    raise AssertionError(app.screen.query_one("#dir").value)
+                assert app.screen.query_one("#name").value == "outside.seq"
+                await pilot.press("enter")
+                await labels(
+                    pilot,
+                    app.screen.query_one(DirList),
+                    ["..", "inside/", "outside.bas"],
+                )
+                await pilot.press("down", "down", "enter")
+                for _ in range(40):
+                    await pilot.pause()
+                    prompt = str(app.screen.query_one("#prompt").content)
+                    if "Y to replace" in prompt:
+                        break
+                else:
+                    raise AssertionError(str(app.screen.query_one("#prompt").content))
+                assert app.screen.query_one("#dir").value == str(root.resolve())
+                assert app.screen.query_one("#name").value == "outside.bas"
+
+        asyncio.run(run())
+
+    check("browser-screen", browser_screen_leaves_the_launch_folder)
 
     print(checks, "checks")
 
