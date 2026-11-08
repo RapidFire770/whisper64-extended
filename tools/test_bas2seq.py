@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from bas2seq.engine import load, load_path, split_lines, supply
+from bas2seq.engine import load, load_path, prepare, split_lines, supply
 from bas2seq.scan import TOKEN_KEYWORDS
 
 
@@ -92,6 +92,45 @@ def main():
         assert doc.items[0].phrase == "label character"
         assert doc.items[0].line_no == 1
 
+    def ladder_stops_early():
+        spaced = "PRINT" + " " * 71 + '"HI"'
+        assert len(spaced) > 79
+        doc = load(spaced + "\n")
+        prepare(doc)
+        assert doc.items[0].replacement == ['PRINT' + " " + '"HI"']
+        assert doc.items[0].detail == "spaces collapsed"
+
+        short = 'PRINT "HI"\n'
+        assert load(short).items == []
+        kept = load('10 PRINT "HI": REM NOTE\n')
+        prepare(kept)
+        assert kept.items == []
+
+        padded = 'PRINT "HI":' + " " * 70 + "REM GONE"
+        doc = load(padded + "\n")
+        prepare(doc)
+        assert doc.items[0].replacement == ['PRINT "HI"']
+        assert "comment removed" in doc.items[0].detail
+        assert "PRINT shortened" not in doc.items[0].detail
+
+        inside = 'PRINT "' + "  " + ("Q" * 70) + '"'
+        assert len(inside) > 79
+        doc = load(inside + "\n")
+        prepare(doc)
+        assert "  " in doc.items[0].replacement[0]
+
+        long_print = "PRINT " + '"AB"' * 19
+        assert len(long_print) > 79
+        doc = load(long_print + "\n")
+        prepare(doc)
+        assert doc.items[0].replacement[0].startswith("?")
+        assert "PRINT#" not in doc.items[0].replacement[0]
+        sharp = "PRINT#1, " + " " * 72 + '"AB"'
+        doc = load(sharp + "\n")
+        prepare(doc)
+        assert "PRINT#" in doc.items[0].replacement[0]
+        assert "PRINT shortened" not in doc.items[0].detail
+
     check("keywords", keywords_match_token_c)
     check("split", split_keeps_blanks_and_final)
     check("short", short_line_is_kept)
@@ -102,6 +141,7 @@ def main():
     check("prefix", label_prefix_rules)
     check("dup-label", duplicate_label_blocks)
     check("underscore", underscore_label_blocks)
+    check("ladder-early", ladder_stops_early)
     print(checks, "checks")
 
 

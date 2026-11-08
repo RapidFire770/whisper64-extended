@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bas2seq.scan import is_letter, is_name_char
+from bas2seq.scan import is_letter, is_name_char, mask, word_at
 
 EXPLAIN = {
     "duplicate label": "This label name is already used. Rename one of them in the .bas file.",
@@ -259,3 +259,149 @@ def load_path(path):
         session.error = "not UTF-8"
         return session
     return load(text)
+
+
+def _join_go(text):
+    regions = mask(text)
+    out = []
+    notes = []
+    i = 0
+    while i < len(text):
+        if regions[i] != "code":
+            out.append(text[i])
+            i += 1
+            continue
+        matched = _go_phrase(text, i)
+        if matched:
+            size, repl, note = matched
+            out.append(repl)
+            if note not in notes:
+                notes.append(note)
+            i += size
+            continue
+        out.append(text[i])
+        i += 1
+    return "".join(out), notes
+
+
+def _go_phrase(text, index):
+    if index > 0 and is_letter(text[index - 1]):
+        return None
+    if not text.startswith("GO", index):
+        return None
+    if index + 2 < len(text) and is_letter(text[index + 2]):
+        return None
+    j = index + 2
+    if j >= len(text) or text[j] != " ":
+        return None
+    while j < len(text) and text[j] == " ":
+        j += 1
+    for second, repl, note in (("TO", "GOTO", "GO TO joined"), ("SUB", "GOSUB", "GO SUB joined")):
+        if text.startswith(second, j):
+            end = j + len(second)
+            if end < len(text) and is_letter(text[end]):
+                continue
+            return end - index, repl, note
+    return None
+
+
+def _collapse(text):
+    regions = mask(text)
+    out = []
+    for i, ch in enumerate(text):
+        if ch == " " and regions[i] == "code" and out and out[-1] == " ":
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _drop_comment(text):
+    regions = mask(text)
+    rem_at = None
+    for i in range(len(text)):
+        if regions[i] == "code" and word_at(text, i, "REM"):
+            rem_at = i
+            break
+    if rem_at is None:
+        return None
+    head = text[:rem_at].rstrip(" ")
+    if head == "":
+        return None
+    if head.endswith(":"):
+        head = head[:-1].rstrip(" ")
+    if len(head) <= 79:
+        return head
+    return None
+
+
+def _shorten_print(text):
+    regions = mask(text)
+    out = []
+    changed = False
+    i = 0
+    while i < len(text):
+        if regions[i] == "code" and word_at(text, i, "PRINT"):
+            nxt = i + 5
+            if nxt < len(text) and text[nxt] == "#":
+                out.append(text[i])
+                i += 1
+                continue
+            out.append("?")
+            changed = True
+            i += 5
+            continue
+        out.append(text[i])
+        i += 1
+    return "".join(out), changed
+
+
+def _propose_early(text):
+    """Return (lines, reason) when join, collapse, comment drop, or PRINT makes the line fit.
+    Return None when the line still needs a later step. Return ('same',) when nothing changes."""
+    joined, notes = _join_go(text)
+    if len(joined) <= 79:
+        if notes:
+            return [joined], ", ".join(notes)
+        return ("same",)
+    work = joined
+    dropped = _drop_comment(work)
+    if dropped is not None:
+        notes.append("comment removed")
+        return [dropped], ", ".join(notes)
+    if _collapse(work) != work:
+        work = _collapse(work)
+        notes.append("spaces collapsed")
+    if len(work) <= 79:
+        return [work], ", ".join(notes)
+    shortened, changed = _shorten_print(work)
+    if changed:
+        notes.append("PRINT shortened")
+        work = shortened
+    if len(work) <= 79:
+        return [work], ", ".join(notes)
+    return None
+
+
+def prepare(session):
+    if session.pending:
+        return
+    # Length proposals are added in Task 4's prepare. This task fills items for
+    # lines that the early ladder finishes. Task 4 replaces prepare with the full walk.
+    existing = {(item.line_no, item.phrase) for item in session.items}
+    for line_no, line in enumerate(session.source, 1):
+        if any(item.line_no == line_no and item.replacement is None for item in session.items):
+            continue
+        result = _propose_early(_apply_ready(session, line))
+        if result is None or result == ("same",):
+            continue
+        lines, reason = result
+        if lines == [line]:
+            continue
+        if (line_no, reason) in existing:
+            continue
+        session.items.append(Block(line_no, reason, reason, line, lines))
+
+
+def _apply_ready(session, line):
+    """Task 2 names are applied by Task 5. Until then the working line is the source line."""
+    return line
