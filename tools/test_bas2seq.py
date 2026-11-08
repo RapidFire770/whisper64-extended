@@ -263,7 +263,29 @@ def main():
     check("underscore", underscore_label_blocks)
     check("ladder-early", ladder_stops_early)
     check("splits", splits_and_wraps)
+    def sample_fixture():
+        text = Path("tools/fixtures/bas2seq_sample.bas").read_text()
+        tp = [line for line in text.splitlines() if line.startswith("TP$")][0]
+        assert len(tp) == 215
+        doc = load(text)
+        assert doc.pending == ["labelStartSelRoll", "labelChooseDriveKP"]
+        assert supply(doc, "labelStartSelRoll", "StartRoll") is None
+        assert supply(doc, "labelChooseDriveKP", "PickDrv") is None
+        prepare(doc)
+        accepted = {item.line_no: True for item in doc.items if item.replacement is not None}
+        out = resolve(doc, accepted, True)
+        assert out.lines is not None
+        assert all(len(line) <= 79 for line in out.lines)
+        assert any(line.startswith("GOTO ") for line in out.lines)
+        joined = "\n".join(out.lines)
+        assert "StartRoll" in joined
+        assert "PickDrv" in joined
+        assert "labelStartSelRoll" not in joined
+        assert "ChooseDrive" in joined
+        assert "labelChooseDrive" not in joined
+
     check("jumps", jumps_warnings_and_write)
+    check("sample", sample_fixture)
     print(checks, "checks")
 
 
