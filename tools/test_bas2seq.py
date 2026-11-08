@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from bas2seq.engine import load, load_path, split_lines
+from bas2seq.engine import load, load_path, split_lines, supply
 from bas2seq.scan import TOKEN_KEYWORDS
 
 
@@ -63,6 +63,35 @@ def main():
         assert doc.error
         assert "not UTF-8" not in doc.error
 
+    def label_prefix_rules():
+        doc = load(
+            "labelSetup:\n"
+            "labelActivateSel:\n"
+            "labelStartSelRoll:\n"
+            "labelChooseDrive:\n"
+            "labelChooseDriveKP:\n"
+        )
+        assert doc.auto["labelActivateSel"] == "ActivateSel"
+        assert doc.auto["labelChooseDrive"] == "ChooseDrive"
+        assert "labelSetup" not in doc.auto
+        assert doc.pending == ["labelStartSelRoll", "labelChooseDriveKP"]
+        assert supply(doc, "labelStartSelRoll", "") == "empty"
+        assert supply(doc, "labelStartSelRoll", "StartSelRollExtra") == "too long"
+        assert supply(doc, "labelStartSelRoll", "ChooseDrive") == "already used"
+        assert supply(doc, "labelStartSelRoll", "StartRoll") is None
+        assert doc.pending == ["labelChooseDriveKP"]
+
+    def duplicate_label_blocks():
+        doc = load("labelSetup:\nlabelSetup:\n")
+        assert [item.phrase for item in doc.items] == ["duplicate label"]
+        assert doc.items[0].line_no == 2
+        assert doc.pending == []
+
+    def underscore_label_blocks():
+        doc = load("label_foo:\n")
+        assert doc.items[0].phrase == "label character"
+        assert doc.items[0].line_no == 1
+
     check("keywords", keywords_match_token_c)
     check("split", split_keeps_blanks_and_final)
     check("short", short_line_is_kept)
@@ -70,6 +99,9 @@ def main():
     check("brace", brace_is_kept)
     check("numbers", line_number_rules)
     check("missing", missing_file)
+    check("prefix", label_prefix_rules)
+    check("dup-label", duplicate_label_blocks)
+    check("underscore", underscore_label_blocks)
     print(checks, "checks")
 
 

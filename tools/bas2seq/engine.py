@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from bas2seq.scan import is_letter, is_name_char
+
 EXPLAIN = {
     "duplicate label": "This label name is already used. Rename one of them in the .bas file.",
     "unknown label": "This jump names a label the file does not define. Add the label or correct the name.",
@@ -99,6 +101,110 @@ def _character_block(line_no, text):
     return None
 
 
+def take_label(text):
+    """Return the label name when the line starts with a legal or too-long label.
+    None when the line does not start with name characters and a colon."""
+    i = 0
+    while i < len(text) and text[i] == " ":
+        i += 1
+    if i >= len(text) or not is_letter(text[i]):
+        return None
+    start = i
+    while i < len(text) and is_name_char(text[i]):
+        i += 1
+    if i >= len(text) or text[i] != ":":
+        return None
+    return text[start:i]
+
+
+def illegal_label(text):
+    """True when a leading token reaches a colon through a character a label cannot hold."""
+    i = 0
+    while i < len(text) and text[i] == " ":
+        i += 1
+    if i >= len(text) or not is_letter(text[i]):
+        return False
+    saw_bad = False
+    while i < len(text) and text[i] not in " :\"":
+        if not is_name_char(text[i]):
+            saw_bad = True
+        i += 1
+    return saw_bad and i < len(text) and text[i] == ":"
+
+
+def _plan_renames(names):
+    """names is first-seen order, duplicates already removed. Returns (auto, pending)."""
+    occupied = {name for name in names if len(name) <= 11}
+    auto = {}
+    pending = []
+    groups = {}
+    order = []
+    for name in names:
+        if len(name) <= 11:
+            continue
+        candidate = None
+        if name.startswith("label") and len(name) > 5 and is_letter(name[5]):
+            rest = name[5:]
+            if 1 <= len(rest) <= 11 and all(is_name_char(ch) for ch in rest):
+                candidate = rest
+        if candidate is None:
+            pending.append(name)
+            continue
+        if candidate not in groups:
+            order.append(candidate)
+        groups.setdefault(candidate, []).append(name)
+    for candidate in order:
+        olds = groups[candidate]
+        if len(olds) > 1 or candidate in occupied:
+            pending.extend(olds)
+        else:
+            auto[olds[0]] = candidate
+            occupied.add(candidate)
+    return auto, pending
+
+
+def mapping(session):
+    names = dict(session.auto)
+    names.update(session.given)
+    return names
+
+
+def supply(session, old, new):
+    if old not in session.pending:
+        return "unknown name"
+    if new == "":
+        return "empty"
+    if not new or not is_letter(new[0]) or any(not is_name_char(ch) for ch in new):
+        return "label character"
+    if len(new) > 11:
+        return "too long"
+    taken = {name for name in session.auto.values()}
+    taken.update(session.given.values())
+    taken.update(name for name in _defined_names(session.source) if len(name) <= 11)
+    if new in taken:
+        return "already used"
+    session.given[old] = new
+    session.pending.remove(old)
+    session.ready = False
+    if old not in dict(session.renames):
+        session.renames.append((old, new))
+    session.renames = [(src, mapping(session)[src]) for src, _dst in session.renames]
+    return None
+
+
+def _defined_names(source):
+    found = []
+    seen = set()
+    for line in source:
+        if _character_block(0, line):
+            continue
+        name = take_label(line)
+        if name and name not in seen:
+            seen.add(name)
+            found.append(name)
+    return found
+
+
 def load(text):
     session = Session()
     session.source = split_lines(text)
@@ -119,6 +225,24 @@ def load(text):
             session.items.append(Block(line_no, "duplicate line", EXPLAIN["duplicate line"], line))
         else:
             seen[value] = line_no
+    defined = []
+    seen_labels = set()
+    for line_no, line in enumerate(session.source, 1):
+        if any(item.line_no == line_no and item.phrase == "character" for item in session.items):
+            continue
+        if illegal_label(line):
+            session.items.append(Block(line_no, "label character", EXPLAIN["label character"], line))
+            continue
+        name = take_label(line)
+        if not name:
+            continue
+        if name in seen_labels:
+            session.items.append(Block(line_no, "duplicate label", EXPLAIN["duplicate label"], line))
+            continue
+        seen_labels.add(name)
+        defined.append(name)
+    session.auto, session.pending = _plan_renames(defined)
+    session.renames = [(name, session.auto[name]) for name in defined if name in session.auto]
     return session
 
 
