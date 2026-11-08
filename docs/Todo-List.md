@@ -10,6 +10,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [x] The top line of the program does not refresh correctly all the time / gets corrupted. If I enter the help screen and return to the main editing window it will display left over text "ELP" beside the numbers so I will see "1:11ELP". It appears to differ how the corruption of the line looks depending on the length of a loaded files filename. The title row was never blanked, so a shorter name, drive number, or page count left the previous characters.
 - [x] Check that all C64 characters are supported correctly as some characters seem to be showing up garbbled in 40 column mode but then display fine in 80 column mode. In 40 column the {} are being shown as a square dot and a L shaped graphic character or the \[\] show up as a large + and | but then display correctly in the 80 column mode. Appears to be some kind of incorrect mapping in one mode but correct in the other. 40-column draw maps `@` `[` `]` `|` and `a`–`z` onto the lowercase character set. `[]` are brackets. Braces, backslash, caret, underscore, backtick, and tilde are not in the character ROM, so those bytes stay the distinct ROM graphics and are not aliased onto the brackets. The buffer bytes are unchanged. 80-column mode still uses the ASCII 4x8 font.
 - [x] Cursor movement redraws the cursor cell, and a scroll redraws only the rows that entered. BASIC mode no longer scans every visible line on an arrow key. Mark, a page change, and a phantom-row change still redraw the window. Checked on the Ultimate in 40-column mode with `python3 tools/c64u.py cursor`, and in 80-column mode by watching arrow keys after CTRL+D.
+- [ ] When typing in 40 or 80 column mode the screen fully refreshes with each character typed making it very slow to enter text when a line wraps the screen. If there is no lines wrapping then text entry is fast.
 
 ## Features
 
@@ -79,3 +80,9 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 ## bas2seq Bugs
 - [x] File browser cannot move out of the folder the program is launched from. If run from the the whisper64-extended/tools folder the browser is stuck in the tools folder, I cannot navigate outside of the folder to select a .bas file from another folder such as my "/home/josh/Documents/Programming/C64/dice-roll/src/main.bas" The list is one folder. `..` is the parent, including when the launch folder is `tools/`. Enter on a `.bas` file loads it.
 - [x] Along with being able to type the output directory there needs to be a way to selected the output files path with a file browser the same way as selecting the input file. The save screen uses that list. The folder on screen is copied into the directory field. Enter on a file fills the directory and the name, then the existing Y/N overwrite check runs. The directory and name fields still submit what was typed.
+- [ ] PRINT is being detected as a label. No BASIC functions should be getting detected as labels. Error message:
+      "Line 220
+      PRINT: PRINT "F1/SPACE TO ROLL AGAIN": PRINT "ANY KEY FOR MENU"
+      duplicate label
+      This label name is already used. Rename one of them in the .bas file."
+- [ ] Instead of deleting comments on long lines we should be pushing them to a new line.
