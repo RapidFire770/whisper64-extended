@@ -106,10 +106,11 @@ def main():
         prepare(kept)
         assert kept.items == []
 
-        padded = 'PRINT "HI":' + " " * 70 + "REM GONE"
+        padded = 'PRINT "HI":' + " " * 70 + "REM " + "X" * 70
         doc = load(padded + "\n")
         prepare(doc)
         assert doc.items[0].replacement == ['PRINT "HI"']
+        assert "spaces collapsed" in doc.items[0].detail
         assert "comment removed" in doc.items[0].detail
         assert "PRINT shortened" not in doc.items[0].detail
 

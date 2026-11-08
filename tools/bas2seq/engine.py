@@ -364,15 +364,16 @@ def _propose_early(text):
             return [joined], ", ".join(notes)
         return ("same",)
     work = joined
+    collapsed = _collapse(work)
+    if collapsed != work:
+        work = collapsed
+        notes.append("spaces collapsed")
+    if len(work) <= 79:
+        return [work], ", ".join(notes)
     dropped = _drop_comment(work)
     if dropped is not None:
         notes.append("comment removed")
         return [dropped], ", ".join(notes)
-    if _collapse(work) != work:
-        work = _collapse(work)
-        notes.append("spaces collapsed")
-    if len(work) <= 79:
-        return [work], ", ".join(notes)
     shortened, changed = _shorten_print(work)
     if changed:
         notes.append("PRINT shortened")
