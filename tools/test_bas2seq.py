@@ -132,6 +132,57 @@ def main():
         assert "PRINT#" in doc.items[0].replacement[0]
         assert "PRINT shortened" not in doc.items[0].detail
 
+    def splits_and_wraps():
+        line = 'labelFoo: X$ = "' + "A" * 60 + '": GOTO labelBar'
+        assert len(line) > 79
+        doc = load(line + "\n")
+        prepare(doc)
+        assert doc.items[0].replacement == [
+            'labelFoo: X$ = "' + "A" * 60 + '"',
+            "GOTO labelBar",
+        ]
+        assert "split at colons" in doc.items[0].detail
+
+        quoted = 'X$ = "A:B":' + "Q" * 70
+        assert len(quoted) > 79
+        doc = load(quoted + "\n")
+        prepare(doc)
+        assert any('"A:B"' in part for part in doc.items[0].replacement)
+
+        empty = 'X$ = "A"::X$ = "B":' + "Y" * 70
+        doc = load(empty + "\n")
+        prepare(doc)
+        assert all(part.strip() != "" for part in doc.items[0].replacement)
+
+        rem = "REM " + "word " * 20
+        assert len(rem) > 79
+        doc = load(rem.rstrip() + "\n")
+        prepare(doc)
+        assert doc.items[0].phrase != "comment word"
+        assert all(part.startswith("REM ") and len(part) <= 79 for part in doc.items[0].replacement)
+        assert "comment wrapped" in doc.items[0].detail
+
+        huge = "REM " + ("N" * 76)
+        doc = load(huge + "\n")
+        prepare(doc)
+        assert doc.items[0].phrase == "comment word"
+        assert doc.items[0].replacement is None
+
+        assign = 'TP$ = "' + "A" * 40 + '" + "' + "B" * 40 + '" + "' + "C" * 40 + '"'
+        assert len(assign) > 79
+        doc = load(assign + "\n")
+        prepare(doc)
+        assert doc.items[0].replacement[0].startswith("TP$ = ")
+        assert doc.items[0].replacement[1].startswith("TP$ = TP$ + ")
+        assert all(len(part) <= 79 for part in doc.items[0].replacement)
+        assert "assignment split" in doc.items[0].detail
+
+        one = 'PRINT "' + "Z" * 80 + '"'
+        doc = load(one + "\n")
+        prepare(doc)
+        assert doc.items[0].phrase == "line length"
+        assert doc.items[0].replacement is None
+
     check("keywords", keywords_match_token_c)
     check("split", split_keeps_blanks_and_final)
     check("short", short_line_is_kept)
@@ -143,6 +194,7 @@ def main():
     check("dup-label", duplicate_label_blocks)
     check("underscore", underscore_label_blocks)
     check("ladder-early", ladder_stops_early)
+    check("splits", splits_and_wraps)
     print(checks, "checks")
 
 

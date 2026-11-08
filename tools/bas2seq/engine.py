@@ -383,24 +383,204 @@ def _propose_early(text):
     return None
 
 
+def _split_colons(text):
+    regions = mask(text)
+    label_colon = None
+    name = take_label(text)
+    if name is not None:
+        lead = 0
+        while lead < len(text) and text[lead] == " ":
+            lead += 1
+        label_colon = lead + len(name)
+    parts = []
+    buf = []
+    drop_space = False
+    for i, ch in enumerate(text):
+        if drop_space:
+            drop_space = False
+            if ch == " ":
+                continue
+        if ch == ":" and regions[i] == "code":
+            if label_colon is not None and i == label_colon:
+                buf.append(ch)
+                continue
+            piece = "".join(buf)
+            if piece.strip() != "":
+                parts.append(piece)
+            buf = []
+            drop_space = True
+            continue
+        buf.append(ch)
+    piece = "".join(buf)
+    if piece.strip() != "":
+        parts.append(piece)
+    return parts if parts else [text]
+
+
+def _wrap_rem(piece):
+    regions = mask(piece)
+    start = 0
+    while start < len(piece) and piece[start] == " ":
+        start += 1
+    if not word_at(piece, start, "REM"):
+        return None
+    body = piece[start + 3:]
+    if body.startswith(" "):
+        body = body[1:]
+    lines = []
+    while True:
+        if len(body) <= 75:
+            lines.append("REM" if body == "" else "REM " + body)
+            break
+        window = body[:75]
+        cut = window.rfind(" ")
+        if cut <= 0:
+            return "comment word"
+        lines.append("REM " + body[:cut])
+        body = body[cut + 1:]
+    if any(len(line) > 79 for line in lines):
+        return "comment word"
+    return lines
+
+
+def _split_assign(piece):
+    label = ""
+    rest = piece
+    name = take_label(piece)
+    if name and len(name) <= 11:
+        mark = piece.find(":")
+        rest = piece[mark + 1:]
+        if rest.startswith(" "):
+            rest = rest[1:]
+        label = name + ": "
+    stripped = rest.lstrip()
+    i = 0
+    if not stripped or not is_letter(stripped[0]):
+        return None
+    while i < len(stripped) and (is_name_char(stripped[i]) or stripped[i] in "$%"):
+        if stripped[i] in "$%":
+            i += 1
+            break
+        i += 1
+    dest = stripped[:i]
+    rest = stripped[i:].lstrip()
+    if not rest.startswith("="):
+        return None
+    expr = rest[1:].strip()
+    regions = mask(expr)
+    if not any(ch == "+" and regions[idx] == "code" for idx, ch in enumerate(expr)):
+        return None
+    operands = []
+    buf = []
+    regions = mask(expr)
+    for idx, ch in enumerate(expr):
+        if ch == "+" and regions[idx] == "code":
+            operands.append("".join(buf).strip())
+            buf = []
+            continue
+        buf.append(ch)
+    operands.append("".join(buf).strip())
+    if any(op == "" for op in operands):
+        return None
+
+    def pack(ops, budget):
+        chosen = []
+        used = 0
+        for op in ops:
+            extra = len(op) if not chosen else len(" + ") + len(op)
+            if used + extra > budget:
+                break
+            if not chosen and len(op) > budget:
+                return None
+            chosen.append(op)
+            used += extra
+        return chosen
+
+    lines = []
+    left = operands
+    first_budget = 79 - len(label + dest + " = ")
+    nxt = pack(left, first_budget)
+    if not nxt:
+        return "expression piece"
+    lines.append(label + dest + " = " + " + ".join(nxt))
+    left = left[len(nxt):]
+    cont = dest + " = " + dest + " + "
+    while left:
+        nxt = pack(left, 79 - len(cont))
+        if not nxt:
+            return "expression piece"
+        lines.append(cont + " + ".join(nxt))
+        left = left[len(nxt):]
+    if any(len(line) > 79 for line in lines):
+        return "expression piece"
+    return lines
+
+
+def _finish_pieces(pieces):
+    """Return (lines, notes) or a blocking phrase."""
+    notes = []
+    out = []
+    for piece in pieces:
+        if len(piece) <= 79:
+            out.append(piece)
+            continue
+        wrapped = _wrap_rem(piece)
+        if wrapped == "comment word":
+            return "comment word"
+        if isinstance(wrapped, list):
+            notes.append("comment wrapped")
+            out.extend(wrapped)
+            continue
+        assigned = _split_assign(piece)
+        if assigned == "expression piece":
+            return "expression piece"
+        if isinstance(assigned, list):
+            notes.append("assignment split")
+            out.extend(assigned)
+            continue
+        return "line length"
+    return out, notes
+
+
 def prepare(session):
     if session.pending:
         return
-    # Length proposals are added in Task 4's prepare. This task fills items for
-    # lines that the early ladder finishes. Task 4 replaces prepare with the full walk.
-    existing = {(item.line_no, item.phrase) for item in session.items}
+    finished = []
+    for item in session.items:
+        if item.replacement is None:
+            finished.append(item)
     for line_no, line in enumerate(session.source, 1):
-        if any(item.line_no == line_no and item.replacement is None for item in session.items):
+        if any(item.line_no == line_no and item.replacement is None for item in finished):
             continue
-        result = _propose_early(_apply_ready(session, line))
-        if result is None or result == ("same",):
+        working = _apply_ready(session, line)
+        early = _propose_early(working)
+        if early == ("same",):
             continue
-        lines, reason = result
-        if lines == [line]:
+        if early is not None:
+            lines, reason = early
+            if lines != [line]:
+                finished.append(Block(line_no, reason, reason, line, lines))
             continue
-        if (line_no, reason) in existing:
+        joined, notes = _join_go(working)
+        work = _collapse(joined)
+        if work != joined and "spaces collapsed" not in notes:
+            notes.append("spaces collapsed")
+        shortened, changed = _shorten_print(work)
+        if changed:
+            notes.append("PRINT shortened")
+            work = shortened
+        parts = _split_colons(work)
+        if len(parts) > 1:
+            notes.append("split at colons")
+        done = _finish_pieces(parts)
+        if isinstance(done, str):
+            finished.append(Block(line_no, done, EXPLAIN[done], line))
             continue
-        session.items.append(Block(line_no, reason, reason, line, lines))
+        lines, more = done
+        notes.extend(more)
+        if lines != [line]:
+            finished.append(Block(line_no, ", ".join(notes), ", ".join(notes), line, lines))
+    session.items = finished
 
 
 def _apply_ready(session, line):
