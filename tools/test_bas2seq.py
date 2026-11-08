@@ -228,6 +228,22 @@ def main():
         prepare(blocked)
         out = resolve(blocked, {}, True)
         assert out.lines is None
+
+        gone = load("GO TO nowhere\nGO SUB nowhere\n")
+        prepare(gone)
+        assert gone.items[0].phrase == "unknown label"
+        assert gone.items[0].replacement is None
+        assert gone.items[1].phrase == "unknown label"
+        assert resolve(gone, {}, True).lines is None
+
+        renamed = load("labelActivateSel:\nGO TO labelActivateSel\n")
+        prepare(renamed)
+        go = [item for item in renamed.items if item.line_no == 2][0]
+        assert go.replacement == ["GOTO ActivateSel"]
+        assert go.detail == "GO TO joined"
+        assert renamed.uses["labelActivateSel"] == [1, 2]
+        out = resolve(renamed, {2: True}, True)
+        assert out.lines == ["ActivateSel:", "GOTO ActivateSel"]
         folder = Path(tempfile.mkdtemp())
         target = folder / "out.seq"
         write_seq(["10 PRINT \"HI\"", ""], str(target))

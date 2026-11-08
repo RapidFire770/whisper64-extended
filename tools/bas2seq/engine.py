@@ -843,10 +843,31 @@ def prepare(session):
             continue
         if early is not None:
             lines, reason = early
-            if lines != [line]:
-                finished.append(Block(line_no, reason, reason, line, lines))
+            rewritten = []
+            extra_used = set()
+            block_err = None
+            for piece in lines:
+                piece_text, piece_err, piece_used = _rewrite_line(session, piece)
+                extra_used.update(piece_used)
+                if piece_err:
+                    block_err = piece_err
+                    break
+                rewritten.append(piece if piece_text is None else piece_text)
+            for old in extra_used:
+                session.uses.setdefault(old, []).append(line_no)
+            if block_err:
+                finished.append(Block(line_no, block_err, EXPLAIN[block_err], line))
+                continue
+            if rewritten != [line]:
+                finished.append(Block(line_no, reason, reason, line, rewritten))
             continue
         joined, notes = _join_go(working)
+        joined, join_err, join_used = _rewrite_line(session, joined)
+        for old in join_used:
+            session.uses.setdefault(old, []).append(line_no)
+        if join_err:
+            finished.append(Block(line_no, join_err, EXPLAIN[join_err], line))
+            continue
         work = _collapse(joined)
         if work != joined and "spaces collapsed" not in notes:
             notes.append("spaces collapsed")
