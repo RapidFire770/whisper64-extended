@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from bas2seq.engine import load, load_path, prepare, split_lines, supply
+from bas2seq.engine import load, load_path, prepare, resolve, split_lines, supply, write_seq
 from bas2seq.scan import TOKEN_KEYWORDS
 
 
@@ -183,6 +183,58 @@ def main():
         assert doc.items[0].phrase == "line length"
         assert doc.items[0].replacement is None
 
+    def jumps_warnings_and_write(tmp_path=None):
+        import tempfile
+        from pathlib import Path
+        doc = load("labelFoo:\nGO TO labelFoo\nGOTO missing\n10 GOTO 20\n")
+        prepare(doc)
+        go = [item for item in doc.items if item.line_no == 2][0]
+        assert go.replacement == ["GOTO labelFoo"]
+        assert go.detail == "GO TO joined"
+        missing = [item for item in doc.items if item.line_no == 3][0]
+        assert missing.phrase == "unknown label"
+        assert missing.replacement is None
+        unknown = [item for item in doc.items if item.line_no == 4][0]
+        assert unknown.phrase == "unknown line"
+
+        kept = load('10 IF A THEN PRINT "B"\n20 GOTO 10\n')
+        prepare(kept)
+        assert kept.items == []
+
+        doc = load("labelActivateSel:\nGOTO labelActivateSel\n")
+        prepare(doc)
+        assert doc.items == []
+        assert doc.uses["labelActivateSel"] == [1, 2]
+        assert doc.renames == [("labelActivateSel", "ActivateSel")]
+
+        out = resolve(doc, {}, True)
+        assert out.lines == ["ActivateSel:", "GOTO ActivateSel"]
+        assert out.unresolved == []
+
+        refused = resolve(doc, {}, False)
+        assert refused.lines is None
+
+        warn = load('10 print "A"\n20 COLOR = 1: COLCODE = 2\n')
+        prepare(warn)
+        out = resolve(warn, {}, True)
+        assert any("print" in note for note in out.warnings)
+        assert any("COLCODE" in note and "COLOR" in note for note in out.warnings)
+        quiet = load("10 CO$ = \"A\": COLCODE = 1\n20 GOTO labelFoo\nlabelFoo:\n")
+        prepare(quiet)
+        out = resolve(quiet, {}, True)
+        assert not any("COLCODE" in note for note in out.warnings)
+
+        blocked = load("GOTO nowhere\n")
+        prepare(blocked)
+        out = resolve(blocked, {}, True)
+        assert out.lines is None
+        folder = Path(tempfile.mkdtemp())
+        target = folder / "out.seq"
+        write_seq(["10 PRINT \"HI\"", ""], str(target))
+        raw = target.read_bytes()
+        assert raw == b'10 PRINT "HI"\r\r'
+        assert b"\n" not in raw
+
     check("keywords", keywords_match_token_c)
     check("split", split_keeps_blanks_and_final)
     check("short", short_line_is_kept)
@@ -195,6 +247,7 @@ def main():
     check("underscore", underscore_label_blocks)
     check("ladder-early", ladder_stops_early)
     check("splits", splits_and_wraps)
+    check("jumps", jumps_warnings_and_write)
     print(checks, "checks")
 
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bas2seq.scan import is_letter, is_name_char, mask, word_at
+from bas2seq.scan import TOKEN_KEYWORDS, is_letter, is_name_char, mask, word_at
 
 EXPLAIN = {
     "duplicate label": "This label name is already used. Rename one of them in the .bas file.",
@@ -35,6 +35,7 @@ class Session:
         self.items = []
         self.renames = []
         self.uses = {}
+        self.ready = False
 
 
 class Outcome:
@@ -542,9 +543,287 @@ def _finish_pieces(pieces):
     return out, notes
 
 
+def _letter_keyword(text, index):
+    for keyword in TOKEN_KEYWORDS:
+        if not any(ch.isalpha() for ch in keyword):
+            continue
+        if word_at(text, index, keyword):
+            return keyword
+    return None
+
+
+def _final_labels(session):
+    found = set()
+    for line in session.source:
+        if illegal_label(line):
+            continue
+        name = take_label(line)
+        if name:
+            found.add(mapping(session).get(name, name))
+    return found
+
+
+def _line_numbers(session):
+    found = set()
+    for line in session.source:
+        numbered = line_number(line)
+        if numbered and numbered[0] == "ok":
+            found.add(numbered[1])
+    return found
+
+
+def _read_targets(session, line, index, out, names, finals, numbers, allow_keyword):
+    while True:
+        while index < len(line) and line[index] == " ":
+            out.append(line[index])
+            index += 1
+        if index >= len(line):
+            return index, None, set()
+        used = set()
+        if line[index].isdigit():
+            end = index
+            while end < len(line) and line[end].isdigit():
+                end += 1
+            if int(line[index:end]) not in numbers:
+                return index, "unknown line", set()
+            out.append(line[index:end])
+            index = end
+        elif is_letter(line[index]):
+            if allow_keyword and _letter_keyword(line, index):
+                return index, None, set()
+            end = index
+            while end < len(line) and is_name_char(line[end]):
+                end += 1
+            word = line[index:end]
+            nxt = end
+            while nxt < len(line) and line[nxt] == " ":
+                nxt += 1
+            if allow_keyword and nxt < len(line) and line[nxt] == "=":
+                return index, None, set()
+            final = names.get(word, word)
+            if final not in finals:
+                return index, "unknown label", set()
+            out.append(final)
+            if word in names:
+                used.add(word)
+            index = end
+        else:
+            return index, None, set()
+        nxt = index
+        while nxt < len(line) and line[nxt] == " ":
+            nxt += 1
+        if nxt < len(line) and line[nxt] == ",":
+            while index < nxt:
+                out.append(line[index])
+                index += 1
+            out.append(",")
+            index = nxt + 1
+            allow_keyword = False
+            continue
+        return index, None, used
+
+
+def _rewrite_line(session, line):
+    names = mapping(session)
+    finals = _final_labels(session)
+    numbers = _line_numbers(session)
+    regions = mask(line)
+    out = []
+    used = set()
+    index = 0
+    defined = take_label(line)
+    if defined and defined in names:
+        while index < len(line) and line[index] == " ":
+            out.append(line[index])
+            index += 1
+        out.append(names[defined])
+        index += len(defined)
+        used.add(defined)
+    while index < len(line):
+        if regions[index] != "code":
+            out.append(line[index])
+            index += 1
+            continue
+        keyword = None
+        for candidate in ("GOTO", "GOSUB", "THEN", "ELSE"):
+            if word_at(line, index, candidate):
+                keyword = candidate
+                break
+        if not keyword:
+            out.append(line[index])
+            index += 1
+            continue
+        out.append(keyword)
+        index += len(keyword)
+        allow = keyword in ("THEN", "ELSE")
+        if allow:
+            nxt = index
+            while nxt < len(line) and line[nxt] == " ":
+                nxt += 1
+            if word_at(line, nxt, "GOTO") or word_at(line, nxt, "GOSUB"):
+                while index < nxt:
+                    out.append(line[index])
+                    index += 1
+                allow = False
+                continue
+        index, err, touched = _read_targets(
+            session, line, index, out, names, finals, numbers, allow
+        )
+        used.update(touched)
+        if err:
+            return None, err, used
+    return "".join(out), None, used
+
+
+def _skip_name(line, index):
+    while index < len(line) and is_name_char(line[index]):
+        index += 1
+    if index < len(line) and line[index] in "$%":
+        index += 1
+    return index
+
+
+def _skip_targets(line, index):
+    while True:
+        while index < len(line) and line[index] == " ":
+            index += 1
+        if index < len(line) and line[index].isdigit():
+            while index < len(line) and line[index].isdigit():
+                index += 1
+        elif index < len(line) and is_letter(line[index]):
+            index = _skip_name(line, index)
+        else:
+            return index
+        nxt = index
+        while nxt < len(line) and line[nxt] == " ":
+            nxt += 1
+        if nxt < len(line) and line[nxt] == ",":
+            index = nxt + 1
+            continue
+        return index
+
+
+def _warnings(lines):
+    notes = []
+    groups = {}
+
+    def collect(line, index):
+        end = index
+        while end < len(line) and is_name_char(line[end]):
+            end += 1
+        suffix = ""
+        if end < len(line) and line[end] in "$%":
+            suffix = line[end]
+            end += 1
+        spelling = line[index:end]
+        stem = spelling[:-1] if suffix else spelling
+        key = stem if len(stem) == 1 else stem[:2]
+        groups.setdefault((key, suffix), [])
+        if spelling not in groups[(key, suffix)]:
+            groups[(key, suffix)].append(spelling)
+        return end
+
+    for line_no, line in enumerate(lines, 1):
+        regions = mask(line)
+        index = 0
+        if take_label(line):
+            index = _skip_name(line.lstrip(), 0)
+            index = len(line) - len(line.lstrip()) + index
+            if index < len(line) and line[index] == ":":
+                index += 1
+        while index < len(line):
+            if regions[index] in ("quote", "rem"):
+                index += 1
+                continue
+            matched = None
+            for keyword in TOKEN_KEYWORDS:
+                if not any(ch.isalpha() for ch in keyword):
+                    continue
+                size = len(keyword)
+                if index + size > len(line):
+                    continue
+                chunk = line[index:index + size]
+                if chunk.upper() != keyword.upper():
+                    continue
+                if index > 0 and is_letter(line[index - 1]):
+                    continue
+                if index + size < len(line) and is_letter(line[index + size]):
+                    continue
+                matched = keyword
+                if chunk != keyword:
+                    notes.append(f"line {line_no}: {chunk}")
+                index += size
+                break
+            if matched in ("GOTO", "GOSUB"):
+                index = _skip_targets(line, index)
+                continue
+            if matched in ("THEN", "ELSE"):
+                nxt = index
+                while nxt < len(line) and line[nxt] == " ":
+                    nxt += 1
+                if word_at(line, nxt, "GOTO") or word_at(line, nxt, "GOSUB"):
+                    continue
+                if nxt < len(line) and is_letter(line[nxt]) and not _letter_keyword(line, nxt):
+                    index = _skip_name(line, nxt)
+                continue
+            if matched == "FN":
+                nxt = index
+                while nxt < len(line) and line[nxt] == " ":
+                    nxt += 1
+                if nxt < len(line) and is_letter(line[nxt]):
+                    index = _skip_name(line, nxt)
+                continue
+            if matched:
+                continue
+            if is_letter(line[index]):
+                index = collect(line, index)
+                continue
+            index += 1
+    for spellings in groups.values():
+        if len(spellings) > 1:
+            notes.append(" / ".join(spellings))
+    return notes
+
+
+def resolve(session, accepted, accept_map):
+    if not session.ready:
+        prepare(session)
+    outcome = Outcome()
+    blocked = False
+    for item in session.items:
+        if item.replacement is None:
+            outcome.unresolved.append(f"{item.line_no}: {item.phrase}")
+            blocked = True
+            continue
+        if not accepted.get(item.line_no, False):
+            outcome.unresolved.append(f"{item.line_no}: {item.phrase}")
+            blocked = True
+    if session.renames and not accept_map:
+        blocked = True
+    if blocked:
+        return outcome
+    built = []
+    proposals = {item.line_no: item for item in session.items if item.replacement}
+    for line_no, line in enumerate(session.source, 1):
+        if line_no in proposals:
+            built.extend(proposals[line_no].replacement)
+            continue
+        text, _err, _used = _rewrite_line(session, line)
+        built.append(line if text is None else text)
+    outcome.lines = built
+    outcome.warnings = _warnings(built)
+    return outcome
+
+
+def write_seq(lines, path):
+    data = b"".join(line.encode("ascii") + b"\r" for line in lines)
+    Path(path).write_bytes(data)
+
+
 def prepare(session):
     if session.pending:
         return
+    session.uses = {}
     finished = []
     for item in session.items:
         if item.replacement is None:
@@ -552,7 +831,17 @@ def prepare(session):
     for line_no, line in enumerate(session.source, 1):
         if any(item.line_no == line_no and item.replacement is None for item in finished):
             continue
-        working = _apply_ready(session, line)
+        text, err, used = _rewrite_line(session, line)
+        for old in used:
+            session.uses.setdefault(old, []).append(line_no)
+        if err:
+            if err in ("unknown label", "unknown line") and len(line) > 79:
+                working = line
+            else:
+                finished.append(Block(line_no, err, EXPLAIN[err], line))
+                continue
+        else:
+            working = text
         early = _propose_early(working)
         if early == ("same",):
             continue
@@ -581,8 +870,4 @@ def prepare(session):
         if lines != [line]:
             finished.append(Block(line_no, ", ".join(notes), ", ".join(notes), line, lines))
     session.items = finished
-
-
-def _apply_ready(session, line):
-    """Task 2 names are applied by Task 5. Until then the working line is the source line."""
-    return line
+    session.ready = True
