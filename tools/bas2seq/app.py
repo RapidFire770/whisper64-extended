@@ -127,11 +127,25 @@ class FileScreen(Screen):
         app.switch_screen(SaveScreen())
 
 
+class SaveInput(Input):
+    def check_consume_key(self, key: str, character: str | None) -> bool:
+        screen = self.screen
+        if (
+            isinstance(screen, SaveScreen)
+            and screen._confirm_overwrite
+            and key.lower() in ("y", "n")
+        ):
+            return False
+        return super().check_consume_key(key, character)
+
+
 class SaveScreen(Screen):
     BINDINGS = [
         Binding("escape", "back", "Back"),
-        Binding("y", "overwrite_yes", "Replace", show=False),
-        Binding("n", "overwrite_no", "Keep", show=False),
+        Binding("y", "overwrite_yes", "Replace", show=False, priority=True),
+        Binding("Y", "overwrite_yes", "Replace", show=False, priority=True),
+        Binding("n", "overwrite_no", "Keep", show=False, priority=True),
+        Binding("N", "overwrite_no", "Keep", show=False, priority=True),
     ]
 
     def __init__(self) -> None:
@@ -141,9 +155,9 @@ class SaveScreen(Screen):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Static("Output directory:")
-            yield Input(id="dir")
+            yield SaveInput(id="dir")
             yield Static("Output name:")
-            yield Input(id="name")
+            yield SaveInput(id="name")
             yield Static("", id="prompt")
             yield Static("", id="err")
         yield Footer()
@@ -161,6 +175,11 @@ class SaveScreen(Screen):
 
     def action_back(self) -> None:
         self.app.goto_file()  # type: ignore[attr-defined]
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in ("overwrite_yes", "overwrite_no"):
+            return self._confirm_overwrite
+        return True
 
     def action_overwrite_yes(self) -> None:
         if self._confirm_overwrite:
@@ -217,18 +236,6 @@ class SaveScreen(Screen):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id in ("dir", "name"):
             self.try_submit()
-
-    @on(events.Key)
-    def on_key(self, event: events.Key) -> None:
-        if not self._confirm_overwrite:
-            return
-        key = event.key.lower()
-        if key == "y":
-            event.stop()
-            self.action_overwrite_yes()
-        elif key == "n":
-            event.stop()
-            self.action_overwrite_no()
 
 
 class NameScreen(Screen):
