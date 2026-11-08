@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -355,6 +357,49 @@ def main():
         assert paint("REMEMBER", "statement") == ""
 
     check("colors", colors_match_editor_and_scan)
+
+    def browser_lists_parent_dirs_then_files():
+        from bas2seq.browser import list_entries
+
+        root = Path(tempfile.mkdtemp())
+        inside = root / "inside"
+        inside.mkdir()
+        (root / "outside.bas").write_text('10 PRINT "HI"\n', encoding="utf-8")
+        (inside / "stay.bas").write_text("20 END\n", encoding="utf-8")
+        (inside / "sub").mkdir()
+        (inside / "Bdir").mkdir()
+        here = list_entries(inside)
+        assert [row.label for row in here] == ["..", "Bdir/", "sub/", "stay.bas"]
+        assert here[0].kind == "up"
+        assert here[0].path == inside.resolve().parent
+        assert [row.kind for row in here] == ["up", "dir", "dir", "file"]
+        parent = list_entries(here[0].path)
+        assert [row.label for row in parent] == ["..", "inside/", "outside.bas"]
+        assert any(row.path == (root / "outside.bas").resolve() for row in parent)
+        top = list_entries(Path("/"))
+        assert top
+        assert all(row.kind != "up" for row in top)
+
+    check("browser-list", browser_lists_parent_dirs_then_files)
+
+    def browser_unreadable_keeps_parent():
+        from bas2seq.browser import list_entries
+
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            return
+        root = Path(tempfile.mkdtemp())
+        locked = root / "locked"
+        locked.mkdir()
+        locked.chmod(0)
+        try:
+            rows = list_entries(locked)
+        finally:
+            locked.chmod(0o755)
+        assert [row.kind for row in rows] == ["up"]
+        assert rows[0].path == root.resolve()
+
+    check("browser-locked", browser_unreadable_keeps_parent)
+
     print(checks, "checks")
 
 
