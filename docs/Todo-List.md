@@ -60,5 +60,17 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
   - [ ] All programs on one cartridge file with a selection menu of which one the user wants to load into.
   - [ ] If this can be done all programs should be able to return to the main program selection menu. The menu should have the option to exit back to the BASIC prompt so the user can run the programs they have written and converted. -->
 
-# Conversion Tool for BASIC .bas files
-- [ ] Look into a creation of a utility program to convert BASIC files written on the PC in the .bas file format and convert them to a seq file that can be copied to the c64 and opened with the Whisper64 editor. It will need to be smart enough to keep the program within the limitations of the C64 and give errors with good explanations to the user when it cannot. Example .bas file is in "/home/josh/Documents/Programming/C64/dice-roll/src/main.bas" it was written with the VS64 extension for Visual Studio code, it can use labeled line or normal BASIC numbered lines. The example file has a few lines longer than would be able to be converted to work on the C64, this file should give the user an error message and possible example ways to fix it. If a fix is simple enough possibly give the user the ability to accept a fix and the program will continue by making that change, example: Shorting a line that is too long by using short forms like ? in place of PRINT.
+# Feature - Conversion Tool for BASIC .bas files
+- [ ] Look into a creation of a utility program to convert BASIC files written on the PC in the .bas file format and convert them to a seq file that can be copied to the c64 and opened with the Whisper64 editor. This program will be run on a pc(windows or linux) or a mac, not the c64. It will need to be smart enough to keep the program within the limitations of the C64 and give errors with good explanations to the user when it cannot. Example .bas file is in "/home/josh/Documents/Programming/C64/dice-roll/src/main.bas" it was written with the VS64 extension for Visual Studio code, it can use labeled lines or normal BASIC numbered lines. The example file has a few lines longer than would be able to be converted to work on the C64, this file should give the user an error message and possible example ways to fix it. If a fix is simple enough possibly give the user the ability to visually see and accept a fix that the program will continue by making that change, example: Shorting a line that is too long by using short forms like ? in place of PRINT.
+    - Simple TUI that lets the user select the file with a file browser and also select the output destination and name for the converted file.
+    - A display window for the user to see the errors, scroll through them and confirm any recommended changes to fix the error.
+    - Example of how it may look/work:  
+      +-------------------------------+
+      | File |  Progam Name Here      |
+      +-------------------------------+
+      | 10 Print "Hello"              |
+      | Error: Reason here            |
+      | Replace with: 10 ? "Hello"    |
+      | [Y] [N]                       |
+      |_______________________________+
+    
