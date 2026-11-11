@@ -130,19 +130,17 @@ int main(void) {
             update_cursor();
         } else if (c == KEY_DELETE) {
             int at_break = (cursor_x == 0 && cursor_y > 0);
-            int wrapped = 0;
+            int old_len = 0;
+            int old_x = cursor_x;
 
-            if (cursor_y < num_lines) {
-                int len = strlen(lines[cursor_y]);
-                /* A full row, or the blank row past it, has to be rebuilt. */
-                wrapped = (len >= edit_width || cursor_x >= edit_width);
-            }
+            if (!at_break && cursor_y < num_lines)
+                old_len = (int)strlen(lines[cursor_y]);
             save_undo_state();
             delete_char();
-            if (at_break || wrapped)
+            if (at_break)
                 update_cursor();
             else
-                update_current_line();
+                update_current_line(old_len, old_x);
         } else if (c == KEY_LEFT) {
             int old_x = cursor_x;
             int old_y = cursor_y;
@@ -253,16 +251,16 @@ int main(void) {
             update_cursor();
         }
         else if (c >= 32 && c < 128) {
-            int before = cursor_x;
+            int old_x = cursor_x;
+            int old_len = 0;
 
-            /* A full line is not stored. Redrawing it would wipe the
-               BASIC LINE FULL message: that line is wrapped, so the
-               redraw clears the status row. */
-            if ((int)strlen(lines[cursor_y]) < MAX_LINE_LENGTH - 1)
+            if (cursor_y < num_lines)
+                old_len = (int)strlen(lines[cursor_y]);
+            if (old_len < MAX_LINE_LENGTH - 1)
                 save_undo_state();
             insert_char(c);
-            if (cursor_x != before)
-                update_current_line();
+            if (cursor_x != old_x)
+                update_current_line(old_len, old_x);
         }
     }
     

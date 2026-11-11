@@ -674,33 +674,67 @@ void refresh_move(int old_x, int old_y, int old_scroll) {
         update_cursor();
 }
 
-// Fast update: only redraws the current line + title bar position + cursor.
-// A wrapped line, or a wrap above it, has to rebuild the rows under it.
-void update_current_line(void) {
-    int screen_y;
+void update_current_line(int old_len, int old_x) {
+    int new_len = 0;
+    int on_line;
+    int new_rows;
+    int old_rows;
+    int old_scroll;
+    int sx, sy, part, col, first, last;
 
-    if (!line_is_simple()) {
-        update_cursor();
+    if (cursor_y < num_lines)
+        new_len = (int)strlen(lines[cursor_y]);
+    on_line = cursor_y < num_lines;
+    new_rows = display_rows_for(new_len, edit_width, on_line, cursor_x);
+    old_rows = display_rows_for(old_len, edit_width, on_line, old_x);
+
+    if (old_rows == 1 && new_rows == 1 && line_is_simple()) {
+        int screen_y = cursor_y - scroll_offset + 1;
+
+        if (screen_mode == MODE_80COL)
+            screen80_begin_draw();
+        draw_title_pos();
+        if (screen_y >= 1 && screen_y <= EDIT_HEIGHT) {
+            if (screen_mode != MODE_80COL)
+                draw_line_number(screen_y, cursor_y);
+            draw_text_line(screen_y, cursor_y);
+        }
+        draw_cursor();
+        if (screen_mode == MODE_80COL)
+            screen80_end_draw();
         return;
     }
 
-    screen_y = cursor_y - scroll_offset + 1;
-
-    if (screen_mode == MODE_80COL) screen80_begin_draw();
-
-    draw_title_pos();
-
-    // Redraw only the current line
-    if (screen_y >= 1 && screen_y <= EDIT_HEIGHT) {
-        if (screen_mode != MODE_80COL) {
-            draw_line_number(screen_y, cursor_y);
+    old_scroll = scroll_offset;
+    if (new_rows != old_rows) {
+        fit_cursor();
+        if (scroll_offset != old_scroll) {
+            update_cursor();
+            return;
         }
-        draw_text_line(screen_y, cursor_y);
     }
 
-    draw_cursor();
+    cursor_screen(&sx, &sy);
+    split_col(cursor_x, &part, &col);
+    first = sy - part;
+    if (first < 1)
+        first = 1;
+    if (new_rows != old_rows)
+        last = EDIT_HEIGHT;
+    else {
+        last = first + new_rows - 1;
+        if (last > EDIT_HEIGHT)
+            last = EDIT_HEIGHT;
+    }
 
-    if (screen_mode == MODE_80COL) screen80_end_draw();
+    if (screen_mode == MODE_80COL)
+        screen80_begin_draw();
+    erase_cursor();
+    draw_title_pos();
+    draw_editor_band(first, last);
+    draw_cursor();
+    if (screen_mode == MODE_80COL)
+        screen80_end_draw();
 }
 
 void update_cursor() {

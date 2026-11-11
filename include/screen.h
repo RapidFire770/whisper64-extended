@@ -16,7 +16,7 @@ void redraw_screen(void);
 void draw_cursor(void);
 void update_cursor(void);
 void refresh_move(int old_x, int old_y, int old_scroll);
-void update_current_line(void);  // fast: redraws only current line + cursor
+void update_current_line(int old_len, int old_x);
 void show_message(const char *msg, unsigned char col);
 
 // Helper
