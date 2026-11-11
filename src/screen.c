@@ -706,12 +706,10 @@ void update_current_line(int old_len, int old_x) {
     }
 
     old_scroll = scroll_offset;
-    if (new_rows != old_rows) {
-        fit_cursor();
-        if (scroll_offset != old_scroll) {
-            update_cursor();
-            return;
-        }
+    fit_cursor();
+    if (scroll_offset != old_scroll) {
+        update_cursor();
+        return;
     }
 
     cursor_screen(&sx, &sy);
