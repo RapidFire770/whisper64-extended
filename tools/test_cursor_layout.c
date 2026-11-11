@@ -42,6 +42,17 @@ int main(void) {
     expect_int("phantom 73", phantom_row_for(74, 37, 1, 73), 0);
     expect_int("phantom 77", phantom_row_for(77, 77, 1, 77), 1);
 
+    expect_int("rows 36", display_rows_for(36, 37, 1, 36), 1);
+    expect_int("rows 37", display_rows_for(37, 37, 1, 37), 2);
+    expect_int("rows 38", display_rows_for(38, 37, 1, 38), 2);
+    expect_int("rows 73", display_rows_for(73, 37, 1, 73), 2);
+    expect_int("rows 74", display_rows_for(74, 37, 1, 74), 3);
+    expect_int("rows 75", display_rows_for(75, 37, 1, 75), 3);
+    expect_int("rows mid", display_rows_for(50, 37, 1, 10), 2);
+    expect_int("rows 77", display_rows_for(77, 77, 1, 77), 2);
+    expect_int("rows 78", display_rows_for(78, 77, 1, 78), 2);
+    expect_int("rows empty", display_rows_for(0, 37, 1, 0), 1);
+
     lens[0] = 37;
     lens[1] = 10;
     lens[2] = 80;

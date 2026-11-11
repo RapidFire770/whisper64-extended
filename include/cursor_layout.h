@@ -41,6 +41,10 @@ static inline int phantom_row_for(int len, int width, int on_cursor, int cx) {
     return col == 0;
 }
 
+static inline int display_rows_for(int len, int width, int on_cursor, int cx) {
+    return text_rows_for(len, width) + phantom_row_for(len, width, on_cursor, cx);
+}
+
 static inline int scroll_rows(const int *lens, int n, int from, int to, int width) {
     int lo = from;
     int hi = to;
