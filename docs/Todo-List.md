@@ -80,7 +80,8 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 ## bas2seq Bugs
 - [x] File browser cannot move out of the folder the program is launched from. If run from the the whisper64-extended/tools folder the browser is stuck in the tools folder, I cannot navigate outside of the folder to select a .bas file from another folder such as my "/home/josh/Documents/Programming/C64/dice-roll/src/main.bas" The list is one folder. `..` is the parent, including when the launch folder is `tools/`. Enter on a `.bas` file loads it.
 - [x] Along with being able to type the output directory there needs to be a way to selected the output files path with a file browser the same way as selecting the input file. The save screen uses that list. The folder on screen is copied into the directory field. Enter on a file fills the directory and the name, then the existing Y/N overwrite check runs. The directory and name fields still submit what was typed.
-- [ ] PRINT is being detected as a label. No BASIC functions should be getting detected as labels. Error message:
+- [ ] PRINT is being detected as a label. No BASIC functions/tokens should be getting detected as labels. If the w64label program detects this as a label it will also need to be fixed as well.
+    Error message:
       "Line 220
       PRINT: PRINT "F1/SPACE TO ROLL AGAIN": PRINT "ANY KEY FOR MENU"
       duplicate label
