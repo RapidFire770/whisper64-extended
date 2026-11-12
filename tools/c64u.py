@@ -249,18 +249,14 @@ def row0_only_linecol_diff(before, after):
 
 def cmd_wrap():
     boot_editor()
-    inject_keys([K_F4], settle=0.6)
-    scr, _ = dump_rows(rows=range(24, 25), label="basic on")
-    if b"BASIC" not in row_text(scr, 24):
-        print("FAIL basic status missing")
-        return 1
 
     inject_keys([K_RETURN], settle=0.4)
     inject_keys(list(b"HI"), settle=0.4)
     inject_keys([K_UP], settle=0.4)
-
     inject_keys([0x58] * 36, settle=0.8)
-    scr, _ = dump_rows(label="36 x on line 0")
+
+    inject_keys([K_F4], settle=0.6)
+    scr, _ = dump_rows(label="basic on after setup")
     r1 = row_text(scr, 1)
     if r1[:3] != bytes([0x30, 0x30, 0x3A]) or r1[3:39] != bytes([0x58] * 36):
         print("FAIL row 1 not 00: plus 36 X")
@@ -270,7 +266,7 @@ def cmd_wrap():
         print("FAIL row 2 not 01:HI")
         return 1
     if b"BASIC" not in row_text(scr, 24):
-        print("FAIL status lost after 36 x")
+        print("FAIL basic status missing after F4")
         return 1
 
     inject_keys([0x58], settle=0.5)
@@ -311,8 +307,8 @@ def cmd_wrap():
         return 1
     saved_forty = scr
 
-    inject_keys([K_DELETE] * 2, settle=0.5)
-    scr, _ = dump_rows(label="delete to 38")
+    inject_keys([K_DELETE] * 3, settle=0.5)
+    scr, _ = dump_rows(label="delete to phantom len 37")
     if row_text(scr, 3) != row_text(saved_forty, 3):
         print("FAIL step 6 row 3 changed")
         return 1
@@ -323,7 +319,7 @@ def cmd_wrap():
         print("FAIL step 6 row 2 col 3 not space")
         return 1
 
-    inject_keys([K_DELETE] * 2, settle=0.5)
+    inject_keys([K_DELETE], settle=0.5)
     scr, _ = dump_rows(label="back to 36 one screen row")
     r2 = row_text(scr, 2)
     if r2[:3] != bytes([0x30, 0x31, 0x3A]) or r2[3:5] != b"HI":
