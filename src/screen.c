@@ -462,11 +462,6 @@ void redraw_screen() {
 
     fit_cursor();
     draw_editor_band(1, EDIT_HEIGHT);
-
-    // Clear status bar
-    for (i = 0; i < sw; i++) {
-        cputc_at(i, 24, ' ', COL_CYAN);
-    }
 }
 
 static void xor_cursor_cell(unsigned char sx, unsigned char sy) {

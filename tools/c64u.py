@@ -8,6 +8,7 @@ color RAM so we can SEE the per-keystroke state that py65 cannot reproduce.
 
 Usage (see functions called from __main__):
     python3 tools/c64u.py cursor     # whisper64 cursor-move regression
+    python3 tools/c64u.py wrap       # wrapped-line typing band redraw
     python3 tools/c64u.py dump       # print the current 40-column screen
 
 Keyboard buffer: $0277 (10 bytes), count at $C6. The editor's main-loop GETIN
@@ -35,6 +36,7 @@ K_HOME = 0x13
 K_LEFT = 0x9D
 K_RIGHT = 0x1D
 K_F4 = 0x8A
+K_DELETE = 0x14
 PRG = "build/whisper64.prg"
 
 
@@ -231,10 +233,116 @@ def cmd_cursor():
     return 0
 
 
+def plain_row(raw, row):
+    return bytes(b & 0x7F for b in raw[row * 40:(row + 1) * 40])
+
+
+def row0_only_linecol_diff(before, after):
+    """Row 0 may change only in columns 8-16 (title line:col)."""
+    for c in range(40):
+        if 8 <= c <= 16:
+            continue
+        if before[c] != after[c]:
+            return False
+    return True
+
+
+def cmd_wrap():
+    boot_editor()
+    inject_keys([K_F4], settle=0.6)
+    scr, _ = dump_rows(rows=range(24, 25), label="basic on")
+    if b"BASIC" not in row_text(scr, 24):
+        print("FAIL basic status missing")
+        return 1
+
+    inject_keys([K_RETURN], settle=0.4)
+    inject_keys(list(b"HI"), settle=0.4)
+    inject_keys([K_UP], settle=0.4)
+
+    inject_keys([0x58] * 36, settle=0.8)
+    scr, _ = dump_rows(label="36 x on line 0")
+    r1 = row_text(scr, 1)
+    if r1[:3] != bytes([0x30, 0x30, 0x3A]) or r1[3:39] != bytes([0x58] * 36):
+        print("FAIL row 1 not 00: plus 36 X")
+        return 1
+    r2 = row_text(scr, 2)
+    if r2[:3] != bytes([0x30, 0x31, 0x3A]) or r2[3:5] != b"HI":
+        print("FAIL row 2 not 01:HI")
+        return 1
+    if b"BASIC" not in row_text(scr, 24):
+        print("FAIL status lost after 36 x")
+        return 1
+
+    inject_keys([0x58], settle=0.5)
+    scr, _ = dump_rows(label="phantom row")
+    r1 = row_text(scr, 1)
+    if r1[:3] != bytes([0x30, 0x30, 0x3A]) or plain_row(scr, 1)[3:40] != bytes([0x58] * 37):
+        print("FAIL row 1 not 00: plus 37 X")
+        return 1
+    if plain_row(scr, 2)[:3] != bytes([0x20, 0x20, 0x20]):
+        print("FAIL row 2 does not start with three spaces")
+        return 1
+    r3 = row_text(scr, 3)
+    if r3[:3] != bytes([0x30, 0x31, 0x3A]) or r3[3:5] != b"HI":
+        print("FAIL row 3 not 01:HI")
+        return 1
+    if b"BASIC" not in row_text(scr, 24):
+        print("FAIL status lost on phantom row")
+        return 1
+    saved_phantom = scr
+
+    inject_keys([0x58] * 3, settle=0.6)
+    scr, _ = dump_rows(label="40 chars two screen rows")
+    if row_text(scr, 24) != row_text(saved_phantom, 24):
+        print("FAIL step 5 status row changed")
+        return 1
+    if row_text(scr, 3) != row_text(saved_phantom, 3):
+        print("FAIL step 5 row 3 changed")
+        return 1
+    for r in range(4, 24):
+        if row_text(scr, r) != row_text(saved_phantom, r):
+            print(f"FAIL step 5 row {r} changed")
+            return 1
+    if not row0_only_linecol_diff(row_text(saved_phantom, 0), row_text(scr, 0)):
+        print("FAIL step 5 row 0 changed outside line:col")
+        return 1
+    if plain_row(scr, 2)[3] != 0x58:
+        print("FAIL step 5 row 2 col 3 not X")
+        return 1
+    saved_forty = scr
+
+    inject_keys([K_DELETE] * 2, settle=0.5)
+    scr, _ = dump_rows(label="delete to 38")
+    if row_text(scr, 3) != row_text(saved_forty, 3):
+        print("FAIL step 6 row 3 changed")
+        return 1
+    if row_text(scr, 24) != row_text(saved_forty, 24):
+        print("FAIL step 6 status row changed")
+        return 1
+    if plain_row(scr, 2)[3] != 0x20:
+        print("FAIL step 6 row 2 col 3 not space")
+        return 1
+
+    inject_keys([K_DELETE] * 2, settle=0.5)
+    scr, _ = dump_rows(label="back to 36 one screen row")
+    r2 = row_text(scr, 2)
+    if r2[:3] != bytes([0x30, 0x31, 0x3A]) or r2[3:5] != b"HI":
+        print("FAIL step 7 row 2 not 01:HI")
+        return 1
+    if b"BASIC" not in row_text(scr, 24):
+        print("FAIL step 7 status missing")
+        return 1
+
+    print("ok")
+    return 0
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "dump"
     if cmd == "cursor":
         sys.exit(cmd_cursor())
+    elif cmd == "wrap":
+        sys.exit(cmd_wrap())
     elif cmd == "dump":
         dump_rows()
     elif cmd == "down":
