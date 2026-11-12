@@ -77,9 +77,12 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
       | [Y] [N]                       |
       |_______________________________+
 
-## bas2seq Bugs
+## bas2seq Bugs & Fixes needed:
 - [x] File browser cannot move out of the folder the program is launched from. If run from the the whisper64-extended/tools folder the browser is stuck in the tools folder, I cannot navigate outside of the folder to select a .bas file from another folder such as my "/home/josh/Documents/Programming/C64/dice-roll/src/main.bas" The list is one folder. `..` is the parent, including when the launch folder is `tools/`. Enter on a `.bas` file loads it.
 - [x] Along with being able to type the output directory there needs to be a way to selected the output files path with a file browser the same way as selecting the input file. The save screen uses that list. The folder on screen is copied into the directory field. Enter on a file fills the directory and the name, then the existing Y/N overwrite check runs. The directory and name fields still submit what was typed.
 - [x] PRINT is being detected as a label. No BASIC functions/tokens should be getting detected as labels. If the w64label program detects this as a label it will also need to be fixed as well.
     A name that is exactly an uppercase V2 token is not a label in `bas2seq` or `W64LABEL`. `PRINT:` and `SGN:` stay statements, and a second `PRINT:` is not `duplicate label`. `PRINT1:` is still a label. `print:` is still a label. Host checks passed. Not run on the Ultimate.
-- [ ] Instead of deleting comments on long lines we should be pushing them to a new line.
+- [ ] Instead of deleting/removing comments we should be recommending putting them to a new line.
+- [ ] Need better separation of the error / issue line and the possible fix for the user to accept. Currently they blend together in the terminal if you are not looking closely.
+- [ ] Add a number indicator for how many errors there are to deal with and what one the user is currently on.
+- [ ] If there is errors the program cannot fix itself it should display them to the user first so they don't waste time running through a bunch of fixable issues first.
