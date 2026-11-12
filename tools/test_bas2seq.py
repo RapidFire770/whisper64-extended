@@ -89,6 +89,41 @@ def main():
         assert doc.items[0].line_no == 2
         assert doc.pending == []
 
+    def keyword_not_label():
+        doc = load(
+            'PRINT: PRINT "F1/SPACE TO ROLL AGAIN": PRINT "ANY KEY FOR MENU"\n'
+            'PRINT:PRINT "PRESS ANY KEY"\n'
+            'SGN: PRINT "X"\n'
+            'labelMenu: PRINT: PRINT "HI"\n'
+            'GOTO labelMenu\n'
+        )
+        assert doc.items == []
+        prepare(doc)
+        assert doc.items == []
+
+        lower = load("print:\nprint:\n")
+        assert [item.phrase for item in lower.items] == ["duplicate label"]
+        mixed = load("Print:\nPrint:\n")
+        assert [item.phrase for item in mixed.items] == ["duplicate label"]
+
+        jump = load("GOTO PRINT\n")
+        prepare(jump)
+        assert jump.items[0].phrase == "unknown label"
+
+        near = load("PRINT1:\nGOTO PRINT1\n")
+        assert near.items == []
+        prepare(near)
+        assert near.items == []
+
+        second = 'X$ = "' + ("A" * 70) + '"'
+        line = "NEXT: " + second
+        assert len(line) == 83
+        assert len(second) == 77
+        doc = load(line + "\n")
+        prepare(doc)
+        assert doc.items[0].replacement == ["NEXT", second]
+        assert "split at colons" in doc.items[0].detail
+
     def underscore_label_blocks():
         doc = load("label_foo:\n")
         assert doc.items[0].phrase == "label character"
@@ -298,6 +333,7 @@ def main():
     check("missing", missing_file)
     check("prefix", label_prefix_rules)
     check("dup-label", duplicate_label_blocks)
+    check("keyword-not-label", keyword_not_label)
     check("underscore", underscore_label_blocks)
     check("stmt-not-label", statement_not_label_character)
     check("then-else-assign", then_else_assignments)

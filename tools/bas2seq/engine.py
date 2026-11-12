@@ -104,7 +104,8 @@ def _character_block(line_no, text):
 
 def take_label(text):
     """Return the label name when the line starts with a legal or too-long label.
-    None when the line does not start with name characters and a colon."""
+    None when the line does not start with name characters and a colon.
+    None when that name is exactly one TOKEN_KEYWORDS entry."""
     i = 0
     while i < len(text) and text[i] == " ":
         i += 1
@@ -115,7 +116,10 @@ def take_label(text):
         i += 1
     if i >= len(text) or text[i] != ":":
         return None
-    return text[start:i]
+    name = text[start:i]
+    if name in TOKEN_KEYWORDS:
+        return None
+    return name
 
 
 _STMT_PUNCT = "=(),#"

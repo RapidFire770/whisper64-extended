@@ -58,7 +58,7 @@ If the ladder stops, the screen shows the source line and the reason. There is n
 
 ## Labels and jumps
 
-A label is the start of a line: optional spaces, a letter, then letters or digits, then a colon. A legal name is at most 11 characters. Matching keeps the case of the source. `_` and any other character end the name, so `label_foo:` is not a label `W64LABEL` will take.
+A label is the start of a line: optional spaces, a letter, then letters or digits, then a colon. A legal name is at most 11 characters. Matching keeps the case of the source. `_` and any other character end the name, so `label_foo:` is not a label `W64LABEL` will take. A name that is exactly one entry in `TOKEN_KEYWORDS` is not a label. The compare is case-sensitive, so `PRINT:` and `SGN:` are statements, and `print:` is still a label. `PRINT1:` is a label because the whole name has to match.
 
 The map is built before the line walk. A name of 11 characters or under stays as written. `labelSetup` is 10 characters and stays `labelSetup`.
 
