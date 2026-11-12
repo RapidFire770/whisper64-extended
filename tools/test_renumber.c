@@ -290,8 +290,19 @@ int main(void) {
     expect_labels("then else stmt", "a: END\rIF X THEN a ELSE a",
                   "10 END\r20 IF X THEN 10 ELSE 10", 10);
     expect_labels("kept", "start:\r5 PRINT \"X\"", "5 PRINT \"X\"", 10);
-    expect_labels("kw label", "PRINT: END\rGOTO PRINT\rIF X THEN PRINT \"Z\"",
-                  "10 END\r20 GOTO 10\r30 IF X THEN PRINT \"Z\"", 10);
+    expect_labels("kw stmt", "PRINT: END\rIF X THEN PRINT \"Z\"\r",
+                  "10 PRINT: END\r20 IF X THEN PRINT \"Z\"\r", 10);
+    expect_labels("kw twice", "PRINT: PRINT \"A\"\rPRINT: PRINT \"B\"\r",
+                  "10 PRINT: PRINT \"A\"\r20 PRINT: PRINT \"B\"\r", 10);
+    expect_labels("kw blank", "PRINT:\rEND\r",
+                  "10 PRINT:\r20 END\r", 10);
+    expect_labels("fn stmt", "SGN: PRINT \"X\"\r",
+                  "10 SGN: PRINT \"X\"\r", 10);
+    expect_labels("near kw", "PRINT1: END\rGOTO PRINT1\r",
+                  "10 END\r20 GOTO 10\r", 10);
+    expect_labels("kw indent", "  PRINT: END\r",
+                  "10   PRINT: END\r", 10);
+    expect_label_err("goto keyword", "GOTO PRINT\r", 8, 10, 6, 1);
     {
         char long_stmt[96];
         unsigned int n = 0;

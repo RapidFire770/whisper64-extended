@@ -626,7 +626,8 @@ static int name_char(unsigned char c) {
     return is_letter(c) || (c >= '0' && c <= '9');
 }
 
-/* 1 label, 0 not, -1 the name is longer than 11 and ends with ':'. */
+/* 1 label, 0 not, -1 the name is longer than 11 and ends with ':'.
+   An exact V2 token is 0. The length has to match conv_keyword_len. */
 static int take_label(const unsigned char *s, unsigned int len,
                       unsigned int *start, unsigned int *nlen, unsigned int *stmt) {
     unsigned int i = 0;
@@ -642,6 +643,8 @@ static int take_label(const unsigned char *s, unsigned int len,
         i++;
     }
     if (i >= len || s[i] != ':')
+        return 0;
+    if (conv_keyword_len(s, len, *start) == (int)n)
         return 0;
     if (n > 11)
         return -1;
