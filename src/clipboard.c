@@ -19,6 +19,21 @@ void mark_toggle() {
     }
 }
 
+/* Same bytes as strncpy of n, then a NUL at n. Keeps that helper out. */
+static void copy_n(char *dst, const char *src, int n) {
+    int i;
+
+    for (i = 0; i < n; i++) {
+        dst[i] = src[i];
+        if (src[i] == '\0') {
+            while (++i < n)
+                dst[i] = '\0';
+            break;
+        }
+    }
+    dst[n] = '\0';
+}
+
 void copy_marked() {
     int i;
     int start_y = mark_start_y < mark_end_y ? mark_start_y : mark_end_y;
@@ -35,15 +50,13 @@ void copy_marked() {
         if (start_y == end_y) {
             int start_x = mark_start_x < mark_end_x ? mark_start_x : mark_end_x;
             int end_x = mark_start_x < mark_end_x ? mark_end_x : mark_start_x;
-            strncpy(clipboard[clipboard_lines], &lines[i][start_x], end_x - start_x);
-            clipboard[clipboard_lines][end_x - start_x] = '\0';
+            copy_n(clipboard[clipboard_lines], &lines[i][start_x], end_x - start_x);
         } else if (i == start_y || i == end_y) {
             int x = (i == mark_start_y) ? mark_start_x : mark_end_x;
             if (i == start_y)
                 strcpy(clipboard[clipboard_lines], &lines[i][x]);
             else {
-                strncpy(clipboard[clipboard_lines], lines[i], x);
-                clipboard[clipboard_lines][x] = '\0';
+                copy_n(clipboard[clipboard_lines], lines[i], x);
             }
         } else {
             strcpy(clipboard[clipboard_lines], lines[i]);
@@ -67,7 +80,11 @@ void paste_clipboard() {
             insert_char(clipboard[i][j]);
         }
         if (i < clipboard_lines - 1) {
-            new_line();
+            if (!new_line()) {
+                update_cursor();
+                show_message("REU FULL", COL_YELLOW);
+                return;
+            }
         }
     }
 

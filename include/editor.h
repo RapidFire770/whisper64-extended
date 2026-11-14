@@ -9,7 +9,7 @@ void init_editor(void);
 // Text editing operations
 void insert_char(char c);
 void delete_char(void);
-void new_line(void);
+int new_line(void);
 
 // Paging
 void save_current_page_to_temp(void);

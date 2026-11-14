@@ -3,6 +3,11 @@
 #include "screen.h"
 #include "reu.h"
 #include "editfmt.h"
+#include "page_shift.h"
+#include "undo.h"
+
+static char spill_line[MAX_LINE_LENGTH];
+static char spill_next[MAX_LINE_LENGTH];
 
 void save_current_page_to_temp(void) {
     char temp_name[20];
@@ -125,20 +130,6 @@ void load_page(int page_num) {
     page_modified = 0;
 }
 
-static void create_new_page(void) {
-    save_current_page_to_temp();
-    
-    num_pages++;
-    current_page++;
-    
-    memset(lines, 0, sizeof(lines));
-    num_lines = 1;
-    cursor_x = 0;
-    cursor_y = 0;
-    scroll_offset = 0;
-    page_modified = 1;
-}
-
 void check_page_boundary(void) {
     if (cursor_y >= num_lines && cursor_y >= LINES_PER_PAGE) {
         if (current_page < num_pages - 1) {
@@ -225,43 +216,106 @@ void delete_char(void) {
     }
 }
 
-void new_line(void) {
-    if (num_lines >= LINES_PER_PAGE) {
-        if (cursor_y == num_lines - 1) {
-            char remainder[MAX_LINE_LENGTH];
-            strcpy(remainder, &lines[cursor_y][cursor_x]);
-            lines[cursor_y][cursor_x] = '\0';
-            
-            page_modified = 1;
-            create_new_page();
-            
-            strcpy(lines[0], remainder);
-            cursor_x = 0;
-            cursor_y = 0;
-            total_lines++;
-            return;
-        } else {
-            show_message("PAGE FULL - MOVE TO END", COL_YELLOW);
+static void copy_tail(char *dst, const char *src) {
+    int i = 0;
+
+    while (src[i] && i < MAX_LINE_LENGTH - 1) {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
+}
+
+static int spill_blocked(void) {
+    int p;
+
+    if (!reu_is_available())
+        return 0;
+    for (p = current_page + 1; p < num_pages; p++) {
+        if (reu_page_lines(p) < LINES_PER_PAGE)
+            return 0;
+    }
+    return num_pages >= reu_max_page_count();
+}
+
+static void open_carried_page(const char *text) {
+    memset(lines, 0, sizeof lines);
+    copy_tail(lines[0], text);
+    num_lines = 1;
+    num_pages = current_page + 1;
+    page_modified = 1;
+}
+
+static void push_spill(void) {
+    int page = current_page + 1;
+
+    for (;;) {
+        if (page >= num_pages) {
+            save_current_page_to_temp();
+            current_page = page;
+            open_carried_page(spill_line);
+            save_current_page_to_temp();
             return;
         }
+        load_page(page);
+        if (page_insert_line(lines, &num_lines, 0, spill_line, spill_next)) {
+            copy_tail(spill_line, spill_next);
+            page_modified = 1;
+            page++;
+            continue;
+        }
+        page_modified = 1;
+        return;
     }
-    
-    memmove(&lines[cursor_y + 2], &lines[cursor_y + 1], 
-            (num_lines - cursor_y - 1) * sizeof(lines[0]));
-    
-    strcpy(lines[cursor_y + 1], &lines[cursor_y][cursor_x]);
+}
+
+int new_line(void) {
+    int origin;
+    int follow;
+
+    copy_tail(spill_line, &lines[cursor_y][cursor_x]);
+    if (num_lines < LINES_PER_PAGE) {
+        lines[cursor_y][cursor_x] = '\0';
+        page_insert_line(lines, &num_lines, cursor_y + 1, spill_line, spill_next);
+        total_lines++;
+        cursor_y++;
+        cursor_x = 0;
+        page_modified = 1;
+        if (cursor_y - scroll_offset >= EDIT_HEIGHT)
+            scroll_offset++;
+        return 1;
+    }
+
+    if (spill_blocked()) {
+        show_message("REU FULL", COL_YELLOW);
+        clear_undo();
+        return 0;
+    }
+
+    origin = current_page;
+    follow = cursor_y == num_lines - 1;
     lines[cursor_y][cursor_x] = '\0';
-    
-    num_lines++;
-    total_lines++;
-    cursor_y++;
-    cursor_x = 0;
-    page_modified = 1;
-    
-    if (cursor_y - scroll_offset >= EDIT_HEIGHT) {
-        scroll_offset++;
+    if (!follow) {
+        page_insert_line(lines, &num_lines, cursor_y + 1, spill_line, spill_next);
+        copy_tail(spill_line, spill_next);
+        cursor_y++;
+        cursor_x = 0;
+        if (cursor_y - scroll_offset >= EDIT_HEIGHT)
+            scroll_offset++;
     }
-    
-    num_pages = (total_lines + LINES_PER_PAGE - 1) / LINES_PER_PAGE;
-    if (num_pages < 1) num_pages = 1;
+    page_modified = 1;
+    total_lines++;
+    mark_active = 0;
+    push_spill();
+    clear_undo();
+    if (follow) {
+        if (current_page != origin + 1)
+            load_page(origin + 1);
+        cursor_x = 0;
+        cursor_y = 0;
+        scroll_offset = 0;
+    } else if (current_page != origin) {
+        load_page(origin);
+    }
+    return 1;
 }

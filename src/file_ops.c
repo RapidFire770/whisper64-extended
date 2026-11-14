@@ -83,6 +83,21 @@ void select_drive() {
     update_cursor();
 }
 
+/* Same bytes as strncpy of 16 plus the NUL in the 17th. Keeps that helper out. */
+static void copy16(char *dst, const char *src) {
+    int i;
+
+    for (i = 0; i < 16; i++) {
+        dst[i] = src[i];
+        if (src[i] == '\0') {
+            while (++i < 16)
+                dst[i] = '\0';
+            break;
+        }
+    }
+    dst[16] = '\0';
+}
+
 void load_directory() {
     unsigned char c;
     char line_buf[40];
@@ -148,8 +163,7 @@ void load_directory() {
         line_buf[line_pos] = '\0';
         
         if (num_dir_entries == 0 && blocks == 0) {
-            strncpy(disk_name, line_buf, 16);
-            disk_name[16] = '\0';
+            copy16(disk_name, line_buf);
             continue;
         }
         
@@ -198,8 +212,7 @@ void load_directory() {
             file_type_byte |= 0x40;
         }
         
-        strncpy(dir_entries[num_dir_entries].name, line_buf, 16);
-        dir_entries[num_dir_entries].name[16] = '\0';
+        copy16(dir_entries[num_dir_entries].name, line_buf);
         dir_entries[num_dir_entries].blocks = blocks;
         strcpy(dir_entries[num_dir_entries].type, type_str);
         

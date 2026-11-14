@@ -217,14 +217,25 @@ static unsigned char paint_band;
 
 static int band_hit(int line);
 
+/* Rows are 0-47. Unsigned keeps the signed divide helper out of the link. */
+static void gutter_digits(int line_num, char *tens, char *ones) {
+    unsigned int n = (unsigned int)line_num;
+
+    *tens = (char)('0' + n / 10u);
+    *ones = (char)('0' + n % 10u);
+}
+
 void draw_line_number(int screen_row, int line_num) {
     int pos = screen_row * SCREEN_WIDTH;
 
     if (!band_hit(line_num))
         return;
     if (line_num < num_lines) {
-        SCREEN_RAM[pos] = (line_num / 10) + '0';
-        SCREEN_RAM[pos + 1] = (line_num % 10) + '0';
+        char tens, ones;
+
+        gutter_digits(line_num, &tens, &ones);
+        SCREEN_RAM[pos] = tens;
+        SCREEN_RAM[pos + 1] = ones;
         SCREEN_RAM[pos + 2] = ':';
         COLOR_RAM[pos] = COL_CYAN;
         COLOR_RAM[pos + 1] = COL_CYAN;
@@ -338,8 +349,7 @@ __attribute__((noinline)) static void draw_slice(int screen_row, int line_num, i
             cell_color[i] = COL_WHITE;
 
         if (show_num && line_num < num_lines) {
-            rowbuf[0] = (line_num / 10) + '0';
-            rowbuf[1] = (line_num % 10) + '0';
+            gutter_digits(line_num, &rowbuf[0], &rowbuf[1]);
             rowbuf[2] = ':';
         } else {
             rowbuf[0] = ' ';

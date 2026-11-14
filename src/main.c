@@ -134,8 +134,8 @@ int main(void) {
         // Navigation and editing
         else if (c == KEY_RETURN) {
             save_undo_state();
-            new_line();
-            update_cursor();
+            if (new_line())
+                update_cursor();
         } else if (c == KEY_DELETE) {
             int at_break = (cursor_x == 0 && cursor_y > 0);
             int old_len = 0;

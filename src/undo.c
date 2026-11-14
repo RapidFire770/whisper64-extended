@@ -128,3 +128,8 @@ int can_undo(void) {
 int can_redo(void) {
     return redo_available;
 }
+
+void clear_undo(void) {
+    undo_available = 0;
+    redo_available = 0;
+}

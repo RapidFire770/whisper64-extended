@@ -66,7 +66,27 @@ static int pages_from_size(uint32_t size) {
     if (banks > 1) {
         pages += (banks - 1) * 17;
         rem += (banks - 1) * 188;
-        pages += rem / REU_PAGE_SIZE;
+        /* Remainder is an unsigned int. Compares stay in 16-bit math. */
+        if (rem >= REU_PAGE_SIZE * 16u) {
+            pages += 16;
+            rem -= REU_PAGE_SIZE * 16u;
+        }
+        if (rem >= REU_PAGE_SIZE * 8u) {
+            pages += 8;
+            rem -= REU_PAGE_SIZE * 8u;
+        }
+        if (rem >= REU_PAGE_SIZE * 4u) {
+            pages += 4;
+            rem -= REU_PAGE_SIZE * 4u;
+        }
+        if (rem >= REU_PAGE_SIZE * 2u) {
+            pages += 2;
+            rem -= REU_PAGE_SIZE * 2u;
+        }
+        if (rem >= REU_PAGE_SIZE) {
+            pages += 1;
+            rem -= REU_PAGE_SIZE;
+        }
     }
     return (int)pages;
 }
@@ -165,6 +185,25 @@ int reu_load_page(int page_num) {
     reu_read(addr, lines, LINES_PER_PAGE * MAX_LINE_LENGTH);
 
     return header.num_lines_stored;
+}
+
+int reu_page_lines(int page_num) {
+    REUPtr addr;
+    REUPageHeader header;
+
+    if (!reu_available)
+        return 0;
+    if (page_num < 0 || page_num >= reu_max_pages)
+        return 0;
+
+    addr = reu_page_addr(page_num);
+    reu_read(addr, &header, sizeof header);
+    if (header.magic != REU_PAGE_MAGIC)
+        return 0;
+    if (header.num_lines_stored == 0 ||
+        header.num_lines_stored > LINES_PER_PAGE)
+        return 0;
+    return (int)header.num_lines_stored;
 }
 
 uint32_t reu_get_size(void) {
