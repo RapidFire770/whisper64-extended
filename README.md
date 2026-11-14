@@ -15,6 +15,8 @@ A text editor for the Commodore 64.
 - **Copy/Paste**: Visual mark mode for selecting and copying text
 - **Undo/Redo**: One-level undo and redo
 - **Goto Line**: Jump to any line number
+- **Display wrap**: A line longer than the screen continues on the next row. Return starts a new editor line
+- **Help**: F8 opens two pages. Right shows page 2, Left shows page 1, Stop or Return leaves
 - **40-column mode**: 37x23 editing area with line numbers
 - **80-column mode**: 77x23 editing area with line numbers
 
@@ -76,12 +78,22 @@ LOAD "W64LABEL",8,1
 RUN
 ```
 
-`W64CONV` menu `1` is SEQ to PRG and `2` is PRG to SEQ. `W64RENUM` renumbers a SEQ, and an empty step is 10. `W64LABEL` numbers labels at step 10 and writes a PRG. Each one asks for a read drive and a write drive, 8–15, and an empty entry is 8. The editor's F2 save stays a SEQ. N or Stop at the another-file prompt leaves the tool.
+`W64CONV` menu `1` reads a numbered SEQ and writes a PRG. It asks `STRIP REM? Y/N`. `Y` removes a real `REM` and the rest of that line. A `REM` inside quotes stays, and so does `REMEMBER`. A line that is only a REM keeps its line number. It then asks `STEP:`. Return keeps the numbers in the SEQ. A number from 1 to 63999 renumbers and rewrites `GOTO`, `GOSUB`, `THEN`, `ELSE`, `GO TO`, and `GO SUB`. Menu `2` reads a PRG and writes a SEQ. A long line is cut back to the last whole statement, and the status line counts those cuts as `TRUNC`. Bytes after the BASIC program are not copied (`ML 1`).
+
+`W64RENUM` menu `1` renumbers a SEQ and writes a SEQ. Menu `2` renumbers a PRG and writes a PRG. Menu `2` copies the bytes that follow the BASIC program. Both ask `STEP:`. An empty step is 10.
+
+`W64LABEL` reads a labeled SEQ and writes a PRG. It asks `STRIP REM? Y/N` with the same rules. `start: REM menu` keeps the label. It asks `STEP:`. An empty step is 10.
+
+Each one asks for a read drive and a write drive, 8–15, and an empty entry is 8. The editor's F2 save stays a SEQ. N or Stop at the another-file prompt leaves the tool. `?` opens help, and Stop leaves that page. RUN/STOP on the main menu exits.
 
 - Row 1 shows `REU: NONE` or `REU: nKB`. The largest value is `16320KB`. A job needs at least `128KB`. Below that, the job paints `REU 128KB REQUIRED` and waits for a key.
 - The file is stored in the REU. `TOO BIG` means that REU filled. A tokenized program can still stop at `PRG TOO BIG` when a 16-bit link would wrap.
 - Line numbers stop at 63999, and a line stops at 79 characters.
 - Running any of the three overwrites the REU. Save from the editor first when other pages of the open file exist only in the REU.
+
+### bas2seq
+
+`tools/bas2seq` runs on the desktop. From `tools/`, `python3 -m bas2seq` reads a PC `.bas` file and writes a SEQ the editor can open. It does not number lines. `W64LABEL` still does that on the C64.
 
 ## Key Commands
 
@@ -95,10 +107,12 @@ RUN
 | **F6**     | Find & replace                |
 | **F7**     | Find next                     |
 | **F8**     | Help screen                   |
+| **CTRL+B** | Previous page                 |
 | **CTRL+C** | Copy marked text              |
 | **CTRL+D** | Toggle 40/80 column mode      |
-| **CTRL+G** | Goto line                     |
+| **CTRL+G** | Goto a file-wide line. The title-bar number is 1-based. A page is 48 lines. |
 | **CTRL+K** | Toggle mark mode              |
+| **CTRL+N** | Next page                     |
 | **CTRL+V** | Paste text                    |
 | **CTRL+W** | New file (clear buffer)       |
 | **CTRL+Y** | Redo                          |
@@ -135,6 +149,7 @@ Press **F4** to turn BASIC color on. Press it again to turn the color off.
 - Statements are purple and functions are blue
 - A quote, or a finished REM, leaves the rest of that line uncolored
 - The editor does not rewrite line numbers. Renumber and labels are W64RENUM and W64LABEL
+- In BASIC mode the 80th character is not stored. The status row says `BASIC LINE FULL`
 
 ## Directory Browser
 
