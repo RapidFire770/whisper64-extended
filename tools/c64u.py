@@ -389,6 +389,18 @@ def cmd_mark():
     if (up_c[80 + 4] & 0x0F) != 1:
         print("FAIL unmarked Y is not white")
         return 1
+
+    boot_editor()
+    inject_keys(list(b"ABC") + [K_HOME, K_CTRL_K], settle=0.6)
+    inject_keys([K_RIGHT, K_RIGHT, K_RIGHT, 3, 22], settle=0.8)
+    scr, _ = dump_rows(label="pasted ABC")
+    row = plain_row(scr, 1)
+    if row[:9] != bytes([0x30, 0x30, 0x3A, 0x41, 0x42, 0x43, 0x41, 0x42, 0x43]):
+        print("FAIL paste did not draw ABCABC")
+        return 1
+    if b"PASTED" not in row_text(scr, 24):
+        print("FAIL paste status missing")
+        return 1
     print("ok")
     return 0
 

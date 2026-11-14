@@ -70,6 +70,7 @@ void paste_clipboard() {
             new_line();
         }
     }
-    
+
+    update_cursor();
     show_message("TEXT PASTED", COL_GREEN);
 }
