@@ -336,13 +336,15 @@ Drive prompt and the two `DRIVE=` messages:
     show_message(msg, COL_YELLOW);
 ```
 
-```c
-        edit_set(msg, "DRIVE=");
-        edit_add_dec(msg, (unsigned int)current_drive, 0);
-        show_message(msg, COL_GREEN);
-```
+Build `DRIVE=` once. Add this above `select_drive` and call it from both successes, the `'8'` to `'9'` branch and the `'1'` then `'0'` to `'5'` branch:
 
-Use that same `DRIVE=` pair in both successes: the `'8'` to `'9'` branch and the `'1'` then `'0'` to `'5'` branch.
+```c
+static void show_drive_set(char *msg) {
+    edit_set(msg, "DRIVE=");
+    edit_add_dec(msg, (unsigned int)current_drive, 0);
+    show_message(msg, COL_GREEN);
+}
+```
 
 Directory title, row, and count:
 
@@ -451,13 +453,15 @@ In `src/editor.c`, add `#include "editfmt.h"`.
     edit_add(temp_name, ",S,R");
 ```
 
-In `src/goto.c`, add `#include "editfmt.h"`. Replace each of the three `LINE %d NOT FOUND` calls (the `line_num < 0` return, the `page >= num_pages` return, and the `row >= num_lines` return) with:
+In `src/goto.c`, add `#include "editfmt.h"`. Build `LINE n NOT FOUND` once. Add this above `goto_line` and call `show_line_missing(msg, line_num)` from each of the three failures (the `line_num < 0` return, the `page >= num_pages` return, and the `row >= num_lines` return):
 
 ```c
-        edit_set(msg, "LINE ");
-        edit_add_dec(msg, (unsigned int)(line_num + 1), 0);
-        edit_add(msg, " NOT FOUND");
-        show_message(msg, COL_RED);
+static void show_line_missing(char *msg, int line_num) {
+    edit_set(msg, "LINE ");
+    edit_add_dec(msg, (unsigned int)(line_num + 1), 0);
+    edit_add(msg, " NOT FOUND");
+    show_message(msg, COL_RED);
+}
 ```
 
 The found-line message is:
