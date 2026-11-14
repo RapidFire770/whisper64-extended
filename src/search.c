@@ -1,6 +1,7 @@
 #include "search.h"
 #include "editor_state.h"
 #include "screen.h"
+#include "editfmt.h"
 
 void search_next() {
     int i;
@@ -133,7 +134,8 @@ void find_and_replace() {
         
         update_cursor();
         char msg[40];
-        sprintf(msg, "REPLACED %d", replace_count);
+        edit_set(msg, "REPLACED ");
+        edit_add_dec(msg, (unsigned int)replace_count, 0);
         show_message(msg, COL_GREEN);
     } else {
         search_line = 0;

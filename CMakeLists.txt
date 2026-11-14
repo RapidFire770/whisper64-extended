@@ -28,6 +28,7 @@ set(SOURCES
     src/help.c
     src/undo.c
     src/goto.c
+    src/editfmt.c
 )
 
 # Add the executable with all source files

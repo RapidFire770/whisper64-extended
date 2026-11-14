@@ -2,6 +2,7 @@
 #include "screen80.h"
 #include "editor_state.h"
 #include "cursor_layout.h"
+#include "editfmt.h"
 
 void clrscr() {
     if (screen_mode == MODE_80COL) {
@@ -386,7 +387,10 @@ static void draw_title_pos(void) {
     int global_line = current_page * LINES_PER_PAGE + cursor_y + 1;
     int n;
 
-    sprintf(pos_info, " %d:%d", global_line, cursor_x + 1);
+    edit_set(pos_info, " ");
+    edit_add_dec(pos_info, (unsigned int)global_line, 0);
+    edit_add(pos_info, ":");
+    edit_add_dec(pos_info, (unsigned int)(cursor_x + 1), 0);
     n = (int)strlen(pos_info);
     while (n < 9)
         pos_info[n++] = ' ';
@@ -460,7 +464,8 @@ void redraw_screen() {
         cputc_at(i, 0, ' ', COL_YELLOW);
 
     if (current_filename[0] != '\0') {
-        sprintf(title, "%.8s", current_filename);
+        title[0] = '\0';
+        edit_add_n(title, current_filename, 8);
         cputs_at(0, 0, title, COL_YELLOW);
     } else {
         cputs_at(0, 0, "WHISPER", COL_YELLOW);
@@ -480,13 +485,17 @@ void redraw_screen() {
 
     int drive_pos = sw - 10;
     char drive_info[10];
-    sprintf(drive_info, " D:%d", current_drive);
+    edit_set(drive_info, " D:");
+    edit_add_dec(drive_info, (unsigned int)current_drive, 0);
     cputs_at(drive_pos, 0, drive_info, COL_CYAN);
 
     int page_pos = sw - 18;
     if (num_pages > 1) {
-        char page_info[10];
-        sprintf(page_info, " P%d/%d", current_page + 1, num_pages);
+        char page_info[16];
+        edit_set(page_info, " P");
+        edit_add_dec(page_info, (unsigned int)(current_page + 1), 0);
+        edit_add(page_info, "/");
+        edit_add_dec(page_info, (unsigned int)num_pages, 0);
         cputs_at(page_pos, 0, page_info, COL_CYAN);
     }
 

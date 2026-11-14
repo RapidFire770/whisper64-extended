@@ -2,6 +2,7 @@
 #include "editor_state.h"
 #include "screen.h"
 #include "reu.h"
+#include "editfmt.h"
 
 void save_current_page_to_temp(void) {
     char temp_name[20];
@@ -17,7 +18,11 @@ void save_current_page_to_temp(void) {
         return;
     }
     
-    sprintf(temp_name, "@0:%s.P%d,S,W", TEMP_FILE, current_page);
+    edit_set(temp_name, "@0:");
+    edit_add(temp_name, TEMP_FILE);
+    edit_add(temp_name, ".P");
+    edit_add_dec(temp_name, (unsigned int)current_page, 0);
+    edit_add(temp_name, ",S,W");
     
     cbm_k_setlfs(2, current_drive, 2);
     cbm_k_setnam(temp_name);
@@ -63,7 +68,10 @@ void load_page(int page_num) {
         }
     }
     
-    sprintf(temp_name, "%s.P%d,S,R", TEMP_FILE, page_num);
+    edit_set(temp_name, TEMP_FILE);
+    edit_add(temp_name, ".P");
+    edit_add_dec(temp_name, (unsigned int)page_num, 0);
+    edit_add(temp_name, ",S,R");
     
     cbm_k_setlfs(2, current_drive, 2);
     cbm_k_setnam(temp_name);

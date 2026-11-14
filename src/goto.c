@@ -2,6 +2,14 @@
 #include "editor.h"
 #include "editor_state.h"
 #include "screen.h"
+#include "editfmt.h"
+
+static void show_line_missing(char *msg, int line_num) {
+    edit_set(msg, "LINE ");
+    edit_add_dec(msg, (unsigned int)(line_num + 1), 0);
+    edit_add(msg, " NOT FOUND");
+    show_message(msg, COL_RED);
+}
 
 void goto_line(void) {
     char input[6];
@@ -45,8 +53,7 @@ void goto_line(void) {
        that page. Past the end, Return would memmove a negative length. */
     line_num--;
     if (line_num < 0) {
-        sprintf(msg, "LINE %d NOT FOUND", line_num + 1);
-        show_message(msg, COL_RED);
+        show_line_missing(msg, line_num);
         return;
     }
 
@@ -56,8 +63,7 @@ void goto_line(void) {
         int old_page = current_page;
 
         if (page >= num_pages) {
-            sprintf(msg, "LINE %d NOT FOUND", line_num + 1);
-            show_message(msg, COL_RED);
+            show_line_missing(msg, line_num);
             return;
         }
         if (page != current_page)
@@ -65,8 +71,7 @@ void goto_line(void) {
         if (row >= num_lines) {
             if (current_page != old_page)
                 load_page(old_page);
-            sprintf(msg, "LINE %d NOT FOUND", line_num + 1);
-            show_message(msg, COL_RED);
+            show_line_missing(msg, line_num);
             return;
         }
         cursor_y = row;
@@ -81,6 +86,7 @@ void goto_line(void) {
     }
     
     update_cursor();
-    sprintf(msg, "LINE %d", line_num + 1);
+    edit_set(msg, "LINE ");
+    edit_add_dec(msg, (unsigned int)(line_num + 1), 0);
     show_message(msg, COL_GREEN);
 }

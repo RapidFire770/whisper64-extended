@@ -3,6 +3,7 @@
 #include "editor.h"
 #include "screen.h"
 #include "reu.h"
+#include "editfmt.h"
 
 // Compact extension table
 static const char ext_table[] = 
@@ -48,24 +49,30 @@ static char check_ext_type(const char* filename) {
     return 'P'; // Default PRG for unknown
 }
 
+static void show_drive_set(char *msg) {
+    edit_set(msg, "DRIVE=");
+    edit_add_dec(msg, (unsigned int)current_drive, 0);
+    show_message(msg, COL_GREEN);
+}
+
 void select_drive() {
     char msg[40];
     char c;
     
-    sprintf(msg, "DRIVE (8-15) [NOW:%d]: ", current_drive);
+    edit_set(msg, "DRIVE (8-15) [NOW:");
+    edit_add_dec(msg, (unsigned int)current_drive, 0);
+    edit_add(msg, "]: ");
     show_message(msg, COL_YELLOW);
     
     c = cgetc();
     if (c >= '8' && c <= '9') {
         current_drive = c - '0';
-        sprintf(msg, "DRIVE=%d", current_drive);
-        show_message(msg, COL_GREEN);
+        show_drive_set(msg);
     } else if (c == '1') {
         c = cgetc();
         if (c >= '0' && c <= '5') {
             current_drive = 10 + (c - '0');
-            sprintf(msg, "DRIVE=%d", current_drive);
-            show_message(msg, COL_GREEN);
+            show_drive_set(msg);
         } else {
             show_message("CANCELLED", COL_RED);
         }
@@ -222,7 +229,8 @@ void show_directory() {
         clrscr();
         
         char title[40];
-        sprintf(title, "DIRECTORY - DRIVE %d", current_drive);
+        edit_set(title, "DIRECTORY - DRIVE ");
+        edit_add_dec(title, (unsigned int)current_drive, 0);
         cputs_at(2, 0, title, COL_YELLOW);
         
         if (disk_name[0]) {
@@ -250,16 +258,20 @@ void show_directory() {
                 color = COL_WHITE;
             }
             
-            sprintf(line, "%4d  %-16s  %s", 
-                    dir_entries[i].blocks, 
-                    dir_entries[i].name,
-                    dir_entries[i].type);
+            line[0] = '\0';
+            edit_add_dec(line, dir_entries[i].blocks, 4);
+            edit_add(line, "  ");
+            edit_add_field(line, dir_entries[i].name, 16);
+            edit_add(line, "  ");
+            edit_add(line, dir_entries[i].type);
             cputs_at(1, i - scroll_pos + 4, line, color);
         }
         
         cputs_at(0, 22, "                                        ", COL_BLUE);
         char info[40];
-        sprintf(info, "%d FILES", num_dir_entries);
+        info[0] = '\0';
+        edit_add_dec(info, (unsigned int)num_dir_entries, 0);
+        edit_add(info, " FILES");
         cputs_at(1, 22, info, COL_BLUE);
         
         cputs_at(0, 23, " \x91=UP \x11=DOWN  RETURN=LOAD  STOP=EXIT", COL_CYAN);
@@ -278,10 +290,12 @@ void show_directory() {
             // Determine how to open based on the CBM file type from directory
             char load_name[30];
             if (strcmp(dir_entries[selected].type, "SEQ") == 0) {
-                sprintf(load_name, "%s,S,R", dir_entries[selected].name);
+                edit_set(load_name, dir_entries[selected].name);
+                edit_add(load_name, ",S,R");
             } else {
                 // For PRG and other types, also open as data channel
-                sprintf(load_name, "%s,P,R", dir_entries[selected].name);
+                edit_set(load_name, dir_entries[selected].name);
+                edit_add(load_name, ",P,R");
             }
 
             cbm_k_setlfs(2, current_drive, 2);
@@ -383,7 +397,11 @@ void show_directory() {
 
                 update_cursor();
                 char lmsg[40];
-                sprintf(lmsg, "LOADED %d LINES %d PAGES", total_lines, num_pages);
+                edit_set(lmsg, "LOADED ");
+                edit_add_dec(lmsg, (unsigned int)total_lines, 0);
+                edit_add(lmsg, " LINES ");
+                edit_add_dec(lmsg, (unsigned int)num_pages, 0);
+                edit_add(lmsg, " PAGES");
                 show_message(lmsg, COL_GREEN);
                 return;
             } else {
@@ -407,7 +425,9 @@ void save_file() {
     save_current_page_to_temp();
     
     if (current_filename[0] != '\0') {
-        sprintf(msg, "SAVE AS [%s]: ", current_filename);
+        edit_set(msg, "SAVE AS [");
+        edit_add(msg, current_filename);
+        edit_add(msg, "]: ");
         show_message(msg, COL_YELLOW);
         strcpy(filename, current_filename);
         i = strlen(filename);
@@ -454,7 +474,8 @@ void save_file() {
     
     // Check if file exists - try to open for read
     cbm_k_setlfs(2, current_drive, 2);
-    sprintf(full_filename, "%s,S,R", filename);
+    edit_set(full_filename, filename);
+    edit_add(full_filename, ",S,R");
     cbm_k_setnam(full_filename);
     if (cbm_k_open() == 0) {
         cbm_k_clrch();
@@ -475,7 +496,9 @@ void save_file() {
     
     show_message("SAVING...", COL_YELLOW);
 
-    sprintf(full_filename, "@0:%s,S,W", filename);
+    edit_set(full_filename, "@0:");
+    edit_add(full_filename, filename);
+    edit_add(full_filename, ",S,W");
 
     cbm_k_setlfs(2, current_drive, 2);
     cbm_k_setnam(full_filename);
@@ -502,7 +525,10 @@ void save_file() {
                 if (page_lines <= 0) page_lines = 1;
             } else {
                 char temp_name[20];
-                sprintf(temp_name, "%s.P%d,S,R", TEMP_FILE, p);
+                edit_set(temp_name, TEMP_FILE);
+                edit_add(temp_name, ".P");
+                edit_add_dec(temp_name, (unsigned int)p, 0);
+                edit_add(temp_name, ",S,R");
                 cbm_k_setlfs(3, current_drive, 2);
                 cbm_k_setnam(temp_name);
                 page_lines = 1;
@@ -645,7 +671,10 @@ void new_file() {
 
     // Delete any temp files from previous session
     for (int i = 0; i < 10; i++) {
-        sprintf(msg, "@0:%s.P%d", TEMP_FILE, i);
+        edit_set(msg, "@0:");
+        edit_add(msg, TEMP_FILE);
+        edit_add(msg, ".P");
+        edit_add_dec(msg, (unsigned int)i, 0);
         cbm_k_setnam(msg);
         cbm_k_setlfs(15, current_drive, 15);
         cbm_k_open();

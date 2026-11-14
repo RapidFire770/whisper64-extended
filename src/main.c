@@ -19,6 +19,7 @@
 #include "goto.h"
 #include "reu.h"
 #include "screen80.h"
+#include "editfmt.h"
 
 int main(void) {
     char c;
@@ -30,7 +31,14 @@ int main(void) {
 
     if (reu_is_available()) {
         char msg[40];
-        sprintf(msg, "REU: %luKB  MAX %d PAGES", reu_get_size() / 1024, reu_max_page_count());
+        unsigned int kb;
+
+        kb = (unsigned int)(reu_get_size() >> 10);
+        edit_set(msg, "REU: ");
+        edit_add_dec(msg, kb, 0);
+        edit_add(msg, "KB  MAX ");
+        edit_add_dec(msg, (unsigned int)reu_max_page_count(), 0);
+        edit_add(msg, " PAGES");
         show_message(msg, COL_GREEN);
         cgetc();
     }
