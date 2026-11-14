@@ -14,7 +14,8 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [x] Ctrl+K mark movement was calling `update_cursor` on every arrow, and keyword colors were painted after the mark so a purple or blue word stayed that color. Arrow keys now repaint the lines the mark end moved across. A marked keyword is yellow. In 80-column mode a keyword that shares a cell with a marked glyph is yellow too. Checked on the Ultimate in 40-column mode with `python3 tools/c64u.py mark`. 80-column uses the same yellow rank but was not watched.
 - [ ] The file list still clears the screen on every up or down. The two-row repaint was held because it put `__bss_end` past `$CC00`.
 - [x] Paste inserted into the buffer and wrote `TEXT PASTED` on the status row, and never redrew the editor lines. The cursor reads the buffer, so the reverse cursor showed the hidden characters. Paste now redraws once, then prints the status line. Checked on the Ultimate with the same `mark` script.
-- [ ] When trying to edit a long multipage file and hitting enter it cannot add a new empty line and push the others down. The program just gives error "PAGE FULL - MOVE TO END". This is a breaking bug when trying to edit a long program or text document and you need to add new lines above old ones.
+- [x] When trying to edit a long multipage file and hitting enter it cannot add a new empty line and push the others down. The program just gives error "PAGE FULL - MOVE TO END". This is a breaking bug when trying to edit a long program or text document and you need to add new lines above old ones.
+  Return on a full page carries the last row to the next page. Checked on the Ultimate with DICEROLL-SRC. DICEINS was left on the disk.
  
 
 ## Features
