@@ -3,6 +3,13 @@
 #include "editor_state.h"
 #include "cursor_layout.h"
 
+static int mark_anchor_only(void) {
+    if (!mark_active)
+        return 0;
+    return mark_start_x == mark_end_x && mark_start_y == mark_end_y
+        && mark_start_x == cursor_x && mark_start_y == cursor_y;
+}
+
 void clrscr() {
     if (screen_mode == MODE_80COL) {
         clrscr_80();
@@ -66,8 +73,9 @@ unsigned char is_basic_keyword(const char *word) {
 }
 
 static int column_marked(int line_num, int col, int len) {
-    int start_y, end_y;
+    int start_y, end_y, x;
 
+    (void)len;
     if (!mark_active)
         return 0;
 
@@ -81,17 +89,18 @@ static int column_marked(int line_num, int col, int len) {
         int end_x = mark_start_x < mark_end_x ? mark_end_x : mark_start_x;
         return col >= start_x && col < end_x;
     }
+    x = (line_num == mark_start_y) ? mark_start_x : mark_end_x;
     if (line_num == start_y)
-        return col >= (line_num == mark_start_y ? mark_start_x : 0);
+        return col >= x;
     if (line_num == end_y)
-        return col < (line_num == mark_end_y ? mark_end_x : len);
+        return col < x;
     return 1;
 }
 
-/* Two 4px glyphs share a hires cell. Keyword colors beat yellow, which beats white. */
+/* Two 4px glyphs share a hires cell. Mark yellow beats a keyword, which beats white. */
 static uint8_t cell_rank(uint8_t color) {
-    if (color == COL_PURPLE || color == COL_BLUE) return 3;
-    if (color == COL_YELLOW) return 2;
+    if (color == COL_YELLOW) return 3;
+    if (color == COL_PURPLE || color == COL_BLUE) return 2;
     if (color == COL_WHITE) return 1;
     return 0;
 }
@@ -292,7 +301,8 @@ static void paint_40_keyword(int screen_row, int line_num, int len, int off) {
         return;
     scan_keywords(lines[line_num], len, color);
     for (i = 0; i < len; i++) {
-        if (color[i] && i >= off && i < off + ew)
+        if (color[i] && i >= off && i < off + ew
+            && !column_marked(line_num, i, len))
             cputc_at(3 + i - off, screen_row, lines[line_num][i], color[i]);
     }
 }
@@ -376,7 +386,7 @@ static unsigned char cursor_color;
 static unsigned char cursor_screen_byte;
 static unsigned char cursor_sx, cursor_sy;
 
-static void draw_editor_band(int first, int last) {
+static void draw_editor_band(int first, int last, int line_lo, int line_hi) {
     int row = 1;
     int line = scroll_offset;
 
@@ -388,7 +398,8 @@ static void draw_editor_band(int first, int last) {
             int off = 0;
 
             for (part = 0; part < rows && row <= EDIT_HEIGHT; part++) {
-                if (row >= first && row <= last) {
+                if (row >= first && row <= last
+                    && line >= line_lo && line <= line_hi) {
                     if (screen_mode != MODE_80COL) {
                         if (part == 0)
                             draw_line_number(row, line);
@@ -402,7 +413,8 @@ static void draw_editor_band(int first, int last) {
             }
             line++;
         } else {
-            if (row >= first && row <= last) {
+            if (row >= first && row <= last
+                && line >= line_lo && line <= line_hi) {
                 if (screen_mode != MODE_80COL)
                     draw_line_number(row, line);
                 draw_slice(row, line, 0, 0);
@@ -415,6 +427,7 @@ static void draw_editor_band(int first, int last) {
 
 void redraw_screen() {
     int i;
+    int anchor;
     char title[80];
     int sw = screen_width;
 
@@ -461,11 +474,15 @@ void redraw_screen() {
     }
 
     fit_cursor();
-    draw_editor_band(1, EDIT_HEIGHT);
+    anchor = mark_anchor_only();
+    if (!anchor)
+        draw_editor_band(1, EDIT_HEIGHT, 0, LINES_PER_PAGE);
 
     // Clear status bar
-    for (i = 0; i < sw; i++) {
-        cputc_at(i, 24, ' ', COL_CYAN);
+    if (!anchor) {
+        for (i = 0; i < sw; i++) {
+            cputc_at(i, 24, ' ', COL_CYAN);
+        }
     }
 }
 
@@ -645,7 +662,7 @@ __attribute__((noinline)) static int shift_viewport(int old_scroll) {
         first = 1;
         last = shift;
     }
-    draw_editor_band(first, last);
+    draw_editor_band(first, last, 0, LINES_PER_PAGE);
     draw_title_pos();
     draw_cursor();
     if (screen_mode == MODE_80COL)
@@ -653,25 +670,39 @@ __attribute__((noinline)) static int shift_viewport(int old_scroll) {
     return 1;
 }
 
+static void repaint_mark_lines(int a, int b) {
+    int lo = a < b ? a : b;
+    int hi = a < b ? b : a;
+
+    if (screen_mode == MODE_80COL)
+        screen80_begin_draw();
+    erase_cursor();
+    draw_editor_band(1, EDIT_HEIGHT, lo, hi);
+    draw_cursor();
+    if (screen_mode == MODE_80COL)
+        screen80_end_draw();
+}
+
 void refresh_move(int old_x, int old_y, int old_scroll) {
-    if (!mark_active && old_x == cursor_x && old_y == cursor_y
-        && old_scroll == scroll_offset)
+    if (old_x == cursor_x && old_y == cursor_y && old_scroll == scroll_offset)
         return;
-    if (mark_active) {
-        update_cursor();
-        return;
-    }
     fit_cursor();
     if (layout_changed(old_x, old_y)) {
         update_cursor();
         return;
     }
-    if (scroll_offset == old_scroll) {
+    if (scroll_offset != old_scroll) {
+        if (!shift_viewport(old_scroll))
+            update_cursor();
+        else if (mark_active)
+            repaint_mark_lines(old_y, cursor_y);
+        return;
+    }
+    if (!mark_active) {
         paint_cursor_only();
         return;
     }
-    if (!shift_viewport(old_scroll))
-        update_cursor();
+    repaint_mark_lines(old_y, cursor_y);
 }
 
 void update_current_line(int old_len, int old_x) {
@@ -729,7 +760,7 @@ void update_current_line(int old_len, int old_x) {
         screen80_begin_draw();
     erase_cursor();
     draw_title_pos();
-    draw_editor_band(first, last);
+    draw_editor_band(first, last, 0, LINES_PER_PAGE);
     draw_cursor();
     if (screen_mode == MODE_80COL)
         screen80_end_draw();

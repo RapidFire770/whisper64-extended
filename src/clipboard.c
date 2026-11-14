@@ -10,11 +10,12 @@ void mark_toggle() {
         mark_start_y = cursor_y;
         mark_end_x = cursor_x;
         mark_end_y = cursor_y;
+        update_cursor();
         show_message("MARK ON - ARROWS, CTRL+C=COPY", COL_GREEN);
     } else {
         mark_active = 0;
-        show_message("MARK OFF", COL_RED);
         update_cursor();
+        show_message("MARK OFF", COL_RED);
     }
 }
 
@@ -30,17 +31,20 @@ void copy_marked() {
     
     clipboard_lines = 0;
     
-    for (i = start_y; i <= end_y && clipboard_lines < 8; i++) {
+    for (i = start_y; i <= end_y && clipboard_lines < 2; i++) {
         if (start_y == end_y) {
             int start_x = mark_start_x < mark_end_x ? mark_start_x : mark_end_x;
             int end_x = mark_start_x < mark_end_x ? mark_end_x : mark_start_x;
             strncpy(clipboard[clipboard_lines], &lines[i][start_x], end_x - start_x);
             clipboard[clipboard_lines][end_x - start_x] = '\0';
-        } else if (i == start_y) {
-            strcpy(clipboard[clipboard_lines], &lines[i][mark_start_y == start_y ? mark_start_x : 0]);
-        } else if (i == end_y) {
-            strncpy(clipboard[clipboard_lines], lines[i], mark_end_y == end_y ? mark_end_x : strlen(lines[i]));
-            clipboard[clipboard_lines][mark_end_y == end_y ? mark_end_x : strlen(lines[i])] = '\0';
+        } else if (i == start_y || i == end_y) {
+            int x = (i == mark_start_y) ? mark_start_x : mark_end_x;
+            if (i == start_y)
+                strcpy(clipboard[clipboard_lines], &lines[i][x]);
+            else {
+                strncpy(clipboard[clipboard_lines], lines[i], x);
+                clipboard[clipboard_lines][x] = '\0';
+            }
         } else {
             strcpy(clipboard[clipboard_lines], lines[i]);
         }
