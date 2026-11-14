@@ -29,6 +29,7 @@ set(SOURCES
     src/undo.c
     src/goto.c
     src/editfmt.c
+    src/page_shift.c
 )
 
 # Add the executable with all source files
