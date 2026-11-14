@@ -155,6 +155,24 @@ int main(void) {
     expect_text("on goto list", "10 ON A GOTO 10, 30\r30 END",
                 "10 ON A GOTO 10, 20\r20 END", 10);
     expect_text("rem", "10 REM GOTO 99\r", "10 REM GOTO 99\r", 10);
+    expect_text("bare line", "10\r20 GOTO 10\r", "5\r10 GOTO 5\r", 5);
+    {
+        char joined[80];
+        char parts[3][40];
+        int p;
+
+        strcpy(parts[0], "start: REM menu");
+        strcpy(parts[1], "PRINT \"HI\"");
+        strcpy(parts[2], "GOTO start");
+        joined[0] = 0;
+        for (p = 0; p < 3; p++) {
+            conv_strip_rem(parts[p]);
+            if (p)
+                strcat(joined, "\r");
+            strcat(joined, parts[p]);
+        }
+        expect_labels("stripped label", joined, "10 PRINT \"HI\"\r20 GOTO 10", 10);
+    }
     expect_text("quotes", "10 PRINT \"GOTO 99\"", "10 PRINT \"GOTO 99\"", 10);
     expect_err_str("missing target", "10 GOTO 40\r20 END", 10, 5);
     expect_err_str("step 0", "10 END", 0, 1);
