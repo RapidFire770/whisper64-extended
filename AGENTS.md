@@ -17,6 +17,7 @@ This file defines how coding agents should work on the project. It exists to kee
 - Always use a Code reviewer subagent to review the work afterward. Create a commit once work has been validated.
 - Verify that any changes do not break existing functionality.
 - Keep this AGENTS.md file updated with information about the project that other AI agents would need to know to keep the project consistent from session to session. (Project layout/structure, technology stack, tool chain, coding standards & style, testing, pitfalls and conflicts to avoid, features, etc.)
+- Keep the end user facing README updated with the current state of the project. Make sure it is human readable/understandable and does not read as generic AI talk.
 - When a bug is fixed or feature is implemented check it off the user's `docs/Todo-List.md` and include it in the commit for the final work.
 - Real C64U hardware is available for testing at http://192.168.100.193 via REST API. Use the installed c64u command line program and its agent skills or the c64u.py driver tool the projects tools folder (this tool can be modified if needed). This hardware takes priority for testing over VICE. The C64U is running with JiffyDOS ROMS for the system and its disk drives. If the C64U is unreachable for testing, pause and ask the user to bring it back online.
 
