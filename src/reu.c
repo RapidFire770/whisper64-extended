@@ -14,6 +14,7 @@ typedef struct {
 } REUPageHeader;
 
 #define REU_PAGE_SIZE (sizeof(REUPageHeader) + LINES_PER_PAGE * MAX_LINE_LENGTH)
+_Static_assert(REU_PAGE_SIZE == 3844, "page size");
 
 // First 256 bytes of REU reserved for future use
 #define REU_DATA_OFFSET 256
@@ -51,6 +52,25 @@ uint8_t reu_detect(void) {
     return (test == 0x55);
 }
 
+/* reu_get_size returns whole 64KB banks. Stay in 16-bit math. */
+static int pages_from_size(uint32_t size) {
+    unsigned int banks;
+    unsigned int pages;
+    unsigned int rem;
+
+    banks = (unsigned int)(size >> 16);
+    if (banks == 0)
+        return 0;
+    pages = 16;
+    rem = 3776;
+    if (banks > 1) {
+        pages += (banks - 1) * 17;
+        rem += (banks - 1) * 188;
+        pages += rem / REU_PAGE_SIZE;
+    }
+    return (int)pages;
+}
+
 void reu_init(void) {
     reu_available = reu_detect();
     if (reu_available) {
@@ -58,7 +78,7 @@ void reu_init(void) {
         REU_REGS.reu_bank = 0;
         reu_size = reu_get_size();
         if (reu_size > 0) {
-            reu_max_pages = (reu_size - REU_DATA_OFFSET) / REU_PAGE_SIZE;
+            reu_max_pages = pages_from_size(reu_size);
         } else {
             reu_max_pages = 0;
         }
