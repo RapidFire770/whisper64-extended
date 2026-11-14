@@ -65,6 +65,7 @@ add_w64_tool(w64renum.prg
     src/conv/toolui.c
     src/conv/tool_reu.c
     src/conv/renumber.c
+    src/conv/token.c
     src/conv/reu_dma.c
     src/conv/basic_zp.S)
 
