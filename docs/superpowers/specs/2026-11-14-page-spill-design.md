@@ -21,20 +21,20 @@ When `*count` is 48, `row` is from 0 through 47. The function copies `page[47]` 
 
 `new_line` returns 1 when a row was inserted and 0 when it refused. `src/editor.c` holds two file-scope 80-byte buffers, `spill_line` and `spill_next`. They are the carry buffers. They are not locals, so `load_page` is not stacked on top of them.
 
-A page with a free row copies the bytes from the cursor through the end of the row into `spill_line`, writes a NUL at the cursor, and calls `page_insert_line` at `cursor_y + 1`. `total_lines` grows by one. The cursor moves to that new row, column 0. The scroll rule already in `new_line` stays. `page_modified` is set. `num_pages` is not changed. The mark is left as it was. Undo is left as `main` saved it.
+A page with a free row copies the bytes from the cursor through the end of the row into `spill_line`, writes a NUL at the cursor, and calls `page_insert_line` at `cursor_y + 1`. `total_lines` grows by one. The cursor moves to that new row, column 0. The scroll rule already in `new_line` stays. `page_modified` is set. `num_pages` is not changed. The mark is left as it was. `save_undo_state` runs before the line is cut. `clear_undo` is not called.
 
 A full page does the capacity check below before it changes the buffer. Then:
 
 | Cursor row | This page | Carried text | Cursor afterward |
 |---|---|---|---|
-| Any row except the last | Tail inserted under the cursor. The old last row is what leaves. The page stays 48 lines. | Inserted at row 0 of the next page. | Stays on the new row. Column 0. The existing scroll rule applies. |
-| Last row | The row keeps the text before the cursor. | The tail, including an empty tail. Inserted at row 0 of the next page. | That tail. Next page, row 0, column 0, scroll 0. |
+| Any row except the last | Tail inserted under the cursor. The old last row is what leaves. The page stays 48 lines. | Inserted at row 0 of the first page that accepts it. | Stays on the new row. Column 0. The existing scroll rule applies. |
+| Last row | The row keeps the text before the cursor. | The tail, including an empty tail. Inserted at row 0 of the first page that accepts it. | That tail. That page, row 0, column 0, scroll 0. |
 
 `total_lines` grows by one for the row Return created. A carried row is the same line on another page. `page_modified` is set on the current page. A spill clears `mark_active`.
 
 The walk starts at the next page. `load_page` saves the page being left. Each existing page receives the carried text at row 0 through `page_insert_line`. A return of 0 ends the walk. A return of 1 copies `spill_next` back to `spill_line` and continues. A carried line that falls off the last page is stored as a new page: one row, that text, `num_pages` one greater, then saved. The walk does not recurse.
 
-The new row is not carried past the page where Return put it. On a last-row Return that page is the next one, at its row 0, even when that page was full and had to carry its own old last row further. On any earlier row the new row stays on the page where Return was pressed.
+The new row is not carried past the page where Return put it. On a last-row Return that page is the first page that accepted the tail, at its row 0, even when that page was full and had to carry its own old last row further. A stored count of 0 is skipped, so that page is the next index only when the next page has a real count. On any earlier row the new row stays on the page where Return was pressed.
 
 After the walk, `load_page` brings back the page the cursor belongs on when the walk stopped somewhere else. `load_page` of the page already in memory returns without discarding it. `main` redraws only after a successful `new_line`, and `lines[]` has to be that page by then.
 
