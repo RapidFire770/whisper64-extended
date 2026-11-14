@@ -136,7 +136,7 @@ Directory, help, and the save prompt are laid out for 40 columns. In 80-column m
 
 ## Files
 
-F1 opens the directory on `current_drive` (default 8, F3 selects 8–15). The listing is a KERNAL load of `$`. File type comes from the directory text (`PRG`, `SEQ`, `USR`, `REL`, `DEL`), with a filename-extension fallback in `ext_table`. A filename that itself contains `PRG` or `SEQ` can be mislabeled. F1 paints the title and the hint once. Up and Down in the file list still call `clrscr` on each arrow. A two-row repaint was held so `__bss_end` stays under `$CC00`.
+F1 opens the directory on `current_drive` (default 8, F3 selects 8–15). The listing is a KERNAL load of `$`. File type comes from the directory text (`PRG`, `SEQ`, `USR`, `REL`, `DEL`), with a filename-extension fallback in `ext_table`. A filename that itself contains `PRG` or `SEQ` can be mislabeled. `show_directory` calls `clrscr` at the start of every key, so the title, the hint, and the file rows are drawn again each time. A two-row repaint was held so `__bss_end` stays under `$CC00`.
 
 Load opens the file as a data channel (secondary address 2), not with `LOAD`, so nothing is written over the editor. SEQ uses `name,S,R`. Everything else uses `name,P,R`. Both paths read raw bytes and split on CR or LF into `lines[]`, paging every 48 lines. A tokenized BASIC PRG is not detokenized. Its link pointers, binary line numbers, and token bytes show up as garbage. Bytes `$0D` inside those binary fields also split lines.
 
