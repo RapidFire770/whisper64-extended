@@ -248,8 +248,9 @@ static void open_carried_page(const char *text) {
     page_modified = 1;
 }
 
-static void push_spill(void) {
+static int push_spill(void) {
     int page = current_page + 1;
+    int home = -1;
 
     for (;;) {
         if (page >= num_pages) {
@@ -257,13 +258,17 @@ static void push_spill(void) {
             current_page = page;
             open_carried_page(spill_line);
             save_current_page_to_temp();
-            return;
+            if (home < 0)
+                home = page;
+            return home;
         }
         load_page(page);
         if (reu_is_available() && reu_page_lines(page) == 0) {
             page++;
             continue;
         }
+        if (home < 0)
+            home = page;
         if (page_insert_line(lines, &num_lines, 0, spill_line, spill_next)) {
             copy_tail(spill_line, spill_next);
             page_modified = 1;
@@ -271,13 +276,14 @@ static void push_spill(void) {
             continue;
         }
         page_modified = 1;
-        return;
+        return home;
     }
 }
 
 int new_line(void) {
     int origin;
     int follow;
+    int home;
 
     copy_tail(spill_line, &lines[cursor_y][cursor_x]);
     if (num_lines < LINES_PER_PAGE) {
@@ -312,11 +318,11 @@ int new_line(void) {
     page_modified = 1;
     total_lines++;
     mark_active = 0;
-    push_spill();
+    home = push_spill();
     clear_undo();
     if (follow) {
-        if (current_page != origin + 1)
-            load_page(origin + 1);
+        if (current_page != home)
+            load_page(home);
         cursor_x = 0;
         cursor_y = 0;
         scroll_offset = 0;

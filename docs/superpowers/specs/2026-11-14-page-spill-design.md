@@ -46,9 +46,9 @@ Delete, search, and replace do not gain a cross-page walk. Goto keeps `page = li
 
 The check runs only when the current page is full and `reu_is_available()` is true, and it runs before any edit. `reu_page_lines(int page_num)`, declared in `include/reu.h` and defined in `src/reu.c`, reads the 4-byte page header and does not write `lines[]` or change `current_page`. It returns the stored line count. It returns 0 when the REU is absent, the page is out of range, the magic is not `$C64E`, or the stored count is 0 or greater than 48.
 
-The check looks at each page from the next one through `num_pages - 1`. A count below 48 means the walk will stop there. If every one of those pages returns 48, or there is no next page, the walk needs one new page. When `num_pages >= reu_max_page_count()`, `new_line` shows `REU FULL` in yellow, calls `clear_undo`, and returns 0. The buffer, the cursor, `total_lines`, `num_pages`, and `page_modified` stay as they were.
+The check looks at each page from the next one through `num_pages - 1`. A stored count from 1 to 47 means the walk will stop there. A count of 0 is not an open page. If none of those pages has a count from 1 to 47, the walk needs one new page. When `num_pages >= reu_max_page_count()`, `new_line` shows `REU FULL` in yellow and returns 0. It does not call `clear_undo`. The buffer, the cursor, `total_lines`, `num_pages`, `page_modified`, and the undo flags stay as they were.
 
-A header that fails the magic check counts as room, so a broken slot does not ask for a page past the end of the REU. The later load still uses today's path for a bad header.
+A page whose stored count is 0 is skipped during the walk. The carried line is inserted on the next page that has a real count, or on a new page when the carry falls off the end. Return on the last row follows that carried line, which is the first page that accepted it.
 
 With no REU, there is no free-space check. The same walk writes `$W$.P*` through the existing temp-file load and save. A failed temp-file open stays the failure those functions already have.
 
@@ -56,9 +56,9 @@ With no REU, there is no free-space check. The same walk writes `$W$.P*` through
 
 `clear_undo` is declared in `include/undo.h` and defined in `src/undo.c`. It sets the undo and redo flags to 0. It does not copy line bytes.
 
-`main` still calls `save_undo_state` before `new_line`. On a 0 return it does not call `update_cursor`, so the status row keeps `REU FULL`. On a 1 return it calls `update_cursor`. A spill that touched another page calls `clear_undo` after the walk, because the one stored line cannot restore the other pages. A refusal calls `clear_undo` before returning, so the undo point `main` just stored is dropped. An insert that stays on the current page does not call `clear_undo`.
+`main` does not call `save_undo_state` before `new_line`. On a 0 return it does not call `update_cursor`, so the status row keeps `REU FULL`. On a 1 return it calls `update_cursor`. An insert that stays on the current page calls `save_undo_state` before the line is cut. A spill that touched another page calls `clear_undo` after the walk, because the one stored line cannot restore the other pages. A refusal leaves the existing undo flags alone.
 
-`paste_clipboard` still calls `new_line` between clipboard lines. A 0 return redraws with `update_cursor`, shows `REU FULL` again, and returns without `TEXT PASTED`. Characters already inserted on that paste stay.
+`paste_clipboard` still calls `new_line` between clipboard lines. A 0 return deletes the characters just stored on the current line, redraws with `update_cursor`, shows `REU FULL` again, and returns without `TEXT PASTED`.
 
 ## Strings without sprintf
 
