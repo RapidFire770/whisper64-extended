@@ -39,6 +39,7 @@ void tool_close_ch(unsigned char lfn);
 int tool_read_byte(unsigned char lfn_ready, unsigned char *eof);
 int tool_drive_status_ok(void);
 int tool_confirm_overwrite(const char *spec);
+int tool_ask_yn(unsigned char row, const char *label);
 int tool_read_seq_line(unsigned char *eof, char *line, int *err);
 void tool_note_progress(unsigned char row, const char *label, unsigned int n);
 int tool_flush_at(const char *spec, unsigned long start, unsigned long nbytes);

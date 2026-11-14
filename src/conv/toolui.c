@@ -357,6 +357,22 @@ int tool_confirm_overwrite(const char *spec) {
     return 2;
 }
 
+int tool_ask_yn(unsigned char row, const char *label) {
+    tool_put_row(row, label);
+    for (;;) {
+        int ch = tool_cgetc();
+
+        if (ch == 3) {
+            verify_code = CONV_CANCEL;
+            return -1;
+        }
+        if (ch == 'Y' || ch == 'y')
+            return 1;
+        if (ch == 'N' || ch == 'n')
+            return 0;
+    }
+}
+
 /* 0 got a line, 1 clean EOF, -1 error already stored in *err. */
 int tool_read_seq_line(unsigned char *eof, char *line, int *err) {
     int n = 0;

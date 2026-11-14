@@ -35,7 +35,51 @@ static int read_seq_reu(void) {
     return 0;
 }
 
-static void label_job(void) {
+static int read_seq_stripped(void) {
+    char spec[28];
+    unsigned char eof = 0;
+    char line[80];
+
+    tool_file_spec(spec, 0, in_name, ",S,R");
+    if (tool_open_ch(2, read_drive, spec) != 0) {
+        tool_finish(CONV_OPEN_FAIL, "OPEN FAIL");
+        return -1;
+    }
+    tool_stash_reset();
+    for (;;) {
+        int err = 0;
+        int rc;
+        int i;
+
+        cbm_k_chkin(2);
+        rc = tool_read_seq_line(&eof, line, &err);
+        if (rc < 0) {
+            if (err == -2) {
+                char msg[12];
+
+                tool_set_str(msg, "READ ");
+                tool_add_hex2(msg, last_st);
+                tool_finish(CONV_DISK, msg);
+            } else
+                tool_finish(CONV_LINE_LONG, "LINE LONG");
+            return -1;
+        }
+        if (rc > 0)
+            break;
+        conv_strip_rem(line);
+        for (i = 0; line[i]; i++) {
+            if (tool_stash_byte((unsigned char)line[i]) < 0)
+                return -1;
+        }
+        if (tool_stash_byte(13) < 0)
+            return -1;
+    }
+    tool_stash_flush();
+    tool_close_ch(2);
+    return 0;
+}
+
+static void label_job(int strip, unsigned int step) {
     char probe[28];
     char spec[28];
     int replace;
@@ -52,9 +96,12 @@ static void label_job(void) {
     replace = tool_confirm_overwrite(probe);
     if (!replace)
         return;
-    if (read_seq_reu() < 0)
+    if (strip) {
+        if (read_seq_stripped() < 0)
+            return;
+    } else if (read_seq_reu() < 0)
         return;
-    if (labels_to_numbered_store(tool_stored(), reu_bytes, 10, &out_at, &out_len,
+    if (labels_to_numbered_store(tool_stored(), reu_bytes, step, &out_at, &out_len,
                                  &err, &row, &ceiling)) {
         tool_show_err(err, row);
         return;
@@ -95,8 +142,9 @@ static void show_help(void) {
     tool_center_row(0, "W64LABEL HELP");
     tool_paint_reu();
     tool_put_row(3, "1. LABELS - LABELED LINE SEQ TO PRG");
-    tool_put_row(4, "STEP IS 10");
+    tool_put_row(4, "STEP EMPTY IS 10");
     tool_put_row(5, "?  HELP - SHOWS THIS HELP SCREEN");
+    tool_put_row(6, "Y STRIPS REM AND KEEPS THE LINE");
     tool_put_row(7, "* ERRORS *");
     tool_put_row(8, "NO NUM:      LINE HAS NO NUMBER");
     tool_put_row(9, "NUM BIG:     PAST 63999");
@@ -152,7 +200,29 @@ int main(void) {
                 tool_another();
             continue;
         }
-        label_job();
+        {
+            int strip;
+            char buf[8];
+            unsigned int step;
+
+            strip = tool_ask_yn(18, "STRIP REM? Y/N");
+            if (strip < 0) {
+                if (verify_code != 0)
+                    tool_another();
+                continue;
+            }
+            if (tool_read_field(21, "STEP: ", buf, 8) < 0) {
+                if (verify_code != 0)
+                    tool_another();
+                continue;
+            }
+            if (tool_parse_step(buf, &step) < 0) {
+                tool_finish(CONV_NUM_BIG, "NUM BIG");
+                tool_another();
+                continue;
+            }
+            label_job(strip, step);
+        }
         tool_another();
     }
 }
