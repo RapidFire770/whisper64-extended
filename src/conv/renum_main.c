@@ -111,23 +111,27 @@ static int put_tail_byte(unsigned long at, int b) {
 
 static int copy_tail(unsigned char *eof, unsigned long at, unsigned long *tail_len) {
     int b;
-    int b2;
     unsigned long n = 0;
 
     *tail_len = 0;
     if (*eof)
         return 0;
     b = tool_read_byte(2, eof);
+    if (b == -2) {
+        char msg[12];
+
+        tool_set_str(msg, "READ ");
+        tool_add_hex2(msg, last_st);
+        tool_finish(CONV_DISK, msg);
+        return -1;
+    }
     if (b < 0)
         return 0;
     if (b == 13 && *eof) {
-        b2 = tool_read_byte(2, eof);
-        if (b2 < 0)
-            return 0;
-        if (put_tail_byte(at + n, b) < 0)
+        if (put_tail_byte(at, b) < 0)
             return -1;
-        n++;
-        b = b2;
+        *tail_len = 1;
+        return 0;
     }
     for (;;) {
         if (put_tail_byte(at + n, b) < 0)
@@ -292,12 +296,10 @@ static void renumber_prg(unsigned int step) {
     ceiling = reu_bytes - tail_len;
     if (tail_len)
         reu_slide(ceiling, text_len, tail_len, 1);
-    if (text_len) {
-        if (renumber_seq_store(text_len, ceiling, step, &out_at, &out_len,
-                               &err, &row)) {
-            tool_show_err(err, row);
-            return;
-        }
+    if (renumber_seq_store(text_len, ceiling, step, &out_at, &out_len,
+                           &err, &row)) {
+        tool_show_err(err, row);
+        return;
     }
     if (tokenize_store(out_at, out_len, ceiling, &prg_at, &prg_len,
                        &wrote, &err, &row)) {
