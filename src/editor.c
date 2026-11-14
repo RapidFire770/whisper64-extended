@@ -287,7 +287,6 @@ int new_line(void) {
 
     copy_tail(spill_line, &lines[cursor_y][cursor_x]);
     if (num_lines < LINES_PER_PAGE) {
-        save_undo_state();
         lines[cursor_y][cursor_x] = '\0';
         page_insert_line(lines, &num_lines, cursor_y + 1, spill_line, spill_next);
         total_lines++;

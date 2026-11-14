@@ -133,6 +133,8 @@ int main(void) {
         }
         // Navigation and editing
         else if (c == KEY_RETURN) {
+            if (num_lines < LINES_PER_PAGE)
+                save_undo_state();
             if (new_line())
                 update_cursor();
         } else if (c == KEY_DELETE) {

@@ -801,6 +801,8 @@ In `src/main.c`, the Return key becomes:
 
 ```c
         } else if (c == KEY_RETURN) {
+            if (num_lines < LINES_PER_PAGE)
+                save_undo_state();
             if (new_line())
                 update_cursor();
 ```
@@ -911,7 +913,6 @@ int new_line(void) {
 
     copy_tail(spill_line, &lines[cursor_y][cursor_x]);
     if (num_lines < LINES_PER_PAGE) {
-        save_undo_state();
         lines[cursor_y][cursor_x] = '\0';
         page_insert_line(lines, &num_lines, cursor_y + 1, spill_line, spill_next);
         total_lines++;
@@ -1339,7 +1340,7 @@ If the connection fails, stop and ask Josh. Do not check off the todo and do not
 In `AGENTS.md`, replace the sentence that starts `` `new_line` can open the next page only `` with:
 
 ```text
-`new_line` inserts the tail after the cursor as the next row. On a full page the last row is carried to row 0 of the next page, and a full page carries its own last row onward. A new page is added only when the carried row falls off the last page. Return on the last row follows that tail to row 0 of the page that received it. Return on an earlier row stays on the current page. A stored count of 0 is not an open page. When the REU is present, no later page has a stored count from 1 to 47, and `num_pages` is already the REU page limit, Return shows `REU FULL` and changes nothing. That refusal leaves the previous undo alone. A spill clears undo. An insert that stays on the page still undoes one line. A paste that cannot open the next row deletes the characters it just stored on the current line. `num_pages` is the number of stored pages. `new_line` does not rebuild it from `total_lines`. The clipboard stores two lines.
+`new_line` inserts the tail after the cursor as the next row. On a full page the last row is carried to row 0 of the next page, and a full page carries its own last row onward. A new page is added only when the carried row falls off the last page. Return on the last row follows that tail to row 0 of the page that received it. Return on an earlier row stays on the current page. A stored count of 0 is not an open page. When the REU is present, no later page has a stored count from 1 to 47, and `num_pages` is already the REU page limit, Return shows `REU FULL` and changes nothing. That refusal leaves the previous undo alone. A spill clears undo. Return on a short page saves undo before the cut. Paste does not. A paste that cannot open the next row deletes the characters it just stored on the current line. `num_pages` is the number of stored pages. `new_line` does not rebuild it from `total_lines`. The clipboard stores two lines.
 ```
 
 Keep the following sentence, `copy_marked` stops at 2. In the sentence that currently says the editor link has `__bss_end` at `$CB5F` and `__heap_start` at `$CB7F`, replace those two addresses with the values from the map printed in Task 4. `__stack` stays `$D000`.
