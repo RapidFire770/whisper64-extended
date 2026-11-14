@@ -12,7 +12,7 @@ A text editor for the Commodore 64.
 - **Multi-Page Editing**: Pages stored in REU or disk temp files
 - **Directory Browser**: Multi-drive support (8-15) with file type display
 - **Search & Replace**: Find text with wrap-around and replace all
-- **Copy/Paste**: Visual mark mode for selecting and copying text
+- **Copy/Paste**: Visual mark mode. Copy keeps two lines. A marked keyword turns yellow.
 - **Undo/Redo**: One-level undo and redo
 - **Goto Line**: Jump to any line number
 - **Display wrap**: A line longer than the screen continues on the next row. Return starts a new editor line
