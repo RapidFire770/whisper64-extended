@@ -207,81 +207,71 @@ void load_directory() {
     cbm_k_close(2);
 }
 
-static void draw_dir_row(int index, int selected, int scroll_pos) {
-    unsigned char color;
-    char line[40];
-    int y = index - scroll_pos + 4;
-    int x;
-
-    if (index < scroll_pos || index >= scroll_pos + 18 || index >= num_dir_entries)
-        return;
-    color = (index == selected) ? COL_GREEN : COL_WHITE;
-    for (x = 0; x < 40; x++)
-        cputc_at(x, y, ' ', color);
-    sprintf(line, "%4d  %-16s  %s",
-            dir_entries[index].blocks,
-            dir_entries[index].name,
-            dir_entries[index].type);
-    cputs_at(1, y, line, color);
-}
-
-static void draw_dir_rows(int selected, int scroll_pos) {
-    int i;
-
-    for (i = scroll_pos; i < scroll_pos + 18 && i < num_dir_entries; i++)
-        draw_dir_row(i, selected, scroll_pos);
-}
-
 void show_directory() {
     int i, selected = 0, scroll_pos = 0;
-    char title[40];
-    char info[40];
-
+    char c;
+    
     load_directory();
-
+    
     if (num_dir_entries == 0) {
         show_message("NO FILES - CHECK DRIVE (F3)", COL_RED);
         return;
     }
-
-    clrscr();
-
-    sprintf(title, "DIRECTORY - DRIVE %d", current_drive);
-    cputs_at(2, 0, title, COL_YELLOW);
-
-    if (disk_name[0]) {
-        int name_len = strlen(disk_name);
-        int start_x = (40 - name_len) / 2;
-        cputs_at(start_x, 1, disk_name, COL_CYAN);
-    }
-
-    for (i = 0; i < 40; i++) {
-        cputc_at(i, 2, '-', COL_CYAN);
-    }
-
-    cputs_at(1, 3, "BLK  FILENAME         TYPE", COL_CYAN);
-
-    cputs_at(0, 22, "                                        ", COL_BLUE);
-    sprintf(info, "%d FILES", num_dir_entries);
-    cputs_at(1, 22, info, COL_BLUE);
-
-    cputs_at(0, 23, " \x91=UP \x11=DOWN  RETURN=LOAD  STOP=EXIT", COL_CYAN);
-
-    draw_dir_rows(selected, scroll_pos);
-
+    
     while (1) {
-        int old_sel = selected;
-        int old_scroll = scroll_pos;
-        char c = cgetc();
-
+        clrscr();
+        
+        char title[40];
+        sprintf(title, "DIRECTORY - DRIVE %d", current_drive);
+        cputs_at(2, 0, title, COL_YELLOW);
+        
+        if (disk_name[0]) {
+            int name_len = strlen(disk_name);
+            int start_x = (40 - name_len) / 2;
+            cputs_at(start_x, 1, disk_name, COL_CYAN);
+        }
+        
+        for (i = 0; i < 40; i++) {
+            cputc_at(i, 2, '-', COL_CYAN);
+        }
+        
+        cputs_at(1, 3, "BLK  FILENAME         TYPE", COL_CYAN);
+        
+        for (i = scroll_pos; i < scroll_pos + 18 && i < num_dir_entries; i++) {
+            unsigned char color;
+            char line[40];
+            
+            if (i == selected) {
+                color = COL_GREEN;
+                for (int x = 0; x < 40; x++) {
+                    cputc_at(x, i - scroll_pos + 4, ' ', COL_GREEN);
+                }
+            } else {
+                color = COL_WHITE;
+            }
+            
+            sprintf(line, "%4d  %-16s  %s", 
+                    dir_entries[i].blocks, 
+                    dir_entries[i].name,
+                    dir_entries[i].type);
+            cputs_at(1, i - scroll_pos + 4, line, color);
+        }
+        
+        cputs_at(0, 22, "                                        ", COL_BLUE);
+        char info[40];
+        sprintf(info, "%d FILES", num_dir_entries);
+        cputs_at(1, 22, info, COL_BLUE);
+        
+        cputs_at(0, 23, " \x91=UP \x11=DOWN  RETURN=LOAD  STOP=EXIT", COL_CYAN);
+        
+        c = cgetc();
+        
         if (c == KEY_UP && selected > 0) {
             selected--;
-            if (selected < scroll_pos)
-                scroll_pos = selected;
+            if (selected < scroll_pos) scroll_pos = selected;
         } else if (c == KEY_DOWN && selected < num_dir_entries - 1) {
             selected++;
-            if (selected >= scroll_pos + 18)
-                scroll_pos = selected - 17;
+            if (selected >= scroll_pos + 18) scroll_pos = selected - 17;
         } else if (c == KEY_RETURN) {
             show_message("LOADING...", COL_YELLOW);
 
@@ -403,15 +393,6 @@ void show_directory() {
             update_cursor();
             show_message("CANCELLED", COL_RED);
             return;
-        }
-
-        if (selected == old_sel && scroll_pos == old_scroll)
-            continue;
-        if (scroll_pos != old_scroll)
-            draw_dir_rows(selected, scroll_pos);
-        else {
-            draw_dir_row(old_sel, selected, scroll_pos);
-            draw_dir_row(selected, selected, scroll_pos);
         }
     }
 }

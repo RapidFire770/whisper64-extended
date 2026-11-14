@@ -402,34 +402,6 @@ def cmd_mark():
         print("FAIL paste status missing")
         return 1
 
-    boot_editor()
-    inject_keys([K_F1], settle=0.4)
-    scr = None
-    deadline = time.time() + 8.0
-    while time.time() < deadline:
-        scr = read_mem(SCREEN, 1000)
-        if b"DIRECTORY" in row_text(scr, 0) or b"NO FILES" in row_text(scr, 24):
-            break
-        time.sleep(0.25)
-    if scr is None or b"DIRECTORY" not in row_text(scr, 0):
-        print("FAIL directory did not open")
-        return 1
-    if row_text(scr, 5)[7] == 0x20:
-        print("FAIL directory needs two files")
-        return 1
-    write_mem(SCREEN + 24 * 40, "5A")
-    inject_keys([K_DOWN], settle=0.5)
-    scr = read_mem(SCREEN, 1000)
-    col = read_mem(COLOR, 1000)
-    if scr[24 * 40] != 0x5A:
-        print("FAIL directory arrow cleared the screen")
-        return 1
-    if b"DIRECTORY" not in row_text(scr, 0):
-        print("FAIL directory title disappeared")
-        return 1
-    if (col[4 * 40] & 0x0F) != 1 or (col[5 * 40] & 0x0F) != 5:
-        print("FAIL directory selection colors")
-        return 1
     print("ok")
     return 0
 

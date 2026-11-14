@@ -65,28 +65,40 @@ unsigned char is_basic_keyword(const char *word) {
     return 0;
 }
 
-static int column_marked(int line_num, int col, int len) {
-    int start_y, end_y, x;
+static int column_marked(int line_num, int col) {
+    unsigned char sy, ey, sx, line, c;
 
-    (void)len;
     if (!mark_active)
         return 0;
 
-    start_y = mark_start_y < mark_end_y ? mark_start_y : mark_end_y;
-    end_y = mark_start_y < mark_end_y ? mark_end_y : mark_start_y;
-    if (line_num < start_y || line_num > end_y)
+    line = (unsigned char)line_num;
+    c = (unsigned char)col;
+    sy = (unsigned char)mark_start_y;
+    ey = (unsigned char)mark_end_y;
+    if (sy > ey) {
+        unsigned char t = sy;
+        sy = ey;
+        ey = t;
+    }
+    if (line < sy || line > ey)
         return 0;
 
-    if (start_y == end_y) {
-        int start_x = mark_start_x < mark_end_x ? mark_start_x : mark_end_x;
-        int end_x = mark_start_x < mark_end_x ? mark_end_x : mark_start_x;
-        return col >= start_x && col < end_x;
+    sx = (unsigned char)mark_start_x;
+    if (sy == ey) {
+        unsigned char ex = (unsigned char)mark_end_x;
+        if (sx > ex) {
+            unsigned char t = sx;
+            sx = ex;
+            ex = t;
+        }
+        return c >= sx && c < ex;
     }
-    x = (line_num == mark_start_y) ? mark_start_x : mark_end_x;
-    if (line_num == start_y)
-        return col >= x;
-    if (line_num == end_y)
-        return col < x;
+    if (line != (unsigned char)mark_start_y)
+        sx = (unsigned char)mark_end_x;
+    if (line == sy)
+        return c >= sx;
+    if (line == ey)
+        return c < sx;
     return 1;
 }
 
@@ -186,7 +198,7 @@ static void paint_line_colors(int line_num, int len, int off, uint8_t *cell_colo
     int ew = edit_width;
 
     for (i = 0; i < len; i++) {
-        if (i >= off && i < off + ew && column_marked(line_num, i, len))
+        if (i >= off && i < off + ew && column_marked(line_num, i))
             paint_cell(cell_color, 3 + i - off, COL_YELLOW);
     }
     if (!basic_mode)
@@ -198,9 +210,17 @@ static void paint_line_colors(int line_num, int len, int off, uint8_t *cell_colo
     }
 }
 
+static unsigned char band_lo;
+static unsigned char band_hi = 255;
+static unsigned char paint_band;
+
+static int band_hit(int line);
+
 void draw_line_number(int screen_row, int line_num) {
     int pos = screen_row * SCREEN_WIDTH;
 
+    if (!band_hit(line_num))
+        return;
     if (line_num < num_lines) {
         SCREEN_RAM[pos] = (line_num / 10) + '0';
         SCREEN_RAM[pos + 1] = (line_num % 10) + '0';
@@ -295,13 +315,13 @@ static void paint_40_keyword(int screen_row, int line_num, int len, int off) {
     scan_keywords(lines[line_num], len, color);
     for (i = 0; i < len; i++) {
         if (color[i] && i >= off && i < off + ew
-            && !column_marked(line_num, i, len))
+            && !column_marked(line_num, i))
             cputc_at(3 + i - off, screen_row, lines[line_num][i], color[i]);
     }
 }
 
 /* show_num is the first screen row of an editor line. Later rows continue it. */
-static void draw_slice(int screen_row, int line_num, int off, int show_num) {
+__attribute__((noinline)) static void draw_slice(int screen_row, int line_num, int off, int show_num) {
     int ew = edit_width;
     int len = 0;
     int i;
@@ -348,7 +368,7 @@ static void draw_slice(int screen_row, int line_num, int off, int show_num) {
 
         if (src < len) {
             c = lines[line_num][src];
-            if (column_marked(line_num, src, len))
+            if (column_marked(line_num, src))
                 color = COL_YELLOW;
         }
         cputc_at(3 + i, screen_row, c, color);
@@ -379,7 +399,18 @@ static unsigned char cursor_color;
 static unsigned char cursor_screen_byte;
 static unsigned char cursor_sx, cursor_sy;
 
-static void draw_editor_band(int first, int last, int line_lo, int line_hi) {
+__attribute__((noinline)) static int band_hit(int line) {
+    unsigned char l = (unsigned char)line;
+    return l >= band_lo && l <= band_hi;
+}
+
+__attribute__((noinline)) static void draw_slice_if(int screen_row, int line_num,
+                                       int off, int show_num) {
+    if ((unsigned char)line_num >= band_lo && (unsigned char)line_num <= band_hi)
+        draw_slice(screen_row, line_num, off, show_num);
+}
+
+static void draw_editor_band(int first, int last) {
     int row = 1;
     int line = scroll_offset;
 
@@ -391,26 +422,24 @@ static void draw_editor_band(int first, int last, int line_lo, int line_hi) {
             int off = 0;
 
             for (part = 0; part < rows && row <= EDIT_HEIGHT; part++) {
-                if (row >= first && row <= last
-                    && line >= line_lo && line <= line_hi) {
+                if (row >= first && row <= last) {
                     if (screen_mode != MODE_80COL) {
                         if (part == 0)
                             draw_line_number(row, line);
                         else
                             clear_gutter(row);
                     }
-                    draw_slice(row, line, off, part == 0);
+                    draw_slice_if(row, line, off, part == 0);
                 }
                 off += edit_width;
                 row++;
             }
             line++;
         } else {
-            if (row >= first && row <= last
-                && line >= line_lo && line <= line_hi) {
+            if (row >= first && row <= last) {
                 if (screen_mode != MODE_80COL)
                     draw_line_number(row, line);
-                draw_slice(row, line, 0, 0);
+                draw_slice_if(row, line, 0, 0);
             }
             row++;
             line++;
@@ -466,7 +495,7 @@ void redraw_screen() {
     }
 
     fit_cursor();
-    draw_editor_band(1, EDIT_HEIGHT, 0, LINES_PER_PAGE);
+    draw_editor_band(1, EDIT_HEIGHT);
 
     // Clear status bar
     for (i = 0; i < sw; i++) {
@@ -558,14 +587,21 @@ static int layout_changed(int old_x, int old_y) {
     return phantom_row_for(new_len, w, cursor_y < num_lines, cursor_x) != 0;
 }
 
-static void paint_cursor_only(void) {
+__attribute__((noinline)) static void frame_cursor(void) {
     if (screen_mode == MODE_80COL)
         screen80_begin_draw();
     erase_cursor();
     draw_title_pos();
+    if (paint_band)
+        draw_editor_band(1, EDIT_HEIGHT);
     draw_cursor();
     if (screen_mode == MODE_80COL)
         screen80_end_draw();
+}
+
+static void paint_cursor_only(void) {
+    paint_band = 0;
+    frame_cursor();
 }
 
 static unsigned char *skip_rows_40(unsigned char *p, int n) {
@@ -650,7 +686,7 @@ __attribute__((noinline)) static int shift_viewport(int old_scroll) {
         first = 1;
         last = shift;
     }
-    draw_editor_band(first, last, 0, LINES_PER_PAGE);
+    draw_editor_band(first, last);
     draw_title_pos();
     draw_cursor();
     if (screen_mode == MODE_80COL)
@@ -658,18 +694,21 @@ __attribute__((noinline)) static int shift_viewport(int old_scroll) {
     return 1;
 }
 
-static void repaint_mark_lines(int a, int b) {
-    int lo = a < b ? a : b;
-    int hi = a < b ? b : a;
+__attribute__((noinline)) static void repaint_mark_lines(int a, int b) {
+    unsigned char lo = (unsigned char)a;
+    unsigned char hi = (unsigned char)b;
 
-    if (screen_mode == MODE_80COL)
-        screen80_begin_draw();
-    erase_cursor();
-    draw_title_pos();
-    draw_editor_band(1, EDIT_HEIGHT, lo, hi);
-    draw_cursor();
-    if (screen_mode == MODE_80COL)
-        screen80_end_draw();
+    if (lo > hi) {
+        unsigned char t = lo;
+        lo = hi;
+        hi = t;
+    }
+    band_lo = lo;
+    band_hi = hi;
+    paint_band = 1;
+    frame_cursor();
+    band_lo = 0;
+    band_hi = 255;
 }
 
 void refresh_move(int old_x, int old_y, int old_scroll) {
@@ -681,17 +720,16 @@ void refresh_move(int old_x, int old_y, int old_scroll) {
         return;
     }
     if (scroll_offset != old_scroll) {
-        if (!shift_viewport(old_scroll))
+        if (!shift_viewport(old_scroll)) {
             update_cursor();
-        else if (mark_active)
-            repaint_mark_lines(old_y, cursor_y);
-        return;
-    }
-    if (!mark_active) {
+            return;
+        }
+    } else if (!mark_active) {
         paint_cursor_only();
         return;
     }
-    repaint_mark_lines(old_y, cursor_y);
+    if (mark_active)
+        repaint_mark_lines(old_y, cursor_y);
 }
 
 void update_current_line(int old_len, int old_x) {
@@ -749,7 +787,7 @@ void update_current_line(int old_len, int old_x) {
         screen80_begin_draw();
     erase_cursor();
     draw_title_pos();
-    draw_editor_band(first, last, 0, LINES_PER_PAGE);
+    draw_editor_band(first, last);
     draw_cursor();
     if (screen_mode == MODE_80COL)
         screen80_end_draw();
