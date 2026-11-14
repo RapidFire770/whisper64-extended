@@ -3,13 +3,6 @@
 #include "editor_state.h"
 #include "cursor_layout.h"
 
-static int mark_anchor_only(void) {
-    if (!mark_active)
-        return 0;
-    return mark_start_x == mark_end_x && mark_start_y == mark_end_y
-        && mark_start_x == cursor_x && mark_start_y == cursor_y;
-}
-
 void clrscr() {
     if (screen_mode == MODE_80COL) {
         clrscr_80();
@@ -427,7 +420,6 @@ static void draw_editor_band(int first, int last, int line_lo, int line_hi) {
 
 void redraw_screen() {
     int i;
-    int anchor;
     char title[80];
     int sw = screen_width;
 
@@ -474,15 +466,11 @@ void redraw_screen() {
     }
 
     fit_cursor();
-    anchor = mark_anchor_only();
-    if (!anchor)
-        draw_editor_band(1, EDIT_HEIGHT, 0, LINES_PER_PAGE);
+    draw_editor_band(1, EDIT_HEIGHT, 0, LINES_PER_PAGE);
 
     // Clear status bar
-    if (!anchor) {
-        for (i = 0; i < sw; i++) {
-            cputc_at(i, 24, ' ', COL_CYAN);
-        }
+    for (i = 0; i < sw; i++) {
+        cputc_at(i, 24, ' ', COL_CYAN);
     }
 }
 
@@ -677,6 +665,7 @@ static void repaint_mark_lines(int a, int b) {
     if (screen_mode == MODE_80COL)
         screen80_begin_draw();
     erase_cursor();
+    draw_title_pos();
     draw_editor_band(1, EDIT_HEIGHT, lo, hi);
     draw_cursor();
     if (screen_mode == MODE_80COL)
