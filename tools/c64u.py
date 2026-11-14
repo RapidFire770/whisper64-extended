@@ -9,6 +9,7 @@ color RAM so we can SEE the per-keystroke state that py65 cannot reproduce.
 Usage (see functions called from __main__):
     python3 tools/c64u.py cursor     # whisper64 cursor-move regression
     python3 tools/c64u.py wrap       # wrapped-line typing band redraw
+    python3 tools/c64u.py mark       # mark-mode redraw and keyword color
     python3 tools/c64u.py dump       # print the current 40-column screen
 
 Keyboard buffer: $0277 (10 bytes), count at $C6. The editor's main-loop GETIN
@@ -36,6 +37,8 @@ K_HOME = 0x13
 K_LEFT = 0x9D
 K_RIGHT = 0x1D
 K_F4 = 0x8A
+K_CTRL_K = 0x0B
+K_F1 = 0x85
 K_DELETE = 0x14
 PRG = "build/whisper64.prg"
 
@@ -333,12 +336,71 @@ def cmd_wrap():
     return 0
 
 
+def cmd_mark():
+    boot_editor()
+    inject_keys([K_F4], settle=0.6)
+    inject_keys(list(b"PRINT") + [K_RETURN] + list(b"XY") + [K_HOME], settle=0.8)
+    inject_keys([K_CTRL_K], settle=0.5)
+    before_s, before_c = dump_rows(label="mark on PRINT")
+    if b"MARK" not in row_text(before_s, 24):
+        print("FAIL mark status missing")
+        return 1
+    inject_keys([K_RIGHT] * 5, settle=0.6)
+    after_s, after_c = dump_rows(label="marked PRINT")
+    if row_text(after_s, 24) != row_text(before_s, 24):
+        print("FAIL mark arrows cleared the status row")
+        return 1
+    if not allowed_move(cells_changed(before_s, after_s), {1}):
+        print("FAIL mark arrows rewrote rows other than the PRINT line")
+        return 1
+    if not allowed_move(cells_changed(before_c, after_c), {1}):
+        print("FAIL mark arrows rewrote colors outside the PRINT line")
+        return 1
+    for col in range(3, 8):
+        if (after_c[40 + col] & 0x0F) != 7:
+            print(f"FAIL PRINT column {col} is not yellow")
+            return 1
+    if plain_row(after_s, 2)[3:5] != b"XY":
+        print("FAIL XY line changed while marking PRINT")
+        return 1
+
+    inject_keys([K_CTRL_K, K_DOWN, K_LEFT, K_CTRL_K], settle=0.8)
+    before_s, before_c = dump_rows(label="anchor on Y")
+    if b"MARK" not in row_text(before_s, 24):
+        print("FAIL second mark status missing")
+        return 1
+    inject_keys([K_UP], settle=0.5)
+    up_s, up_c = dump_rows(label="mark up onto R")
+    if row_text(up_s, 24) != row_text(before_s, 24):
+        print("FAIL upward mark cleared the status row")
+        return 1
+    if not allowed_move(cells_changed(before_s, up_s), {1, 2}):
+        print("FAIL upward mark rewrote rows outside the two lines")
+        return 1
+    if (up_c[40 + 3] & 0x0F) != 4:
+        print("FAIL unmarked P is not purple")
+        return 1
+    if (up_c[40 + 5] & 0x0F) != 7 or (up_c[40 + 6] & 0x0F) != 7:
+        print("FAIL I or N is not yellow")
+        return 1
+    if (up_c[80 + 3] & 0x0F) != 7:
+        print("FAIL X is not yellow")
+        return 1
+    if (up_c[80 + 4] & 0x0F) != 1:
+        print("FAIL unmarked Y is not white")
+        return 1
+    print("ok")
+    return 0
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "dump"
     if cmd == "cursor":
         sys.exit(cmd_cursor())
     elif cmd == "wrap":
         sys.exit(cmd_wrap())
+    elif cmd == "mark":
+        sys.exit(cmd_mark())
     elif cmd == "dump":
         dump_rows()
     elif cmd == "down":
