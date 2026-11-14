@@ -296,8 +296,7 @@ static void seq_to_prg(int strip, int keep, unsigned int step) {
         if (stash_seq_lines(strip) < 0)
             return;
         text_len = tool_stored();
-        if (text_len &&
-            renumber_seq_store(text_len, reu_bytes, step, &out_at, &out_len,
+        if (renumber_seq_store(text_len, reu_bytes, step, &out_at, &out_len,
                                &err, &row)) {
             tool_show_err(err, row);
             return;
