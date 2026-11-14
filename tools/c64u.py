@@ -340,7 +340,7 @@ def cmd_mark():
     boot_editor()
     inject_keys([K_F4], settle=0.6)
     inject_keys(list(b"PRINT") + [K_RETURN] + list(b"XY") + [K_HOME], settle=0.8)
-    inject_keys([K_CTRL_K], settle=0.5)
+    inject_keys([K_CTRL_K], settle=1.0)
     before_s, before_c = dump_rows(label="mark on PRINT")
     if b"MARK" not in row_text(before_s, 24):
         print("FAIL mark status missing")
@@ -364,7 +364,7 @@ def cmd_mark():
         print("FAIL XY line changed while marking PRINT")
         return 1
 
-    inject_keys([K_CTRL_K, K_DOWN, K_LEFT, K_CTRL_K], settle=0.8)
+    inject_keys([K_CTRL_K, K_DOWN, K_LEFT, K_CTRL_K], settle=1.2)
     before_s, before_c = dump_rows(label="anchor on Y")
     if b"MARK" not in row_text(before_s, 24):
         print("FAIL second mark status missing")
