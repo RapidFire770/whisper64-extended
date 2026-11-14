@@ -21,6 +21,9 @@
 int conv_tokenize(const char *line, unsigned int *line_no,
                   unsigned char *out, int cap);
 
+/* Drops a real REM and the rest of the line. Rewrites line in place. */
+void conv_strip_rem(char *line);
+
 /* Length of a V2 keyword at s[i], or 0. A following letter rejects a
    keyword that ends in a letter or digit. TAB( and SPC( keep the paren. */
 int conv_keyword_len(const unsigned char *s, unsigned int len, unsigned int i);

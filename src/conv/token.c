@@ -145,6 +145,90 @@ int conv_tokenize(const char *line, unsigned int *line_no,
     return n;
 }
 
+static int strip_letter(unsigned char c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+static int strip_name(unsigned char c) {
+    return strip_letter(c) || (c >= '0' && c <= '9');
+}
+
+/* 1 when the colon at colon_at is the label colon for this head. */
+static int strip_label_colon(const unsigned char *s, unsigned int colon_at) {
+    unsigned int i = 0;
+    unsigned int start;
+    unsigned int n = 0;
+
+    while (i < colon_at && s[i] == ' ')
+        i++;
+    if (i >= colon_at || !strip_letter(s[i]))
+        return 0;
+    start = i;
+    while (i < colon_at && strip_name(s[i])) {
+        n++;
+        i++;
+    }
+    if (n == 0 || i != colon_at || s[i] != ':')
+        return 0;
+    if (conv_keyword_len(s, colon_at + 1, start) == (int)n)
+        return 0;
+    return 1;
+}
+
+void conv_strip_rem(char *line) {
+    unsigned char *s = (unsigned char *)line;
+    unsigned int len = 0;
+    unsigned int i = 0;
+    int quote = 0;
+    int data = 0;
+
+    while (s[len])
+        len++;
+    while (i < len) {
+        int n;
+
+        if (quote) {
+            if (s[i] == '"')
+                quote = 0;
+            i++;
+            continue;
+        }
+        if (s[i] == '"') {
+            quote = 1;
+            i++;
+            continue;
+        }
+        if (data) {
+            if (s[i] == ':')
+                data = 0;
+            i++;
+            continue;
+        }
+        n = conv_keyword_len(s, len, i);
+        if (n == 3 && s[i] == 'R' && s[i + 1] == 'E' && s[i + 2] == 'M')
+            break;
+        if (n == 4 && s[i] == 'D' && s[i + 1] == 'A' &&
+            s[i + 2] == 'T' && s[i + 3] == 'A') {
+            data = 1;
+            i = i + 4;
+            continue;
+        }
+        i++;
+    }
+    if (i >= len)
+        return;
+    while (i > 0 && s[i - 1] == ' ')
+        i--;
+    if (i > 0 && s[i - 1] == ':') {
+        if (!strip_label_colon(s, i - 1)) {
+            i--;
+            while (i > 0 && s[i - 1] == ' ')
+                i--;
+        }
+    }
+    s[i] = 0;
+}
+
 int conv_format_line(unsigned int line_no, const unsigned char *stmt, int slen,
                      char *text, int cap, int *truncated) {
     char num[8];

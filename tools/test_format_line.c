@@ -60,11 +60,39 @@ static void expect_raw(const char *name, unsigned int line_no,
     }
 }
 
+static void expect_strip(const char *name, const char *src, const char *want) {
+    char buf[80];
+
+    memset(buf, 0xA5, sizeof buf);
+    memcpy(buf, src, strlen(src) + 1);
+    conv_strip_rem(buf);
+    if (strcmp(buf, want) != 0) {
+        printf("FAIL %s\n  got  [%s]\n  want [%s]\n", name, buf, want);
+        failed++;
+    }
+}
+
 int main(void) {
     unsigned char packed[20];
     char long_rem[96];
     char long_quote[96];
     char long_data[96];
+
+    expect_strip("colon space", "10 PRINT \"HI\": REM NOTE", "10 PRINT \"HI\"");
+    expect_strip("colon tight", "10 PRINT \"HI\":REM NOTE", "10 PRINT \"HI\"");
+    expect_strip("only rem", "10 REM NOTE", "10");
+    expect_strip("rem eats rest", "10 REM:PRINT \"HI\"", "10");
+    expect_strip("label", "start: REM menu", "start:");
+    expect_strip("label code", "start:PRINT \"HI\":REM bye", "start:PRINT \"HI\"");
+    expect_strip("quoted", "10 PRINT \"REM\"", "10 PRINT \"REM\"");
+    expect_strip("data word", "10 DATA REM", "10 DATA REM");
+    expect_strip("data then rem", "10 DATA \"HI\":REM NOTE", "10 DATA \"HI\"");
+    expect_strip("remember", "10 REMEMBER", "10 REMEMBER");
+    expect_strip("lower", "10 rem note", "10 rem note");
+    expect_strip("then rem", "10 IF A THEN REM NOTE", "10 IF A THEN");
+    expect_strip("no number", "REM NOTE", "");
+    expect_strip("long label", "PRINT1: REM X", "PRINT1:");
+    expect_strip("keyword colon", "PRINT: REM X", "PRINT");
 
     expect_src("short", "10 PRINT \"A\"", "10 PRINT \"A\"", 0);
     expect_src("fits", "10 PRINT \"A\":PRINT \"B\"", "10 PRINT \"A\":PRINT \"B\"", 0);
