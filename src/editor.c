@@ -232,7 +232,9 @@ static int spill_blocked(void) {
     if (!reu_is_available())
         return 0;
     for (p = current_page + 1; p < num_pages; p++) {
-        if (reu_page_lines(p) < LINES_PER_PAGE)
+        int n = reu_page_lines(p);
+
+        if (n > 0 && n < LINES_PER_PAGE)
             return 0;
     }
     return num_pages >= reu_max_page_count();
@@ -258,6 +260,10 @@ static void push_spill(void) {
             return;
         }
         load_page(page);
+        if (reu_is_available() && reu_page_lines(page) == 0) {
+            page++;
+            continue;
+        }
         if (page_insert_line(lines, &num_lines, 0, spill_line, spill_next)) {
             copy_tail(spill_line, spill_next);
             page_modified = 1;
@@ -275,6 +281,7 @@ int new_line(void) {
 
     copy_tail(spill_line, &lines[cursor_y][cursor_x]);
     if (num_lines < LINES_PER_PAGE) {
+        save_undo_state();
         lines[cursor_y][cursor_x] = '\0';
         page_insert_line(lines, &num_lines, cursor_y + 1, spill_line, spill_next);
         total_lines++;
@@ -288,7 +295,6 @@ int new_line(void) {
 
     if (spill_blocked()) {
         show_message("REU FULL", COL_YELLOW);
-        clear_undo();
         return 0;
     }
 

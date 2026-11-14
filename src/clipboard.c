@@ -76,15 +76,23 @@ void paste_clipboard() {
     }
     
     for (i = 0; i < clipboard_lines; i++) {
+        int inserted = 0;
+
         for (j = 0; clipboard[i][j]; j++) {
+            int column = cursor_x;
+
             insert_char(clipboard[i][j]);
+            if (cursor_x > column)
+                inserted++;
         }
-        if (i < clipboard_lines - 1) {
-            if (!new_line()) {
-                update_cursor();
-                show_message("REU FULL", COL_YELLOW);
-                return;
+        if (i < clipboard_lines - 1 && !new_line()) {
+            while (inserted > 0) {
+                delete_char();
+                inserted--;
             }
+            update_cursor();
+            show_message("REU FULL", COL_YELLOW);
+            return;
         }
     }
 

@@ -801,20 +801,30 @@ In `src/main.c`, the Return key becomes:
 
 ```c
         } else if (c == KEY_RETURN) {
-            save_undo_state();
             if (new_line())
                 update_cursor();
 ```
 
-In `src/clipboard.c`, the loop's `new_line()` call becomes:
+In `src/clipboard.c`, count how many characters `insert_char` actually stored on that clipboard line. If the following `new_line` returns 0, delete those characters before the cursor. The loop becomes:
 
 ```c
-        if (i < clipboard_lines - 1) {
-            if (!new_line()) {
-                update_cursor();
-                show_message("REU FULL", COL_YELLOW);
-                return;
+        int inserted = 0;
+
+        for (j = 0; clipboard[i][j]; j++) {
+            int column = cursor_x;
+
+            insert_char(clipboard[i][j]);
+            if (cursor_x > column)
+                inserted++;
+        }
+        if (i < clipboard_lines - 1 && !new_line()) {
+            while (inserted > 0) {
+                delete_char();
+                inserted--;
             }
+            update_cursor();
+            show_message("REU FULL", COL_YELLOW);
+            return;
         }
 ```
 
@@ -846,7 +856,9 @@ static int spill_blocked(void) {
     if (!reu_is_available())
         return 0;
     for (p = current_page + 1; p < num_pages; p++) {
-        if (reu_page_lines(p) < LINES_PER_PAGE)
+        int n = reu_page_lines(p);
+
+        if (n > 0 && n < LINES_PER_PAGE)
             return 0;
     }
     return num_pages >= reu_max_page_count();
@@ -872,6 +884,10 @@ static void push_spill(void) {
             return;
         }
         load_page(page);
+        if (reu_is_available() && reu_page_lines(page) == 0) {
+            page++;
+            continue;
+        }
         if (page_insert_line(lines, &num_lines, 0, spill_line, spill_next)) {
             copy_tail(spill_line, spill_next);
             page_modified = 1;
@@ -889,6 +905,7 @@ int new_line(void) {
 
     copy_tail(spill_line, &lines[cursor_y][cursor_x]);
     if (num_lines < LINES_PER_PAGE) {
+        save_undo_state();
         lines[cursor_y][cursor_x] = '\0';
         page_insert_line(lines, &num_lines, cursor_y + 1, spill_line, spill_next);
         total_lines++;
@@ -902,7 +919,6 @@ int new_line(void) {
 
     if (spill_blocked()) {
         show_message("REU FULL", COL_YELLOW);
-        clear_undo();
         return 0;
     }
 
@@ -1317,7 +1333,7 @@ If the connection fails, stop and ask Josh. Do not check off the todo and do not
 In `AGENTS.md`, replace the sentence that starts `` `new_line` can open the next page only `` with:
 
 ```text
-`new_line` inserts the tail after the cursor as the next row. On a full page the last row is carried to row 0 of the next page, and a full page carries its own last row onward. A new page is added only when the carried row falls off the last page. Return on the last row follows that tail to row 0 of the next page. Return on an earlier row stays on the current page. When the REU is present and every later page is full and `num_pages` is already the REU page limit, Return shows `REU FULL` and changes nothing. A spill clears undo. An insert that stays on the page still undoes one line. `num_pages` is the number of stored pages. `new_line` does not rebuild it from `total_lines`. The clipboard stores two lines.
+`new_line` inserts the tail after the cursor as the next row. On a full page the last row is carried to row 0 of the next page, and a full page carries its own last row onward. A new page is added only when the carried row falls off the last page. Return on the last row follows that tail to row 0 of the next page. Return on an earlier row stays on the current page. A stored count of 0 is not an open page. When the REU is present, no later page has a stored count from 1 to 47, and `num_pages` is already the REU page limit, Return shows `REU FULL` and changes nothing. That refusal leaves the previous undo alone. A spill clears undo. An insert that stays on the page still undoes one line. A paste that cannot open the next row deletes the characters it just stored on the current line. `num_pages` is the number of stored pages. `new_line` does not rebuild it from `total_lines`. The clipboard stores two lines.
 ```
 
 Keep the following sentence, `copy_marked` stops at 2. In the sentence that currently says the editor link has `__bss_end` at `$CB5F` and `__heap_start` at `$CB7F`, replace those two addresses with the values from the map printed in Task 4. `__stack` stays `$D000`.
