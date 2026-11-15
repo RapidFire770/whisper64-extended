@@ -142,6 +142,36 @@ void w64_store_put(unsigned long addr, const void *src, unsigned int n) {
     (void)n;
 }
 
+static void expect_seq_byte(void) {
+    const char *in = "A\r\nB";
+    char out[8];
+    int i;
+
+    if (conv_seq_byte(0) != 0 || conv_seq_byte(255) != 255) {
+        printf("FAIL seq byte passthrough\n");
+        failed = 1;
+    }
+    for (i = 0; in[i]; i++)
+        out[i] = (char)conv_seq_byte((unsigned char)in[i]);
+    out[i] = '\0';
+    if (strcmp(out, "A\r\rB") != 0) {
+        printf("FAIL seq byte crlf\n");
+        failed = 1;
+    }
+}
+
+static void expect_lf_label(void) {
+    const char *in = "J% = PEEK(56320)\nGOSUB LD\nLD:\nPRINT \"HI\"";
+    char buf[80];
+    int i;
+
+    for (i = 0; in[i]; i++)
+        buf[i] = (char)conv_seq_byte((unsigned char)in[i]);
+    buf[i] = '\0';
+    expect_labels("lf joystick", buf,
+                  "1 J% = PEEK(56320)\r2 GOSUB 3\r3 PRINT \"HI\"", 1);
+}
+
 int main(void) {
     unsigned char many[4096];
     struct RenumEnt big[512];
@@ -151,6 +181,8 @@ int main(void) {
     unsigned char long_line[80];
     unsigned int len;
 
+    expect_seq_byte();
+    expect_lf_label();
     expect_text("goto self", "5 GOTO 5\r20 END", "10 GOTO 10\r20 END", 10);
     expect_text("on goto list", "10 ON A GOTO 10, 30\r30 END",
                 "10 ON A GOTO 10, 20\r20 END", 10);

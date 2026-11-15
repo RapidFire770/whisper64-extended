@@ -335,3 +335,9 @@ int conv_format_line(unsigned int line_no, const unsigned char *stmt, int slen,
     text[pos] = '\0';
     return pos;
 }
+
+int conv_seq_byte(int c) {
+    if (c == 10)
+        return 13;
+    return c;
+}
