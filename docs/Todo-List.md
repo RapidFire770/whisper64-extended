@@ -17,7 +17,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [x] When trying to edit a long multipage file and hitting enter it cannot add a new empty line and push the others down. The program just gives error "PAGE FULL - MOVE TO END". This is a breaking bug when trying to edit a long program or text document and you need to add new lines above old ones.
   Return on a full page carries the last row to the next page. Checked on the Ultimate with DICEROLL-SRC. DICEINS was left on the disk.
 - [x] The editor supports displaying lower case characters in both the 40 and 80 column modes. The characters display when they pre-exist in a file opened that was created elsewhere. I cannot find a way to input the lower case characters the editor defaults to typing in uppercase and holding shift and typing or hitting shift lock does not allow typing of these characters. Shift Lock button makes it so nothing can be typed into the editor. Unshifted letters stay uppercase. Shift, including Shift Lock, stores lowercase. A GETIN wedge maps `$C1`–`$DA` to `a`–`z`. Checked on the Ultimate: row 1 showed `AaZz`, the line buffer held those bytes, the 80-column `a`/`Z` cell matched the font, and the search prompt took a shifted A.
-- 
+- [ ] Replace function freezes the program at the "REPLACE ALL? (Y/N)" message. Appears to be inconsistent, works sometimes and freezes at other times.
 
 ## Features
 
@@ -68,6 +68,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [ ] Getting silent failure of conversion of a labeled BASIC file to a program using the DICEROLL program located on the W64.d64 in USB1/MY FILES on the Commdore 64 Ultimate. Program just appears to freeze after asking for the output filename and gives no error messages. This sequential file loads fine into the whisper64 editor fine.
       - Followup: After leaving the program alone on what appeared to be a frozen page it finally started working. If possible we need some way to indicate to the users when really large programs are running that the program has not errored or froze, something like printing what line number the program is working on.
 - [ ] When converting labeled files to a program it will fail to give a line a proper line number. It will throw in a large line number in between normal line numbers which then causes the program to fail to run after conversion. Example: I will be numbering with a step of 1 then between line 79 and 81 it will number what should be line 80 as line number 45600 which also erases what was at the beginning of that line e.g. "J% = PEEK(56320)" becomes "45600  PEEK(56320)"
+- [ ] w64conv should ask if the user wants to renumber the file and only ask for a renumber step if they wish for it to renumber as the files it is converting should already have been hand numbered by the user. 
 
 <!-- # Both Whisper64 Editor and Utility programs  -->
 <!-- Scrapped cartridge feature for the moment. Editor code has grown to big to fit the extra needed exit code.
