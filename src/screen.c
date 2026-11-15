@@ -22,6 +22,33 @@ char cgetc() {
     return c;
 }
 
+/* GETIN is $032A. Shifted A-Z arrives as $C1-$DA; the buffer stores a-z.
+   The wedge sits on the vector so the editor loop is left alone. */
+__attribute__((naked, used)) static void shift_wedge(void) {
+    __asm__ volatile(
+        "jsr $ffff\n"
+        "cmp #$c1\n"
+        "bcc 1f\n"
+        "cmp #$db\n"
+        "bcs 1f\n"
+        "sec\n"
+        "sbc #$60\n"
+        "1: rts\n");
+}
+
+/* Straight-line .init. A return here would skip the jump into main. */
+__attribute__((naked, section(".init.260"), used)) static void install_shift_map(void) {
+    __asm__ volatile(
+        "lda $032a\n"
+        "sta shift_wedge+1\n"
+        "lda $032b\n"
+        "sta shift_wedge+2\n"
+        "lda #<shift_wedge\n"
+        "sta $032a\n"
+        "lda #>shift_wedge\n"
+        "sta $032b\n");
+}
+
 /* Lowercase charset (CRT CHROUT $0E). A-Z already match $41-$5A.
    @ [ ] a-z and the bar sit elsewhere. { } \ ^ _ ` ~ are not in
    the ROM, so those bytes stay distinct from the brackets. */

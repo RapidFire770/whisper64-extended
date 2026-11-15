@@ -119,6 +119,7 @@ Each one asks for a read drive and a write drive, 8–15, and an empty entry is 
 | **CTRL+Z** | Undo                          |
 | **HOME**   | Go to start of file           |
 | **Arrows** | Move cursor                   |
+| **Shift+letter** | Lowercase. Unshifted letters stay uppercase. Shift Lock types lowercase. |
 
 ## 80-Column Mode
 

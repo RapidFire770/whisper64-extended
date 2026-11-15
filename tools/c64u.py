@@ -10,6 +10,7 @@ Usage (see functions called from __main__):
     python3 tools/c64u.py cursor     # whisper64 cursor-move regression
     python3 tools/c64u.py wrap       # wrapped-line typing band redraw
     python3 tools/c64u.py mark       # mark-mode redraw and keyword color
+    python3 tools/c64u.py case       # shift types lowercase, unshifted stays upper
     python3 tools/c64u.py dump       # print the current 40-column screen
 
 Keyboard buffer: $0277 (10 bytes), count at $C6. The editor's main-loop GETIN
@@ -39,6 +40,7 @@ K_RIGHT = 0x1D
 K_F4 = 0x8A
 K_CTRL_K = 0x0B
 K_F1 = 0x85
+K_F5 = 0x87
 K_DELETE = 0x14
 PRG = "build/whisper64.prg"
 
@@ -406,6 +408,50 @@ def cmd_mark():
     return 0
 
 
+def lines_address():
+    with open("build/whisper64.map") as f:
+        for line in f:
+            parts = line.split()
+            if parts and parts[-1] == "lines":
+                return int(parts[0], 16)
+    raise SystemExit("lines not in whisper64.map")
+
+
+def cmd_case():
+    """Unshifted A/Z stay capitals. Shifted A/Z ($C1/$DA) store as a/z.
+    The search prompt reads keys through cgetc, so it gets the same check.
+    """
+    boot_editor()
+    inject_keys([0x41, 0xC1, 0x5A, 0xDA, 0xC0, 0xDB], settle=0.7)
+    scr, _ = dump_rows(rows=[1], label="typed case")
+    row = plain_row(scr, 1)
+    want = bytes([0x30, 0x30, 0x3A, 0x41, 0x01, 0x5A, 0x1A])
+    if row[:7] != want:
+        print("FAIL screen", row[:10].hex())
+        return 1
+    buf = read_mem(lines_address(), 6)
+    if buf[:5] != bytes([0x41, 0x61, 0x5A, 0x7A, 0x00]):
+        print("FAIL buffer", buf.hex())
+        return 1
+    # 80-column draws the same bytes. Cell 2 of row 1 is 'a' beside 'Z'.
+    inject_keys([4], settle=0.8)
+    cell = read_mem(0xE150, 8)
+    want_cell = bytes([0x0E, 0x02, 0xC4, 0x24, 0xE4, 0xA8, 0xEE, 0x00])
+    if cell != want_cell:
+        print("FAIL 80-col", cell.hex())
+        return 1
+    inject_keys([4], settle=0.8)
+    inject_keys([K_F5, 0xC1], settle=0.6)
+    scr, _ = dump_rows(rows=[24], label="search shift-A")
+    row = plain_row(scr, 24)
+    if row[12] != 0x01 or row[:12] != b"SEARCH FOR: ":
+        print("FAIL search", row[:16].hex())
+        return 1
+    inject_keys([K_RETURN], settle=0.4)
+    print("ok")
+    return 0
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "dump"
     if cmd == "cursor":
@@ -414,6 +460,8 @@ def main():
         sys.exit(cmd_wrap())
     elif cmd == "mark":
         sys.exit(cmd_mark())
+    elif cmd == "case":
+        sys.exit(cmd_case())
     elif cmd == "dump":
         dump_rows()
     elif cmd == "down":
