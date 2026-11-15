@@ -362,7 +362,7 @@ static void show_help(void) {
     tool_put_row(3, "1. SEQ > PRG - CONVERTS SEQ TO PRG");
     tool_put_row(4, "2. PRG > SEQ - CONVERTS PRG TO SEQ");
     tool_put_row(5, "?  HELP - SHOWS THIS HELP SCREEN");
-    tool_put_row(6, "STEP EMPTY KEEPS NUMBERS");
+    tool_put_row(6, "1. N KEEPS NUMBERS");
     tool_put_row(7, "* ERRORS *");
     tool_put_row(8, "NO NUM:      LINE HAS NO NUMBER");
     tool_put_row(9, "NUM BIG:     PAST 63999");
@@ -372,6 +372,7 @@ static void show_help(void) {
     tool_put_row(13, "OPEN FAIL:   DRIVE DID NOT OPEN");
     tool_put_row(14, "BAD NAME:    EMPTY OR , : * ? @");
     tool_put_row(15, "DISK:        SEE THE DOS TEXT");
+    tool_put_row(16, "1. Y ASKS STEP, EMPTY IS 10");
     tool_put_row(17, "* STATUS *");
     tool_put_row(18, "TRUNC t:     t LINES CUT AT A COLON");
     tool_put_row(19, "ML 1:        EXTRA BYTES NOT COPIED");
@@ -422,6 +423,7 @@ int main(void) {
         }
         if (mode == 1) {
             int strip;
+            int ren;
             char buf[8];
             unsigned int step = 0;
             int keep;
@@ -432,16 +434,25 @@ int main(void) {
                     tool_another();
                 continue;
             }
-            if (tool_read_field(tool_take_row(), "STEP: ", buf, 8) < 0) {
+            ren = tool_ask_yn(tool_take_row(), "RENUMBER? Y/N");
+            if (ren < 0) {
                 if (verify_code != 0)
                     tool_another();
                 continue;
             }
-            keep = buf[0] == '\0';
-            if (!keep && tool_parse_step(buf, &step) < 0) {
-                tool_finish(CONV_NUM_BIG, "NUM BIG");
-                tool_another();
-                continue;
+            keep = 1;
+            if (ren) {
+                if (tool_read_field(tool_take_row(), "STEP: ", buf, 8) < 0) {
+                    if (verify_code != 0)
+                        tool_another();
+                    continue;
+                }
+                if (tool_parse_step(buf, &step) < 0) {
+                    tool_finish(CONV_NUM_BIG, "NUM BIG");
+                    tool_another();
+                    continue;
+                }
+                keep = 0;
             }
             seq_to_prg(strip, keep, step);
         } else
