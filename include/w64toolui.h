@@ -24,6 +24,8 @@ void tool_add_dec(char *dst, unsigned int v);
 void tool_add_hex2(char *dst, unsigned char v);
 void tool_file_spec(char *dst, int replace, const char *name, const char *tail);
 int tool_name_ok(const char *s);
+void tool_rows_reset(void);
+unsigned char tool_take_row(void);
 void tool_put_row(unsigned char row, const char *msg);
 void tool_put_err(unsigned char row, const char *msg);
 void tool_center_row(unsigned char row, const char *msg);

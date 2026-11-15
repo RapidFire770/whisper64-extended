@@ -27,6 +27,8 @@ unsigned long reu_bytes;
 unsigned char last_st;
 
 static unsigned char dir_ents[DIR_MAX * DIR_BYTES];
+static unsigned char next_row;
+static unsigned char last_row;
 
 static unsigned char reu_chunk[256];
 static unsigned int reu_chunk_n;
@@ -72,6 +74,17 @@ static void paint_row(unsigned char row, const char *msg, unsigned char color) {
     for (i = 0; i < 39; i++)
         cputc_at(i, row, ' ', COL_GREEN);
     cputs_at(0, row, msg, color);
+}
+
+void tool_rows_reset(void) {
+    next_row = 3;
+}
+
+unsigned char tool_take_row(void) {
+    last_row = next_row;
+    if (next_row < 24)
+        next_row++;
+    return last_row;
 }
 
 void tool_put_row(unsigned char row, const char *msg) {
@@ -209,9 +222,10 @@ int tool_ask_drive(unsigned char row, const char *label, unsigned char *dest) {
         }
         if (v >= 8 && v <= 15) {
             *dest = (unsigned char)v;
+            tool_put_row(5, "");
             return 0;
         }
-        tool_put_err(20, "USE 8-15");
+        tool_put_err(5, "USE 8-15");
     }
 }
 
@@ -268,9 +282,9 @@ void tool_finish(unsigned char code, const char *msg) {
     cbm_k_close(3);
     verify_code = code;
     if (code == CONV_CANCEL)
-        tool_put_row(18, msg);
+        tool_put_row(last_row, msg);
     else
-        tool_put_err(18, msg);
+        tool_put_err(tool_take_row(), msg);
 }
 
 int tool_drive_status_ok(void) {
@@ -348,7 +362,7 @@ int tool_confirm_overwrite(const char *spec) {
 
     if (dos_missing(spec))
         return 1;
-    tool_put_row(17, "OVERWRITE? Y/N");
+    tool_put_row(tool_take_row(), "OVERWRITE? Y/N");
     ch = tool_cgetc();
     if (ch != 'Y' && ch != 'y') {
         tool_finish(CONV_CANCEL, "CANCELLED");
@@ -664,7 +678,7 @@ int tool_pick_file(char want) {
             which[nshow++] = (unsigned char)i;
     }
     if (nshow == 0) {
-        tool_put_err(12, "NO FILES");
+        tool_put_err(6, "NO FILES");
         tool_cgetc();
         return -1;
     }
@@ -678,7 +692,7 @@ int tool_pick_file(char want) {
             top = sel - 17;
         for (row = 0; row < 18; row++) {
             int ix = top + row;
-            unsigned char y = (unsigned char)(2 + row);
+            unsigned char y = (unsigned char)(6 + row);
 
             if (ix < nshow) {
                 unsigned char *ent = dir_ents + (unsigned int)which[ix] * DIR_BYTES;
@@ -731,7 +745,7 @@ int tool_parse_step(const char *s, unsigned int *step) {
 int tool_another(void) {
     int ch;
 
-    tool_put_row(22, "ANOTHER? Y/N");
+    tool_put_row(tool_take_row(), "ANOTHER? Y/N");
     for (;;) {
         ch = tool_cgetc();
         if (ch == 'Y' || ch == 'y') {
@@ -787,22 +801,39 @@ void tool_show_err(int rc, int row) {
 static void clear_dir_rows(void) {
     unsigned char y;
 
-    for (y = 2; y < 20; y++)
+    for (y = 6; y < 24; y++)
         tool_put_row(y, "");
 }
 
+static void paint_drive(unsigned char row, const char *label, unsigned char drive) {
+    char msg[28];
+
+    tool_set_str(msg, label);
+    tool_add_dec(msg, drive);
+    tool_put_row(row, msg);
+}
+
 int tool_prepare(char want) {
-    if (tool_ask_drive(8, "READ DRIVE (8-15): ", &read_drive) < 0)
+    char msg[40];
+
+    tool_rows_reset();
+    if (tool_ask_drive(tool_take_row(), "READ DRIVE (8-15): ", &read_drive) < 0)
         return -1;
-    if (tool_ask_drive(10, "WRITE DRIVE (8-15): ", &write_drive) < 0)
+    if (tool_ask_drive(tool_take_row(), "WRITE DRIVE (8-15): ", &write_drive) < 0)
         return -1;
     if (tool_pick_file(want) < 0)
         return -1;
-    if (tool_read_field(20, "OUTPUT FILENAME: ", out_name, 17) < 0)
+    paint_drive(3, "READ DRIVE (8-15): ", read_drive);
+    paint_drive(4, "WRITE DRIVE (8-15): ", write_drive);
+    clear_dir_rows();
+    next_row = 6;
+    if (tool_read_field(tool_take_row(), "OUTPUT FILENAME: ", out_name, 17) < 0)
         return -1;
     if (out_name[0] == '\0')
         tool_set_str(out_name, in_name);
-    clear_dir_rows();
+    tool_set_str(msg, "OUTPUT FILENAME: ");
+    tool_add_str(msg, out_name);
+    tool_put_row(last_row, msg);
     if (out_name[0] == '\0' || !tool_name_ok(out_name)) {
         tool_finish(CONV_BAD_NAME, "BAD NAME");
         return -1;

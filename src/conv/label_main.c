@@ -206,13 +206,13 @@ int main(void) {
             char buf[8];
             unsigned int step;
 
-            strip = tool_ask_yn(18, "STRIP REM? Y/N");
+            strip = tool_ask_yn(tool_take_row(), "STRIP REM? Y/N");
             if (strip < 0) {
                 if (verify_code != 0)
                     tool_another();
                 continue;
             }
-            if (tool_read_field(21, "STEP: ", buf, 8) < 0) {
+            if (tool_read_field(tool_take_row(), "STEP: ", buf, 8) < 0) {
                 if (verify_code != 0)
                     tool_another();
                 continue;
