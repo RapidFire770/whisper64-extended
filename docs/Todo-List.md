@@ -15,9 +15,8 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [ ] The file list still clears the screen on every up or down. The two-row repaint was held because it put `__bss_end` past `$CC00`.
 - [x] Paste inserted into the buffer and wrote `TEXT PASTED` on the status row, and never redrew the editor lines. The cursor reads the buffer, so the reverse cursor showed the hidden characters. Paste now redraws once, then prints the status line. Checked on the Ultimate with the same `mark` script.
 - [x] When trying to edit a long multipage file and hitting enter it cannot add a new empty line and push the others down. The program just gives error "PAGE FULL - MOVE TO END". This is a breaking bug when trying to edit a long program or text document and you need to add new lines above old ones.
-
   Return on a full page carries the last row to the next page. Checked on the Ultimate with DICEROLL-SRC. DICEINS was left on the disk.
- 
+- [ ] The editor supports displaying lower case characters in both the 40 and 80 column modes. The characters display when they pre-exist in a file opened that was created elsewhere. I cannot find a way to input the lower case characters the editor defaults to typing in uppercase and holding shift and typing or hitting shift lock does not allow typing of these characters. Shift Lock button makes it so nothing can be typed into the editor.
 
 ## Features
 
@@ -50,7 +49,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 - [x] Ability to strip out all REM comments from the program when converting from a seq file (numbered or labeled) if the user says yes.
 - [x] Conversion programs need to allow setting the line number step that will be implemented when converting to a program file.
 - [x] The renumber program should also allow renumbering an existing program file as well as the sequential files.
-- [ ] Rearange interface flow for options. Currently prints in different out of order locations on the screen. Arrange in a logical flow order of one question after another. Errors and Status still print in logical order farther up the screen down toward the middle.
+- [ ] Rearrange interface flow for options. Currently prints in different out of order locations on the screen. Arrange in a logical flow order of one question after another. Errors and Status still print in logical order farther up the screen down toward the middle.
 
 ## Bugs on real C64U hardware with 16MB REU enabled and .d64 disk inserted called W64
 
