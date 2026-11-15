@@ -2,6 +2,7 @@
 #include "editor_state.h"
 #include "editor.h"
 #include "screen.h"
+#include "undo.h"
 
 void mark_toggle() {
     if (!mark_active) {
@@ -85,14 +86,17 @@ void paste_clipboard() {
             if (cursor_x > column)
                 inserted++;
         }
-        if (i < clipboard_lines - 1 && !new_line()) {
-            while (inserted > 0) {
-                delete_char();
-                inserted--;
+        if (i < clipboard_lines - 1) {
+            if (!new_line()) {
+                while (inserted > 0) {
+                    delete_char();
+                    inserted--;
+                }
+                update_cursor();
+                show_message("REU FULL", COL_YELLOW);
+                return;
             }
-            update_cursor();
-            show_message("REU FULL", COL_YELLOW);
-            return;
+            clear_undo();
         }
     }
 

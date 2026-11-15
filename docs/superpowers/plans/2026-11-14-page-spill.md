@@ -807,7 +807,7 @@ In `src/main.c`, the Return key becomes:
                 update_cursor();
 ```
 
-In `src/clipboard.c`, count how many characters `insert_char` actually stored on that clipboard line. If the following `new_line` returns 0, delete those characters before the cursor. The loop becomes:
+In `src/clipboard.c`, include `undo.h`. Count how many characters `insert_char` actually stored on that clipboard line. If the following `new_line` returns 0, delete those characters before the cursor and leave the undo flags alone. If it returns 1, call `clear_undo` so an older snapshot cannot restore the pre-insert line count. The loop becomes:
 
 ```c
         int inserted = 0;
@@ -819,14 +819,17 @@ In `src/clipboard.c`, count how many characters `insert_char` actually stored on
             if (cursor_x > column)
                 inserted++;
         }
-        if (i < clipboard_lines - 1 && !new_line()) {
-            while (inserted > 0) {
-                delete_char();
-                inserted--;
+        if (i < clipboard_lines - 1) {
+            if (!new_line()) {
+                while (inserted > 0) {
+                    delete_char();
+                    inserted--;
+                }
+                update_cursor();
+                show_message("REU FULL", COL_YELLOW);
+                return;
             }
-            update_cursor();
-            show_message("REU FULL", COL_YELLOW);
-            return;
+            clear_undo();
         }
 ```
 
@@ -1340,7 +1343,7 @@ If the connection fails, stop and ask Josh. Do not check off the todo and do not
 In `AGENTS.md`, replace the sentence that starts `` `new_line` can open the next page only `` with:
 
 ```text
-`new_line` inserts the tail after the cursor as the next row. On a full page the last row is carried to row 0 of the next page, and a full page carries its own last row onward. A new page is added only when the carried row falls off the last page. Return on the last row follows that tail to row 0 of the page that received it. Return on an earlier row stays on the current page. A stored count of 0 is not an open page. When the REU is present, no later page has a stored count from 1 to 47, and `num_pages` is already the REU page limit, Return shows `REU FULL` and changes nothing. That refusal leaves the previous undo alone. A spill clears undo. Return on a short page saves undo before the cut. Paste does not. A paste that cannot open the next row deletes the characters it just stored on the current line. `num_pages` is the number of stored pages. `new_line` does not rebuild it from `total_lines`. The clipboard stores two lines.
+`new_line` inserts the tail after the cursor as the next row. On a full page the last row is carried to row 0 of the next page, and a full page carries its own last row onward. A new page is added only when the carried row falls off the last page. Return on the last row follows that tail to row 0 of the page that received it. Return on an earlier row stays on the current page. A stored count of 0 is not an open page. When the REU is present, no later page has a stored count from 1 to 47, and `num_pages` is already the REU page limit, Return shows `REU FULL` and changes nothing. That refusal leaves the previous undo alone. A spill clears undo. Return on a short page saves undo before the cut. A paste that inserts a row clears that snapshot. A refused paste leaves it. A paste that cannot open the next row deletes the characters it just stored on the current line. `num_pages` is the number of stored pages. `new_line` does not rebuild it from `total_lines`. The clipboard stores two lines.
 ```
 
 Keep the following sentence, `copy_marked` stops at 2. In the sentence that currently says the editor link has `__bss_end` at `$CB5F` and `__heap_start` at `$CB7F`, replace those two addresses with the values from the map printed in Task 4. `__stack` stays `$D000`.

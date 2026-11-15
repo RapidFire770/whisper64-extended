@@ -21,7 +21,7 @@ When `*count` is 48, `row` is from 0 through 47. The function copies `page[47]` 
 
 `new_line` returns 1 when a row was inserted and 0 when it refused. `src/editor.c` holds two file-scope 80-byte buffers, `spill_line` and `spill_next`. They are the carry buffers. They are not locals, so `load_page` is not stacked on top of them.
 
-A page with a free row copies the bytes from the cursor through the end of the row into `spill_line`, writes a NUL at the cursor, and calls `page_insert_line` at `cursor_y + 1`. `total_lines` grows by one. The cursor moves to that new row, column 0. The scroll rule already in `new_line` stays. `page_modified` is set. `num_pages` is not changed. The mark is left as it was. Return saves undo before this cut. Paste does not. `clear_undo` is not called.
+A page with a free row copies the bytes from the cursor through the end of the row into `spill_line`, writes a NUL at the cursor, and calls `page_insert_line` at `cursor_y + 1`. `total_lines` grows by one. The cursor moves to that new row, column 0. The scroll rule already in `new_line` stays. `page_modified` is set. `num_pages` is not changed. The mark is left as it was. Return saves undo before this cut. A paste that inserts a row clears the previous snapshot, because that snapshot's line count would drop the last row. A refused paste leaves it. `clear_undo` is not called on the short-page Return path.
 
 A full page does the capacity check below before it changes the buffer. Then:
 
@@ -56,7 +56,7 @@ With no REU, there is no free-space check. The same walk writes `$W$.P*` through
 
 `clear_undo` is declared in `include/undo.h` and defined in `src/undo.c`. It sets the undo and redo flags to 0. It does not copy line bytes.
 
-Return on a short page calls `save_undo_state` before `new_line`. Paste does not, so a two-line paste does not install that snapshot. On a 0 return `main` does not call `update_cursor`, so the status row keeps `REU FULL`. On a 1 return it calls `update_cursor`. A spill that touched another page calls `clear_undo` after the walk, because the one stored line cannot restore the other pages. A refusal leaves the existing undo flags alone.
+Return on a short page calls `save_undo_state` before `new_line`. A paste does not save one. After `new_line` returns 1, the paste calls `clear_undo`, so an older snapshot cannot restore the pre-insert line count. A 0 return leaves the flags alone. On a 0 return `main` does not call `update_cursor`, so the status row keeps `REU FULL`. On a 1 return it calls `update_cursor`. A spill that touched another page calls `clear_undo` after the walk, because the one stored line cannot restore the other pages. A refusal leaves the existing undo flags alone.
 
 `paste_clipboard` still calls `new_line` between clipboard lines. A 0 return deletes the characters just stored on the current line, redraws with `update_cursor`, shows `REU FULL` again, and returns without `TEXT PASTED`.
 
@@ -152,7 +152,7 @@ A VICE run is not this check. 80-column mode uses the same `new_line` and is not
 
 ## Docs
 
-`AGENTS.md` replaces the sentence that says `new_line` opens a page only from the last row and otherwise shows `PAGE FULL`. The new text says Return carries the last row of a full page to row 0 of the next page, a full page carries onward, a new page is added only for a row that falls off the end, a last-row Return follows the tail, an earlier row stays put, `REU FULL` refuses when the REU has no free page, a spill clears undo, and Return on a short page saves undo before the cut while paste does not. It also says `num_pages` is the stored page count and is not rebuilt from `total_lines`.
+`AGENTS.md` replaces the sentence that says `new_line` opens a page only from the last row and otherwise shows `PAGE FULL`. The new text says Return carries the last row of a full page to row 0 of the next page, a full page carries onward, a new page is added only for a row that falls off the end, a last-row Return follows the tail, an earlier row stays put, `REU FULL` refuses when the REU has no free page, a spill clears undo, and Return on a short page saves undo before the cut while a paste that inserts a row clears that snapshot. It also says `num_pages` is the stored page count and is not rebuilt from `total_lines`.
 
 `README.md` adds one sentence to the multi-page feature: Return on a full page pushes the last line onto the next page.
 
