@@ -27,6 +27,7 @@ static int read_seq_reu(void) {
         }
         if (c < 0)
             break;
+        c = conv_seq_byte(c);
         if (tool_stash_byte((unsigned char)c) < 0)
             return -1;
     }
