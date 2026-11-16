@@ -78,11 +78,13 @@ LOAD "W64LABEL",8,1
 RUN
 ```
 
-`W64CONV` menu `1` reads a numbered SEQ and writes a PRG. It asks `STRIP REM? Y/N`. `Y` removes a real `REM` and the rest of that line. A `REM` inside quotes stays, and so does `REMEMBER`. A line that is only a REM keeps its line number. It then asks `STEP:`. Return keeps the numbers in the SEQ. A number from 1 to 63999 renumbers and rewrites `GOTO`, `GOSUB`, `THEN`, `ELSE`, `GO TO`, and `GO SUB`. Menu `2` reads a PRG and writes a SEQ. A long line is cut back to the last whole statement, and the status line counts those cuts as `TRUNC`. Bytes after the BASIC program are not copied (`ML 1`).
+`W64CONV` menu `1` reads a numbered SEQ and writes a PRG. It asks `STRIP REM? Y/N`. `Y` removes a real `REM` and the rest of that line. A `REM` inside quotes stays, and so does `REMEMBER`. A line that is only a REM keeps its line number. It then asks `RENUMBER? Y/N`. No keeps the numbers in the SEQ. Yes asks `STEP:`, and Return on an empty step uses 10. A number from 1 to 63999 renumbers and rewrites `GOTO`, `GOSUB`, `THEN`, `ELSE`, `GO TO`, and `GO SUB`. Menu `2` reads a PRG and writes a SEQ. A long line is cut back to the last whole statement, and the status line counts those cuts as `TRUNC`. Bytes after the BASIC program are not copied (`ML 1`).
 
 `W64RENUM` menu `1` renumbers a SEQ and writes a SEQ. Menu `2` renumbers a PRG and writes a PRG. Menu `2` copies the bytes that follow the BASIC program. Both ask `STEP:`. An empty step is 10.
 
 `W64LABEL` reads a labeled SEQ and writes a PRG. It asks `STRIP REM? Y/N` with the same rules. `start: REM menu` keeps the label. It asks `STEP:`. An empty step is 10.
+
+A long job paints `LINE n` on one row while it reads and numbers the file. `n` starts over when the next pass starts. All three tools treat an LF as a line break. A CR followed by an LF is an empty line, the same split the editor uses.
 
 Each one asks for a read drive and a write drive, 8–15, and an empty entry is 8. The editor's F2 save stays a SEQ. N or Stop at the another-file prompt leaves the tool. `?` opens help, and Stop leaves that page. RUN/STOP on the main menu exits.
 
