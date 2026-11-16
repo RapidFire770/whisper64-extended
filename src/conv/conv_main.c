@@ -413,6 +413,7 @@ int main(void) {
     *(unsigned char *)0xD020 = 12;
     *(unsigned char *)0xD021 = 0;
     tool_lowercase();
+    conv_set_progress(tool_progress_line);
     w64_reu_probe();
     reu_bytes = w64_reu_bytes();
     for (;;) {

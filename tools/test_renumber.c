@@ -130,16 +130,53 @@ static void expect_label_err(const char *name, const char *in, int map_cap,
     }
 }
 
+static unsigned char reu_mem[65536];
+
 void w64_store_get(unsigned long addr, void *dst, unsigned int n) {
-    (void)addr;
-    (void)dst;
-    (void)n;
+    memcpy(dst, reu_mem + addr, n);
 }
 
 void w64_store_put(unsigned long addr, const void *src, unsigned int n) {
-    (void)addr;
-    (void)src;
-    (void)n;
+    memcpy(reu_mem + addr, src, n);
+}
+
+static unsigned int progress_rows[8];
+static int progress_n;
+
+static void grab_progress(unsigned int row) {
+    if (progress_n < 8)
+        progress_rows[progress_n++] = row;
+}
+
+static void expect_store_progress(void) {
+    const char *in = "10 END\r20 END";
+    unsigned long out_at = 0;
+    unsigned long out_len = 0;
+    unsigned long ceiling = 0;
+    int err = 99;
+    int row = 77;
+    int rc;
+    int i;
+    static const unsigned int want[] = { 1, 2, 1, 2, 1, 2 };
+
+    memset(reu_mem, 0, sizeof reu_mem);
+    memcpy(reu_mem, in, strlen(in));
+    progress_n = 0;
+    conv_set_progress(grab_progress);
+    rc = labels_to_numbered_store(strlen(in), sizeof reu_mem, 1,
+                                  &out_at, &out_len, &err, &row, &ceiling);
+    conv_set_progress(0);
+    if (rc != 0 || err != 0 || progress_n != 6) {
+        printf("FAIL store progress rc=%d n=%d\n", rc, progress_n);
+        failed = 1;
+        return;
+    }
+    for (i = 0; i < 6; i++) {
+        if (progress_rows[i] != want[i]) {
+            printf("FAIL store progress row %d got %u\n", i, progress_rows[i]);
+            failed = 1;
+        }
+    }
 }
 
 static void expect_seq_byte(void) {
@@ -183,6 +220,7 @@ int main(void) {
 
     expect_seq_byte();
     expect_lf_label();
+    expect_store_progress();
     expect_text("goto self", "5 GOTO 5\r20 END", "10 GOTO 10\r20 END", 10);
     expect_text("on goto list", "10 ON A GOTO 10, 30\r30 END",
                 "10 ON A GOTO 10, 20\r20 END", 10);
