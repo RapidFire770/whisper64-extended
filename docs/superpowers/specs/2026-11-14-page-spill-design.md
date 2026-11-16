@@ -136,7 +136,7 @@ Exit 0, and the output has no `FAIL` line. Each `edit_*` case starts from an emp
 
 The cascade, the cursor, and the save are checked on the C64 Ultimate that `tools/c64u.py` drives. The script is `tools/test_page_insert_c64u.py`. It uses that file's reset, program load, keyboard buffer, and `$0400` read. It runs the editor in 40-column mode. It does not run `tools/test_w64conv_c64u.py`.
 
-`boot_editor` resets the machine. After each reset, `c64u drives list --json` is read. Drive 8 is the entry whose `bus_id` is 8. When its image already names `W64.d64`, it is left mounted. When drive 8 has no image, the script mounts `USB1/MY FILES/W64.d64` on the drive letter of that entry. When drive 8 has a different image, the script stops. A missing drive 8 stops the script. The disk is still mounted when the script finishes.
+`boot_editor` resets the machine. After each reset, `c64u drives list --json` is read. Drive 8 is the entry whose `bus_id` is 8. When its image already names `W64.d64`, it is left mounted. When drive 8 has no image, the script mounts `/SD/My Files/W64.d64` on the drive letter of that entry. When drive 8 has a different image, the script stops. A missing drive 8 stops the script. The disk is still mounted when the script finishes.
 
 The source file is `DICEROLL-SRC`. The script does not save over it. The save test writes `DICEINS` and leaves that file on the disk. An existing `DICEINS` is overwritten by answering `Y`.
 

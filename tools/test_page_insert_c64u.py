@@ -66,7 +66,7 @@ def ensure_w64():
         return
     if image.strip() == "":
         subprocess.check_call([
-            "c64u", "drives", "mount", letter, "USB1/MY FILES/W64.d64"])
+            "c64u", "drives", "mount", letter, "/SD/My Files/W64.d64"])
         time.sleep(1)
         return
     fail("drive 8 has a different image: " + image)
