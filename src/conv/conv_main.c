@@ -40,15 +40,20 @@ static int seq_store(unsigned int *wrote_out, int strip) {
                 tool_set_str(msg, "READ ");
                 tool_add_hex2(msg, last_st);
                 tool_finish(CONV_DISK, msg);
-            } else
-                tool_finish(CONV_LINE_LONG, "LINE LONG");
+            } else {
+                char msg[20];
+
+                tool_set_str(msg, "LINE LONG ");
+                tool_add_dec(msg, seen + 1u);
+                tool_finish(CONV_LINE_LONG, msg);
+            }
             return -1;
         }
         if (rc > 0)
             break;
         if (seen < 65535u)
             seen++;
-        tool_note_progress(10, "PRG ", seen);
+        tool_progress_line(seen);
         cbm_k_chkin(2);
         if (strip)
             conv_strip_rem(line);
@@ -195,7 +200,7 @@ static int prg_store(unsigned int *wrote_out) {
         }
         addr = link;
         wrote++;
-        tool_note_progress(10, "SEQ ", wrote);
+        tool_progress_line(line_no);
         cbm_k_chkin(2);
     }
 
@@ -212,7 +217,7 @@ static int prg_store(unsigned int *wrote_out) {
             tool_add_str(msg, " ML ");
             tool_add_dec(msg, (unsigned int)ml);
         }
-        tool_put_row(12, msg);
+        tool_put_row(tool_take_row(), msg);
     }
     *wrote_out = wrote;
     return 0;
@@ -244,15 +249,20 @@ static int stash_seq_lines(int strip) {
                 tool_set_str(msg, "READ ");
                 tool_add_hex2(msg, last_st);
                 tool_finish(CONV_DISK, msg);
-            } else
-                tool_finish(CONV_LINE_LONG, "LINE LONG");
+            } else {
+                char msg[20];
+
+                tool_set_str(msg, "LINE LONG ");
+                tool_add_dec(msg, seen + 1u);
+                tool_finish(CONV_LINE_LONG, msg);
+            }
             return -1;
         }
         if (rc > 0)
             break;
         if (seen < 65535u)
             seen++;
-        tool_note_progress(10, "SEQ ", seen);
+        tool_progress_line(seen);
         if (strip)
             conv_strip_rem(line);
         for (i = 0; line[i]; i++) {
@@ -285,6 +295,7 @@ static void seq_to_prg(int strip, int keep, unsigned int step) {
     replace = tool_confirm_overwrite(probe);
     if (!replace)
         return;
+    tool_set_progress_row(tool_take_row());
     if (keep) {
         if (seq_store(&stream_wrote, strip) < 0)
             return;
@@ -313,12 +324,12 @@ static void seq_to_prg(int strip, int keep, unsigned int step) {
     if (!tool_drive_status_ok())
         return;
     if (wrote == 0)
-        tool_put_row(12, "EMPTY PRG");
+        tool_put_row(tool_take_row(), "EMPTY PRG");
     else {
         char msg[20];
         tool_set_str(msg, "WROTE ");
         tool_add_dec(msg, (unsigned int)wrote);
-        tool_put_row(12, msg);
+        tool_put_row(tool_take_row(), msg);
     }
     tool_file_spec(probe, 0, out_name, ",P,R");
     tool_remember_output(probe);
@@ -334,6 +345,7 @@ static void prg_to_seq(void) {
     replace = tool_confirm_overwrite(probe);
     if (!replace)
         return;
+    tool_set_progress_row(tool_take_row());
     if (prg_store(&wrote) < 0)
         return;
     tool_file_spec(spec, replace, out_name, ",S,W");

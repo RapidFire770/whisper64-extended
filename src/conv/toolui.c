@@ -417,6 +417,16 @@ int tool_read_seq_line(unsigned char *eof, char *line, int *err) {
     }
 }
 
+static unsigned char progress_at;
+
+void tool_set_progress_row(unsigned char row) {
+    progress_at = row;
+}
+
+void tool_progress_line(unsigned int n) {
+    tool_note_progress(progress_at, "LINE ", n);
+}
+
 void tool_note_progress(unsigned char row, const char *label, unsigned int n) {
     char msg[20];
 

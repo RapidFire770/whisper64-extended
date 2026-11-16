@@ -6,6 +6,7 @@
 static int read_seq_reu(void) {
     char spec[28];
     unsigned char eof = 0;
+    unsigned int lines = 0;
 
     tool_file_spec(spec, 0, in_name, ",S,R");
     if (tool_open_ch(2, read_drive, spec) != 0) {
@@ -30,6 +31,12 @@ static int read_seq_reu(void) {
         c = conv_seq_byte(c);
         if (tool_stash_byte((unsigned char)c) < 0)
             return -1;
+        if (c == 13) {
+            if (lines < 65535u)
+                lines++;
+            tool_progress_line(lines);
+            cbm_k_chkin(2);
+        }
     }
     tool_stash_flush();
     tool_close_ch(2);
@@ -40,6 +47,7 @@ static int read_seq_stripped(void) {
     char spec[28];
     unsigned char eof = 0;
     char line[80];
+    unsigned int seen = 0;
 
     tool_file_spec(spec, 0, in_name, ",S,R");
     if (tool_open_ch(2, read_drive, spec) != 0) {
@@ -61,12 +69,20 @@ static int read_seq_stripped(void) {
                 tool_set_str(msg, "READ ");
                 tool_add_hex2(msg, last_st);
                 tool_finish(CONV_DISK, msg);
-            } else
-                tool_finish(CONV_LINE_LONG, "LINE LONG");
+            } else {
+                char msg[20];
+
+                tool_set_str(msg, "LINE LONG ");
+                tool_add_dec(msg, seen + 1u);
+                tool_finish(CONV_LINE_LONG, msg);
+            }
             return -1;
         }
         if (rc > 0)
             break;
+        if (seen < 65535u)
+            seen++;
+        tool_progress_line(seen);
         conv_strip_rem(line);
         for (i = 0; line[i]; i++) {
             if (tool_stash_byte((unsigned char)line[i]) < 0)
@@ -97,6 +113,7 @@ static void label_job(int strip, unsigned int step) {
     replace = tool_confirm_overwrite(probe);
     if (!replace)
         return;
+    tool_set_progress_row(tool_take_row());
     if (strip) {
         if (read_seq_stripped() < 0)
             return;
@@ -118,12 +135,12 @@ static void label_job(int strip, unsigned int step) {
     if (!tool_drive_status_ok())
         return;
     if (wrote == 0)
-        tool_put_row(12, "EMPTY PRG");
+        tool_put_row(tool_take_row(), "EMPTY PRG");
     else {
         char msg[20];
         tool_set_str(msg, "WROTE ");
         tool_add_dec(msg, (unsigned int)wrote);
-        tool_put_row(12, msg);
+        tool_put_row(tool_take_row(), msg);
     }
     tool_file_spec(probe, 0, out_name, ",P,R");
     tool_remember_output(probe);

@@ -38,6 +38,7 @@ static void reu_slide(unsigned long dst, unsigned long src, unsigned long n,
 static int read_seq_reu(void) {
     char spec[28];
     unsigned char eof = 0;
+    unsigned int lines = 0;
 
     tool_file_spec(spec, 0, in_name, ",S,R");
     if (tool_open_ch(2, read_drive, spec) != 0) {
@@ -62,6 +63,12 @@ static int read_seq_reu(void) {
         c = conv_seq_byte(c);
         if (tool_stash_byte((unsigned char)c) < 0)
             return -1;
+        if (c == 13) {
+            if (lines < 65535u)
+                lines++;
+            tool_progress_line(lines);
+            cbm_k_chkin(2);
+        }
     }
     tool_stash_flush();
     tool_close_ch(2);
@@ -81,6 +88,7 @@ static void renumber_job(unsigned int step) {
     replace = tool_confirm_overwrite(probe);
     if (!replace)
         return;
+    tool_set_progress_row(tool_take_row());
     if (read_seq_reu() < 0)
         return;
     if (renumber_seq_store(tool_stored(), reu_bytes, step, &out_at, &out_len,
@@ -93,7 +101,7 @@ static void renumber_job(unsigned int step) {
         return;
     if (!tool_drive_status_ok())
         return;
-    tool_put_row(12, "RENUMBERED");
+    tool_put_row(tool_take_row(), "RENUMBERED");
     tool_file_spec(probe, 0, out_name, ",S,R");
     tool_remember_output(probe);
 }
@@ -163,7 +171,6 @@ static int prg_to_text(unsigned long *text_len, unsigned long *tail_len) {
     unsigned int link;
     unsigned int line_no;
     int lo, hi;
-    unsigned int seen = 0;
 
     tool_file_spec(spec, 0, in_name, ",P,R");
     if (tool_open_ch(2, read_drive, spec) != 0) {
@@ -253,9 +260,7 @@ static int prg_to_text(unsigned long *text_len, unsigned long *tail_len) {
             }
         }
         addr = link;
-        if (seen < 65535u)
-            seen++;
-        tool_note_progress(10, "PRG ", seen);
+        tool_progress_line(line_no);
     }
     tool_stash_flush();
     *text_len = tool_stored();
@@ -288,6 +293,7 @@ static void renumber_prg(unsigned int step) {
     replace = tool_confirm_overwrite(probe);
     if (!replace)
         return;
+    tool_set_progress_row(tool_take_row());
     if (prg_to_text(&text_len, &tail_len) < 0)
         return;
     if (text_len + tail_len > reu_bytes) {
@@ -314,7 +320,7 @@ static void renumber_prg(unsigned int step) {
         return;
     if (!tool_drive_status_ok())
         return;
-    tool_put_row(12, "RENUMBERED");
+    tool_put_row(tool_take_row(), "RENUMBERED");
     tool_file_spec(probe, 0, out_name, ",P,R");
     tool_remember_output(probe);
 }
