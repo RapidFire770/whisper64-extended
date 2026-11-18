@@ -10,5 +10,7 @@
 
 int page_insert_line(char page[][MAX_LINE_LENGTH], int *count,
                      int row, const char *text, char *displaced);
+int page_remove_line(char page[][MAX_LINE_LENGTH], int *count,
+                     int row, char *removed);
 
 #endif

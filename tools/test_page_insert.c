@@ -74,6 +74,70 @@ static int displaced_untouched(const unsigned char *d) {
     return 1;
 }
 
+static void test_shift_bytes(void) {
+    char page[LINES_PER_PAGE][MAX_LINE_LENGTH];
+    char displaced[MAX_LINE_LENGTH];
+    int count;
+    int rc;
+    int i;
+
+    memset(page, 0, sizeof page);
+    for (i = 0; i < LINES_PER_PAGE; i++) {
+        if ((i & 1) == 0)
+            strcpy(page[i], "IF CS=1 THEN GOSUB RD");
+        else
+            strcpy(page[i], " MENUNAV:");
+    }
+    count = LINES_PER_PAGE;
+    rc = page_insert_line(page, &count, 0, "NEW", displaced);
+    if (rc != 1 || count != LINES_PER_PAGE || strcmp(page[0], "NEW") != 0)
+        fail("full insert head");
+    if (strcmp(page[1], "IF CS=1 THEN GOSUB RD") != 0 || page[1][0] != 'I')
+        fail("full insert first");
+    if (strcmp(page[2], " MENUNAV:") != 0 || page[2][0] != ' ')
+        fail("full insert second");
+    if (strcmp(displaced, " MENUNAV:") != 0)
+        fail("full insert displaced");
+
+    memset(page, 0, sizeof page);
+    for (i = 0; i < 47; i++) {
+        if ((i & 1) == 0)
+            strcpy(page[i], "IF CS=1 THEN GOSUB RD");
+        else
+            strcpy(page[i], " MENUNAV:");
+    }
+    count = 47;
+    rc = page_insert_line(page, &count, 0, "NEW", displaced);
+    if (rc != 0 || count != 48 || strcmp(page[1], "IF CS=1 THEN GOSUB RD") != 0)
+        fail("short insert");
+    if (strcmp(page[2], " MENUNAV:") != 0 || page[2][0] != ' ')
+        fail("short insert first");
+
+    rc = page_remove_line(page, &count, 0, displaced);
+    if (rc != 0 || count != 47 || strcmp(displaced, "NEW") != 0)
+        fail("remove head");
+    if (strcmp(page[0], "IF CS=1 THEN GOSUB RD") != 0 || page[0][0] != 'I')
+        fail("remove first");
+    if (strcmp(page[1], " MENUNAV:") != 0 || page[1][0] != ' ')
+        fail("remove second");
+
+    rc = page_remove_line(page, &count, 47, displaced);
+    if (rc != 1 || count != 47)
+        fail("remove past end");
+
+    memset(page, 0, sizeof page);
+    strcpy(page[0], "AA");
+    strcpy(page[1], "BB");
+    strcpy(page[2], "CC");
+    count = 3;
+    rc = page_remove_line(page, &count, 1, displaced);
+    if (rc != 0 || count != 2 || strcmp(displaced, "BB") != 0 ||
+        strcmp(page[0], "AA") != 0 || strcmp(page[1], "CC") != 0)
+        fail("remove middle");
+    if (page[2][0] != '\0')
+        fail("remove cleared tail");
+}
+
 static void test_pages(void) {
     char page[LINES_PER_PAGE][MAX_LINE_LENGTH];
     unsigned char displaced[MAX_LINE_LENGTH];
@@ -156,6 +220,7 @@ static void test_pages(void) {
 
 int main(void) {
     test_fmt();
+    test_shift_bytes();
     test_pages();
     if (failed)
         return 1;

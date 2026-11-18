@@ -34,6 +34,8 @@ set(SOURCES
 
 # Add the executable with all source files
 add_executable(whisper64.prg ${SOURCES})
+set_source_files_properties(src/page_shift.c PROPERTIES
+    COMPILE_OPTIONS "-fno-builtin-memmove")
 
 # Optimization flags for size
 target_compile_options(whisper64.prg PRIVATE -Os -ffunction-sections)
