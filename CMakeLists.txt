@@ -30,12 +30,14 @@ set(SOURCES
     src/goto.c
     src/editfmt.c
     src/page_shift.c
+    src/move_down.S
 )
 
 # Add the executable with all source files
 add_executable(whisper64.prg ${SOURCES})
 set_source_files_properties(src/page_shift.c PROPERTIES
     COMPILE_OPTIONS "-fno-builtin-memmove")
+set_source_files_properties(src/move_down.S PROPERTIES LANGUAGE C)
 
 # Optimization flags for size
 target_compile_options(whisper64.prg PRIVATE -Os -ffunction-sections)

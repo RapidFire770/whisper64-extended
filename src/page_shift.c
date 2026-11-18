@@ -11,19 +11,27 @@ static void copy_text(char *dst, const char *text) {
     dst[i] = '\0';
 }
 
+#if defined(__mos__)
+extern void move_bytes_down(char *dst, const char *src, unsigned int n);
+#else
+static void move_bytes_down(char *dst, const char *src, unsigned int n) {
+    dst += n;
+    src += n;
+    while (n != 0) {
+        n--;
+        dst--;
+        src--;
+        *dst = *src;
+    }
+}
+#endif
+
 __attribute__((noinline))
 static void move_bytes(char *dst, const char *src, unsigned int n) {
     if (n == 0 || dst == src)
         return;
     if (dst > src) {
-        dst += n;
-        src += n;
-        while (n != 0) {
-            n--;
-            dst--;
-            src--;
-            *dst = *src;
-        }
+        move_bytes_down(dst, src, n);
         return;
     }
     while (n != 0) {

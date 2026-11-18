@@ -61,9 +61,8 @@ void load_page(int page_num) {
     save_current_page_to_temp();
     
     current_page = page_num;
-    memset(lines, 0, sizeof(lines));
     num_lines = 1;
-    
+
     if (reu_is_available()) {
         int loaded = reu_load_page(page_num);
         if (loaded > 0) {
@@ -72,6 +71,8 @@ void load_page(int page_num) {
             return;
         }
     }
+
+    memset(lines, 0, sizeof(lines));
     
     edit_set(temp_name, TEMP_FILE);
     edit_add(temp_name, ".P");
