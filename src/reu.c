@@ -187,6 +187,24 @@ int reu_load_page(int page_num) {
     return header.num_lines_stored;
 }
 
+void reu_put_line(int page_num, int row, const char *text) {
+    REUPtr addr;
+    REUPageHeader header;
+    unsigned int n;
+
+    if (!reu_available || row < 0 || row >= LINES_PER_PAGE)
+        return;
+    n = 0;
+    while (text[n] && n < MAX_LINE_LENGTH - 1)
+        n++;
+    addr = reu_page_addr(page_num);
+    reu_write(addr + sizeof(header) + (REUPtr)row * MAX_LINE_LENGTH,
+              (void *)text, n + 1);
+    header.magic = REU_PAGE_MAGIC;
+    header.num_lines_stored = (uint16_t)(row + 1);
+    reu_write(addr, &header, sizeof header);
+}
+
 int reu_page_lines(int page_num) {
     REUPtr addr;
     REUPageHeader header;

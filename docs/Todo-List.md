@@ -5,7 +5,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 ## Bugs & Fixes Needed:
 
 - [ ] Replace function freezes the program at the "REPLACE ALL? (Y/N)" message. Appears to be inconsistent, works sometimes and freezes at other times.
-- [ ] When lines are being pushed down between pages after hitting the enter/return key a line is being lost/disappearing between those pages. Also the line/lines on the next page after the lost line sometimes looses the first character of the line, an "IF CS=1" becomes " F CS=1" Also deleting lines is not pulling the lines up from the previous pages. This is causing my programs to break and work to be lost without knowing it until its to late.
+- [x] When lines are being pushed down between pages after hitting the enter/return key a line is being lost/disappearing between those pages. Also the line/lines on the next page after the lost line sometimes looses the first character of the line, an "IF CS=1" becomes " F CS=1" Also deleting lines is not pulling the lines up from the previous pages. This is causing my programs to break and work to be lost without knowing it until its to late.
 
 ## Features
 

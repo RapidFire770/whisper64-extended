@@ -138,15 +138,15 @@ int main(void) {
             if (new_line())
                 update_cursor();
         } else if (c == KEY_DELETE) {
-            int at_break = (cursor_x == 0 && cursor_y > 0);
             int old_len = 0;
             int old_x = cursor_x;
+            int redraw;
 
-            if (!at_break && cursor_y < num_lines)
+            if (cursor_y < num_lines)
                 old_len = (int)strlen(lines[cursor_y]);
             save_undo_state();
-            delete_char();
-            if (at_break)
+            redraw = delete_char();
+            if (redraw)
                 update_cursor();
             else
                 update_current_line(old_len, old_x);

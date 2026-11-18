@@ -186,37 +186,6 @@ void insert_char(char c) {
     }
 }
 
-void delete_char(void) {
-    int len = strlen(lines[cursor_y]);
-    
-    if (cursor_x > 0) {
-        memmove(&lines[cursor_y][cursor_x - 1], 
-                &lines[cursor_y][cursor_x], 
-                len - cursor_x + 1);
-        cursor_x--;
-        page_modified = 1;
-    } else if (cursor_y > 0) {
-        int prev_len = strlen(lines[cursor_y - 1]);
-        if (prev_len + len < MAX_LINE_LENGTH) {
-            strcat(lines[cursor_y - 1], lines[cursor_y]);
-            
-            memmove(&lines[cursor_y], &lines[cursor_y + 1], 
-                    (num_lines - cursor_y - 1) * sizeof(lines[0]));
-            lines[num_lines - 1][0] = '\0';
-            num_lines--;
-            total_lines--;
-            
-            cursor_y--;
-            cursor_x = prev_len;
-            page_modified = 1;
-            
-            if (scroll_offset > 0 && cursor_y < scroll_offset) {
-                scroll_offset--;
-            }
-        }
-    }
-}
-
 static void copy_tail(char *dst, const char *src) {
     int i = 0;
 
@@ -225,6 +194,141 @@ static void copy_tail(char *dst, const char *src) {
         i++;
     }
     dst[i] = '\0';
+}
+
+static void pull_hole(void) {
+    int hole = current_page;
+    int source;
+    int hole_count;
+
+    if (num_lines >= LINES_PER_PAGE)
+        return;
+    if (hole + 1 >= num_pages) {
+        if (num_lines == 0 && hole > 0) {
+            num_pages = hole;
+            page_modified = 0;
+            load_page(hole - 1);
+        }
+        return;
+    }
+
+    mark_active = 0;
+    clear_undo();
+    hole_count = num_lines;
+    source = hole + 1;
+    for (;;) {
+        int was_full;
+
+        if (source >= num_pages)
+            break;
+        load_page(source);
+        if (reu_is_available() && reu_page_lines(source) == 0) {
+            source++;
+            continue;
+        }
+        if (num_lines < 1) {
+            if (source == num_pages - 1) {
+                num_pages = source;
+                page_modified = 0;
+            }
+            break;
+        }
+        was_full = num_lines == LINES_PER_PAGE;
+        page_remove_line(lines, &num_lines, 0, spill_line);
+        if (num_lines == 0 && source == num_pages - 1) {
+            num_pages = source;
+            page_modified = 0;
+            was_full = 0;
+        } else {
+            page_modified = 1;
+        }
+        if (reu_is_available()) {
+            reu_put_line(hole, hole_count, spill_line);
+            hole_count++;
+        } else {
+            load_page(hole);
+            copy_tail(lines[num_lines], spill_line);
+            num_lines++;
+            page_modified = 1;
+        }
+        if (!was_full)
+            break;
+        hole = source;
+        hole_count = num_lines;
+        source = hole + 1;
+    }
+}
+
+int delete_char(void) {
+    int len = strlen(lines[cursor_y]);
+
+    if (cursor_x > 0) {
+        memmove(&lines[cursor_y][cursor_x - 1],
+                &lines[cursor_y][cursor_x],
+                len - cursor_x + 1);
+        cursor_x--;
+        page_modified = 1;
+        return 0;
+    }
+
+    if (cursor_y > 0) {
+        int prev_len = strlen(lines[cursor_y - 1]);
+        int origin;
+
+        if (prev_len + len >= MAX_LINE_LENGTH)
+            return 0;
+        strcat(lines[cursor_y - 1], lines[cursor_y]);
+        page_remove_line(lines, &num_lines, cursor_y, spill_next);
+        total_lines--;
+        cursor_y--;
+        cursor_x = prev_len;
+        page_modified = 1;
+        if (scroll_offset > 0 && cursor_y < scroll_offset)
+            scroll_offset--;
+        origin = current_page;
+        pull_hole();
+        if (current_page != origin && origin < num_pages)
+            load_page(origin);
+        return 1;
+    }
+
+    if (current_page > 0) {
+        int origin = current_page;
+        int prev_len;
+        int joined_page;
+
+        copy_tail(spill_line, lines[0]);
+        load_page(origin - 1);
+        if (num_lines < 1) {
+            load_page(origin);
+            return 0;
+        }
+        prev_len = strlen(lines[num_lines - 1]);
+        if (prev_len + len >= MAX_LINE_LENGTH) {
+            load_page(origin);
+            return 0;
+        }
+        strcat(lines[num_lines - 1], spill_line);
+        page_modified = 1;
+        joined_page = current_page;
+        save_current_page_to_temp();
+        load_page(origin);
+        page_remove_line(lines, &num_lines, 0, spill_next);
+        total_lines--;
+        page_modified = 1;
+        pull_hole();
+        if (joined_page < num_pages)
+            load_page(joined_page);
+        cursor_y = num_lines - 1;
+        cursor_x = prev_len;
+        if (cursor_y >= EDIT_HEIGHT)
+            scroll_offset = cursor_y - EDIT_HEIGHT + 1;
+        else
+            scroll_offset = 0;
+        return 1;
+    }
+
+    return 0;
 }
 
 static int spill_blocked(void) {

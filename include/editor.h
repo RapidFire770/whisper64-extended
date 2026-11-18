@@ -8,7 +8,7 @@ void init_editor(void);
 
 // Text editing operations
 void insert_char(char c);
-void delete_char(void);
+int delete_char(void);
 int new_line(void);
 
 // Paging

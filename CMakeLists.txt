@@ -41,6 +41,12 @@ set_source_files_properties(src/move_down.S PROPERTIES LANGUAGE C)
 
 # Optimization flags for size
 target_compile_options(whisper64.prg PRIVATE -Os -ffunction-sections)
+# Pull + page_remove_line overflow RAM at -Os. MinSizeRel injects -Os first;
+# these later -Oz flags are what clang compiles for those files.
+set_source_files_properties(
+    src/screen.c src/main.c src/file_ops.c src/help.c src/search.c
+    src/clipboard.c src/undo.c src/goto.c src/screen80.c src/reu.c
+    PROPERTIES COMPILE_OPTIONS "-Oz")
 
 target_link_options(whisper64.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=whisper64.map)
 

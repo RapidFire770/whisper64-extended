@@ -13,6 +13,7 @@ static void copy_text(char *dst, const char *text) {
 
 #if defined(__mos__)
 extern void move_bytes_down(char *dst, const char *src, unsigned int n);
+extern void move_bytes_up(char *dst, const char *src, unsigned int n);
 #else
 static void move_bytes_down(char *dst, const char *src, unsigned int n) {
     dst += n;
@@ -22,6 +23,15 @@ static void move_bytes_down(char *dst, const char *src, unsigned int n) {
         dst--;
         src--;
         *dst = *src;
+    }
+}
+
+static void move_bytes_up(char *dst, const char *src, unsigned int n) {
+    while (n != 0) {
+        *dst = *src;
+        dst++;
+        src++;
+        n--;
     }
 }
 #endif
@@ -34,12 +44,7 @@ static void move_bytes(char *dst, const char *src, unsigned int n) {
         move_bytes_down(dst, src, n);
         return;
     }
-    while (n != 0) {
-        *dst = *src;
-        dst++;
-        src++;
-        n--;
-    }
+    move_bytes_up(dst, src, n);
 }
 
 int page_insert_line(char page[][MAX_LINE_LENGTH], int *count,

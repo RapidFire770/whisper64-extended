@@ -139,6 +139,44 @@ def goto_line(n):
     fail("goto %d" % n)
 
 
+def case_delete_middle():
+    addr = lines_addr()
+    boot()
+    load_named("DICEROLL-SRC")
+    goto_line(2)
+    drv.inject_keys([drv.K_DELETE], settle=0.5)
+    goto_line(48)
+    row = ram_row(addr, 47)
+    if not row.startswith(b"H6$ = B1$+CHR$(18)"):
+        fail("page 0 did not pull H6 %r" % row[:40])
+    goto_line(49)
+    row = ram_row(addr, 0)
+    if not row.startswith(b"H7$ = B1$+CHR$(18)"):
+        fail("page 1 row 0 %r" % row[:40])
+    drv.reset()
+
+
+def case_delete_page_top():
+    addr = lines_addr()
+    boot()
+    load_named("DICEROLL-SRC")
+    goto_line(97)
+    drv.inject_keys([drv.K_DELETE], settle=0.8)
+    scr = screen()
+    if title_line(scr) != 96:
+        fail("page top join title %s" % title_line(scr))
+    row = ram_row(addr, 47)
+    if row != b"MENUNAV:":
+        fail("joined line %r" % row)
+    goto_line(97)
+    row = ram_row(addr, 0)
+    if not row.startswith(b"REM READ JOYSTICK INPUT"):
+        fail("pulled row %r" % row[:40])
+    if row[:1] != b"R":
+        fail("pulled first byte %r" % row[:4])
+    drv.reset()
+
+
 def case_return():
     addr = lines_addr()
     boot()
@@ -175,4 +213,6 @@ def case_return():
 
 
 if __name__ == "__main__":
+    case_delete_middle()
+    case_delete_page_top()
     case_return()

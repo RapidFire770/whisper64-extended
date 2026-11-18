@@ -67,6 +67,7 @@ void reu_write(REUPtr reu_addr, void* c64_addr, uint16_t size);
 void reu_save_page(int page_num);
 int reu_load_page(int page_num);
 int reu_page_lines(int page_num);
+void reu_put_line(int page_num, int row, const char *text);
 void reu_clear_pages(void);
 
 #endif
