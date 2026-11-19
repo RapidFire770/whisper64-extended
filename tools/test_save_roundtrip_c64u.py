@@ -150,12 +150,23 @@ def goto_line(n):
     fail("goto %d" % n)
 
 
+def read_page(addr):
+    first = bytes(drv.read_mem(addr, 48 * 80))
+    second = bytes(drv.read_mem(addr, 48 * 80))
+    if first == second:
+        return first
+    third = bytes(drv.read_mem(addr, 48 * 80))
+    if third == first or third == second:
+        return third
+    return third
+
+
 def read_all(addr, n):
     got = []
     page = 0
     while len(got) < n:
         goto_line(page * 48 + 1)
-        blob = bytes(drv.read_mem(addr, 48 * 80))
+        blob = read_page(addr)
         take = min(48, n - len(got))
         for row in range(take):
             raw = blob[row * 80:(row + 1) * 80].split(b"\x00", 1)[0]
@@ -169,17 +180,9 @@ def read_all(addr, n):
 def compare(label, got, want):
     if len(got) != len(want):
         fail("%s count %d want %d" % (label, len(got), len(want)))
-    addr = lines_addr()
     for i, (g, w) in enumerate(zip(got, want), 1):
         if g != w:
-            # A DMA read of the line buffer has come back with one stray
-            # byte that was not in the line on the next read.
-            goto_line(i)
-            row = (i - 1) % 48
-            blob = bytes(drv.read_mem(addr + row * 80, 80))
-            g = blob.split(b"\x00", 1)[0]
-            if g != w:
-                fail("%s line %d got %r want %r" % (label, i, g[:60], w[:60]))
+            fail("%s line %d got %r want %r" % (label, i, g[:60], w[:60]))
     print(label, "ok", len(got), "lines")
 
 
