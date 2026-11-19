@@ -142,14 +142,20 @@ int main(void) {
             int old_x = cursor_x;
             int redraw;
 
-            if (cursor_y < num_lines)
-                old_len = (int)strlen(lines[cursor_y]);
-            save_undo_state();
-            redraw = delete_char();
-            if (redraw)
-                update_cursor();
-            else
-                update_current_line(old_len, old_x);
+            if (mark_active) {
+                save_undo_state();
+                if (delete_marked_lines())
+                    update_cursor();
+            } else {
+                if (cursor_y < num_lines)
+                    old_len = (int)strlen(lines[cursor_y]);
+                save_undo_state();
+                redraw = delete_char();
+                if (redraw)
+                    update_cursor();
+                else
+                    update_current_line(old_len, old_x);
+            }
         } else if (c == KEY_LEFT) {
             int old_x = cursor_x;
             int old_y = cursor_y;

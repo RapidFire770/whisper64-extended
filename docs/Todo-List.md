@@ -9,7 +9,7 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 
 ## Features
 
-- [ ] When in mark mode and text is highlighted and the user presses tge DEL delete key it should remove the text lines that are selected.
+- [x] When in mark mode and text is highlighted and the user presses tge DEL delete key it should remove the text lines that are selected.
 
 ---
 

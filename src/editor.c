@@ -259,6 +259,52 @@ static void pull_hole(void) {
     }
 }
 
+int delete_marked_lines(void) {
+    int y0 = mark_start_y < mark_end_y ? mark_start_y : mark_end_y;
+    int y1 = mark_start_y < mark_end_y ? mark_end_y : mark_start_y;
+    int n;
+    int i;
+    int origin;
+
+    if (y0 < 0)
+        y0 = 0;
+    if (y1 >= num_lines)
+        y1 = num_lines - 1;
+    if (y0 > y1)
+        return 0;
+    n = y1 - y0 + 1;
+    for (i = y1; i >= y0; i--)
+        page_remove_line(lines, &num_lines, i, spill_next);
+    total_lines -= n;
+    page_modified = 1;
+    mark_active = 0;
+    cursor_x = 0;
+    cursor_y = y0;
+    if (num_lines < 1)
+        cursor_y = 0;
+    else if (cursor_y >= num_lines)
+        cursor_y = num_lines - 1;
+    origin = current_page;
+    for (i = 0; i < n; i++) {
+        if (current_page != origin && origin < num_pages)
+            load_page(origin);
+        pull_hole();
+    }
+    if (current_page != origin && origin < num_pages)
+        load_page(origin);
+    if (num_lines < 1)
+        cursor_y = 0;
+    else if (cursor_y >= num_lines)
+        cursor_y = num_lines - 1;
+    cursor_x = 0;
+    if (cursor_y < scroll_offset)
+        scroll_offset = cursor_y;
+    else if (cursor_y >= scroll_offset + EDIT_HEIGHT)
+        scroll_offset = cursor_y - EDIT_HEIGHT + 1;
+    clear_undo();
+    return 1;
+}
+
 int delete_char(void) {
     int len = strlen(lines[cursor_y]);
 
