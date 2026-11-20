@@ -20,6 +20,7 @@ times per frame, so we sleep briefly between injections to let it drain.
 Screen-code note: UPPERCASE A-Z ($41-$5A) and space ($20) match PETSCII, but
 digits/punctuation differ. We decode leniently (see decode_row).
 """
+import subprocess
 import sys
 import time
 import urllib.request
@@ -48,35 +49,29 @@ PRG = "build/whisper64.prg"
 def _put(path, data=None):
     url = HOST + path
     req = urllib.request.Request(url, data=data, method="PUT")
-    with urllib.request.urlopen(req, timeout=10) as r:
+    with urllib.request.urlopen(req, timeout=30) as r:
         return r.read()
 
 
 def _get(path):
     url = HOST + path
-    with urllib.request.urlopen(url, timeout=10) as r:
+    with urllib.request.urlopen(url, timeout=30) as r:
         return r.read()
 
 
 def reset():
-    _put("/v1/machine:reset")
+    subprocess.check_call(["c64u", "machine", "reset"])
     time.sleep(2.5)
 
 
 def load_and_run(prg_path):
-    with open(prg_path, "rb") as f:
-        data = f.read()
-    req = urllib.request.Request(HOST + "/v1/runners:run_prg",
-                                 data=data, method="POST",
-                                 headers={"Content-Type": "application/octet-stream"})
-    with urllib.request.urlopen(req, timeout=15) as r:
-        r.read()
+    subprocess.check_call(["c64u", "runners", "run-prg-upload", prg_path])
     time.sleep(2.0)
 
 
 def read_mem(addr, length):
     """Read `length` bytes at `addr`; return bytes (binary response)."""
-    data = _get(f"/v1/machine:readmem?address=0x{addr:X}&length={length}")
+    data = _get(f"/v1/machine:readmem?address={addr:X}&length={length}")
     # Ultimate reads put noise in the color high nibble; VIC uses the low nibble.
     if addr >= COLOR and addr < COLOR + 0x400:
         data = bytes(b & 0x0F for b in data)
@@ -84,7 +79,7 @@ def read_mem(addr, length):
 
 
 def write_mem(addr, hex_bytes):
-    _put(f"/v1/machine:writemem?address=0x{addr:X}&data={hex_bytes}")
+    _put(f"/v1/machine:writemem?address={addr:X}&data={hex_bytes}")
 
 
 def inject_keys(codes, settle=0.35):
