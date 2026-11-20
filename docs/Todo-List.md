@@ -32,11 +32,11 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
 
 # W64TOOLS (w64conv, w64renum, w64label) - Features
 
-- [ ] Add more detail to the line status. Right now it just appears to loop through the lines multiple times until the conversion is done. Add information about what it is doing to the lines its counting through, example "Pass 1 Line: 23", "Renumbering Line: 10", "Numbering Labeled Lines: 130"
+- [x] Add more detail to the line status. Right now it just appears to loop through the lines multiple times until the conversion is done. Add information about what it is doing to the lines its counting through, example "Pass 1 Line: 23", "Renumbering Line: 10", "Numbering Labeled Lines: 130"
 
 ## Bugs on real C64U hardware with 16MB REU enabled and .d64 disk inserted called W64
 
-- [ ] When asking for which drives to read and write to the screen should have cleared before printing the question instead of printing overtop the previous information/menu items that were on screen.
+- [x] When asking for which drives to read and write to the screen should have cleared before printing the question instead of printing overtop the previous information/menu items that were on screen.
 
 <!-- # Both Whisper64 Editor and Utility programs  -->
 <!-- Scrapped cartridge feature for the moment. Editor code has grown to big to fit the extra needed exit code.

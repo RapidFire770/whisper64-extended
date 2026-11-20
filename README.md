@@ -84,9 +84,9 @@ RUN
 
 `W64LABEL` reads a labeled SEQ and writes a PRG. It asks `STRIP REM? Y/N` with the same rules. `start: REM menu` keeps the label. It asks `STEP:`. An empty step is 10.
 
-A long job paints `LINE n` on one row while it reads and numbers the file. `n` starts over when the next pass starts. All three tools treat an LF as a line break. A CR followed by an LF is an empty line, the same split the editor uses.
+A long job paints the stage and the line on one row. A SEQ read paints `READING LINE: n`, or `STRIPPING LINE: n` when REM is stripped. A PRG read paints `PRG LINE: n` with the BASIC line number. The next walks paint `PASS 1 LINE: n`, `PASS 2 LINE: n`, then `RENUMBERING LINE: n` or `NUMBERING LABELED LINES: n`, and a PRG write paints `TOKENIZING LINE: n`. `n` starts over when the next walk starts, except `PRG LINE:`. Keeping the SEQ numbers paints only `TOKENIZING LINE: n`. All three tools treat an LF as a line break. A CR followed by an LF is an empty line, the same split the editor uses.
 
-Each one asks for a read drive and a write drive, 8–15, and an empty entry is 8. The editor's F2 save stays a SEQ. N or Stop at the another-file prompt leaves the tool. `?` opens help, and Stop leaves that page. RUN/STOP on the main menu exits.
+Each one clears the screen, leaves the title and the REU line, and then asks for a read drive and a write drive, 8–15. An empty entry is 8. The editor's F2 save stays a SEQ. N or Stop at the another-file prompt leaves the tool. `?` opens help, and Stop leaves that page. RUN/STOP on the main menu exits.
 
 - Row 1 shows `REU: NONE` or `REU: nKB`. The largest value is `16320KB`. A job needs at least `128KB`. Below that, the job paints `REU 128KB REQUIRED` and waits for a key.
 - The file is stored in the REU. `TOO BIG` means that REU filled. A tokenized program can still stop at `PRG TOO BIG` when a 16-bit link would wrap.
