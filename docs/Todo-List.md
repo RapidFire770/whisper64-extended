@@ -22,7 +22,9 @@ Mouse and joystick support was removed so display wrap fits under the C64 RAM li
   > - **Bus Operation Mode**: When using physical external hardware (like **EasyFlash** or **IDE64**) alongside Turbo Mode, the **Bus Operation Mode** in the menu may need to be changed from "Quiet" to "Dynamic" or "Writes" to ensure proper signal bridging.
   > - **Performance**: While turbo mode significantly speeds up data loading and CPU-intensive tasks, it does not linearly speed up all games. Titles that are heavily dependent on the VIC-II raster timing may show minimal visual improvement or exhibit glitches if not specifically coded to handle the higher clock speeds.
 
-      As of November 19th there is a new firmware update for the Commodore 64 Ultimate bringing it from v1.1.0 to v1.2.1 the change log located in `~/C64 and Amiga/C64U/Firmware/v1.2.1/changelog-1.2.1.txt` indicates there are fixes to disk drive handling. I have update the firmware to this version incase it has any relation to the issues we are seeing with saving files from the whisper64 editor. Software IEC is also now enabled and the SD card directory to the “MY FILES” folder is mounted as device #11, this can be used for read and write testing as well as the mounted W64.d64 disk on device #8
+  As of November 19th there is a new firmware update for the Commodore 64 Ultimate bringing it from v1.1.0 to v1.2.1 the change log located in `~/C64 and Amiga/C64U/Firmware/v1.2.1/changelog-1.2.1.txt` indicates there are fixes to disk drive handling. I have update the firmware to this version incase it has any relation to the issues we are seeing with saving files from the whisper64 editor. Software IEC is also now enabled and the SD card directory to the “MY FILES” folder is mounted as device #11, this can be used for read and write testing as well as the mounted W64.d64 disk on device #8
+
+  After testing on the new firmware the bug presented itself again. Bad files after write testing on the W64.d64 disk are DICEROLL-SRC,DICEROLL-SRC2, DICEROLL-TEST. DICEROLL-BACKUP is the good file.
 
 ## Features
 
