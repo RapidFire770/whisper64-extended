@@ -827,6 +827,7 @@ int tool_prepare(char want) {
     char msg[40];
 
     tool_rows_reset();
+    draw_title();
     if (tool_ask_drive(tool_take_row(), "READ DRIVE (8-15): ", &read_drive) < 0)
         return -1;
     if (tool_ask_drive(tool_take_row(), "WRITE DRIVE (8-15): ", &write_drive) < 0)
