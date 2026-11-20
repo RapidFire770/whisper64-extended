@@ -99,29 +99,29 @@ Each one asks for a read drive and a write drive, 8–15, and an empty entry is 
 
 ## Key Commands
 
-| Key        | Function                      |
-|------------|-------------------------------|
-| **F1**     | Load file (directory browser) |
-| **F2**     | Save file                     |
-| **F3**     | Select drive (8-15)           |
-| **F4**     | Toggle BASIC color on/off     |
-| **F5**     | Find text                     |
-| **F6**     | Find & replace                |
-| **F7**     | Find next                     |
-| **F8**     | Help screen                   |
-| **CTRL+B** | Previous page                 |
-| **CTRL+C** | Copy marked text              |
-| **CTRL+D** | Toggle 40/80 column mode      |
-| **CTRL+G** | Goto a file-wide line. The title-bar number is 1-based. A page is 48 lines. |
-| **CTRL+K** | Toggle mark mode              |
-| **CTRL+N** | Next page                     |
-| **CTRL+V** | Paste text                    |
-| **CTRL+W** | New file (clear buffer)       |
-| **CTRL+Y** | Redo                          |
-| **CTRL+Z** | Undo                          |
-| **HOME**   | Go to start of file           |
-| **Arrows** | Move cursor                   |
-| **Shift+letter** | Lowercase. Unshifted letters stay uppercase. Shift Lock types lowercase. |
+| Key              | Function                                                                    |
+|------------------|-----------------------------------------------------------------------------|
+| **F1**           | Load file (directory browser)                                               |
+| **F2**           | Save file                                                                   |
+| **F3**           | Select drive (8-15)                                                         |
+| **F4**           | Toggle BASIC color on/off                                                   |
+| **F5**           | Find text                                                                   |
+| **F6**           | Find & replace                                                              |
+| **F7**           | Find next                                                                   |
+| **F8**           | Help screen                                                                 |
+| **CTRL+B**       | Previous page                                                               |
+| **CTRL+C**       | Copy marked text                                                            |
+| **CTRL+D**       | Toggle 40/80 column mode                                                    |
+| **CTRL+G**       | Goto a file-wide line. The title-bar number is 1-based. A page is 48 lines. |
+| **CTRL+K**       | Toggle mark mode                                                            |
+| **CTRL+N**       | Next page                                                                   |
+| **CTRL+V**       | Paste text                                                                  |
+| **CTRL+W**       | New file (clear buffer)                                                     |
+| **CTRL+Y**       | Redo                                                                        |
+| **CTRL+Z**       | Undo                                                                        |
+| **HOME**         | Go to start of file                                                         |
+| **Arrows**       | Move cursor                                                                 |
+| **Shift+letter** | Lowercase. Unshifted letters stay uppercase. Shift Lock types lowercase.    |
 
 ## 80-Column Mode
 
