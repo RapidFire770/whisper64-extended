@@ -659,20 +659,6 @@ static int load_dir(void) {
     return nent;
 }
 
-/* The menu painted the disk name in these columns. The file list keeps it. */
-static void draw_title(void) {
-    unsigned char name[8];
-    unsigned char i;
-    unsigned char x = (40 - 8) / 2;
-
-    for (i = 0; i < 8; i++)
-        name[i] = SCREEN_RAM[x + i];
-    tool_clrscr();
-    for (i = 0; i < 8; i++)
-        cputc_at((unsigned char)(x + i), 0, (char)name[i], COL_GREEN);
-    tool_paint_reu();
-}
-
 int tool_pick_file(char want) {
     unsigned char which[DIR_MAX];
     int nent;
@@ -692,7 +678,7 @@ int tool_pick_file(char want) {
         tool_cgetc();
         return -1;
     }
-    draw_title();
+    tool_restore_title();
     for (;;) {
         int top = 0;
         int row;
@@ -823,13 +809,11 @@ static void paint_drive(unsigned char row, const char *label, unsigned char driv
     tool_put_row(row, msg);
 }
 
-/* inlining draw_title into tool_prepare crashes ld.lld in the register allocator while linking w64renum */
-__attribute__((noinline))
 int tool_prepare(char want) {
     char msg[40];
 
     tool_rows_reset();
-    draw_title();
+    tool_restore_title();
     if (tool_ask_drive(tool_take_row(), "READ DRIVE (8-15): ", &read_drive) < 0)
         return -1;
     if (tool_ask_drive(tool_take_row(), "WRITE DRIVE (8-15): ", &write_drive) < 0)

@@ -54,6 +54,11 @@ target_link_options(whisper64.prg PRIVATE -Wl,--gc-sections -Wl,-s -Wl,-Map=whis
 # MinSizeRel injects -Os first; this later -Oz is what clang compiles.
 set_source_files_properties(src/conv/basic_zp.S PROPERTIES LANGUAGE C)
 
+set_source_files_properties(src/conv/tool_title.c PROPERTIES COMPILE_OPTIONS "-fno-lto")
+
+# w64renum's main hits the same ld.lld register-allocator crash under LTO.
+set_source_files_properties(src/conv/renum_main.c PROPERTIES COMPILE_OPTIONS "-fno-lto")
+
 function(add_w64_tool target)
     add_executable(${target} ${ARGN})
     target_compile_options(${target} PRIVATE -Oz -ffunction-sections)
@@ -65,6 +70,7 @@ endfunction()
 
 add_w64_tool(w64conv.prg
     src/conv/conv_main.c
+    src/conv/tool_title.c
     src/conv/toolui.c
     src/conv/tool_reu.c
     src/conv/token.c
@@ -74,6 +80,7 @@ add_w64_tool(w64conv.prg
 
 add_w64_tool(w64renum.prg
     src/conv/renum_main.c
+    src/conv/tool_title.c
     src/conv/toolui.c
     src/conv/tool_reu.c
     src/conv/renumber.c
@@ -83,6 +90,7 @@ add_w64_tool(w64renum.prg
 
 add_w64_tool(w64label.prg
     src/conv/label_main.c
+    src/conv/tool_title.c
     src/conv/toolui.c
     src/conv/tool_reu.c
     src/conv/renumber.c
