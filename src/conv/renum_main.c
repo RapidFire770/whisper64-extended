@@ -66,7 +66,7 @@ static int read_seq_reu(void) {
         if (c == 13) {
             if (lines < 65535u)
                 lines++;
-            tool_progress_line(lines);
+            tool_progress_line("READING LINE: ", lines);
             cbm_k_chkin(2);
         }
     }
@@ -260,7 +260,7 @@ static int prg_to_text(unsigned long *text_len, unsigned long *tail_len) {
             }
         }
         addr = link;
-        tool_progress_line(line_no);
+        tool_progress_line("PRG LINE: ", line_no);
     }
     tool_stash_flush();
     *text_len = tool_stored();

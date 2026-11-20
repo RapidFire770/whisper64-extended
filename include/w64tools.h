@@ -72,7 +72,7 @@ int tokenize_store(unsigned long seq_at, unsigned long seq_len,
                    unsigned long reu_size, unsigned long *out_at,
                    unsigned long *out_len, int *wrote, int *err, int *err_row);
 
-void conv_set_progress(void (*fn)(unsigned int row));
+void conv_set_progress(void (*fn)(const char *label, unsigned int row));
 
 /* Volatile so a whole-program link keeps the bytes the Ultimate test reads. */
 extern volatile unsigned char verify_buf[256];

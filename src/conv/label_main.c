@@ -34,7 +34,7 @@ static int read_seq_reu(void) {
         if (c == 13) {
             if (lines < 65535u)
                 lines++;
-            tool_progress_line(lines);
+            tool_progress_line("READING LINE: ", lines);
             cbm_k_chkin(2);
         }
     }
@@ -82,7 +82,7 @@ static int read_seq_stripped(void) {
             break;
         if (seen < 65535u)
             seen++;
-        tool_progress_line(seen);
+        tool_progress_line("STRIPPING LINE: ", seen);
         conv_strip_rem(line);
         for (i = 0; line[i]; i++) {
             if (tool_stash_byte((unsigned char)line[i]) < 0)

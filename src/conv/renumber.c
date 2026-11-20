@@ -3,19 +3,19 @@
 #include <ctype.h>
 #include <string.h>
 
-static void (*progress_fn)(unsigned int);
+static void (*progress_fn)(const char *label, unsigned int row);
 
-void conv_set_progress(void (*fn)(unsigned int row)) {
+void conv_set_progress(void (*fn)(const char *label, unsigned int row)) {
     progress_fn = fn;
 }
 
-static void note_row(unsigned long row) {
+static void note_row(const char *label, unsigned long row) {
     unsigned int n;
 
     if (!progress_fn)
         return;
     n = row > 65535ul ? 65535u : (unsigned int)row;
-    progress_fn(n);
+    progress_fn(label, n);
 }
 
 static int is_letter(unsigned char c) {
@@ -1278,7 +1278,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
         while (end < scan_lim && src_byte(end) != '\r')
             end++;
         row++;
-        note_row(row);
+        note_row("PASS 1 LINE: ", row);
         store_line_prefix(pos, end, &prefix_len, &overflow80);
         kind = line_num_at(store_line, prefix_len, &old, &digits, &after);
         if (kind < 0) {
@@ -1333,7 +1333,7 @@ int renumber_seq_store(unsigned long text_len, unsigned long reu_size,
             has_cr = end < scan_lim;
             store_line_prefix(pos, end, &prefix_len, &overflow80);
             row++;
-            note_row(row);
+            note_row(pass == 0 ? "PASS 2 LINE: " : "RENUMBERING LINE: ", row);
             if (overflow80) {
                 store_err_row(err_row, row);
                 rc = 4;
@@ -1555,7 +1555,7 @@ int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
         while (end < scan_lim && src_byte(end) != '\r')
             end++;
         row++;
-        note_row(row);
+        note_row("PASS 1 LINE: ", row);
         if (end == pos) {
             rc = flush_label_hold(nmap, &hold, &counter, &past, step);
             if (rc)
@@ -1653,7 +1653,7 @@ int labels_to_numbered_store(unsigned long text_len, unsigned long reu_size,
                 end++;
             has_cr = end < scan_lim;
             row++;
-            note_row(row);
+            note_row(pass == 0 ? "PASS 2 LINE: " : "NUMBERING LABELED LINES: ", row);
             if (end == pos) {
                 if (pass == 0) {
                     if (has_cr)
@@ -1778,7 +1778,7 @@ int tokenize_store(unsigned long seq_at, unsigned long seq_len,
         int j;
 
         row++;
-        note_row(row);
+        note_row("TOKENIZING LINE: ", row);
         while (end < scan_lim && src_byte(end) != '\r') {
             if (n < 79)
                 store_line[n++] = src_byte(end);

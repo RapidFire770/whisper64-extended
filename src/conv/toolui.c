@@ -423,12 +423,12 @@ void tool_set_progress_row(unsigned char row) {
     progress_at = row;
 }
 
-void tool_progress_line(unsigned int n) {
-    tool_note_progress(progress_at, "LINE ", n);
+void tool_progress_line(const char *label, unsigned int n) {
+    tool_note_progress(progress_at, label, n);
 }
 
 void tool_note_progress(unsigned char row, const char *label, unsigned int n) {
-    char msg[20];
+    char msg[40];
 
     cbm_k_clrch();
     tool_set_str(msg, label);

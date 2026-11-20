@@ -140,12 +140,37 @@ void w64_store_put(unsigned long addr, const void *src, unsigned int n) {
     memcpy(reu_mem + addr, src, n);
 }
 
+static const char *progress_labels[8];
 static unsigned int progress_rows[8];
 static int progress_n;
 
-static void grab_progress(unsigned int row) {
-    if (progress_n < 8)
-        progress_rows[progress_n++] = row;
+static void grab_progress(const char *label, unsigned int row) {
+    if (progress_n < 8) {
+        progress_labels[progress_n] = label;
+        progress_rows[progress_n] = row;
+        progress_n++;
+    }
+}
+
+static void expect_progress(const char *what, int rc, int err, int n,
+                            const char **want, const unsigned int *rows) {
+    int i;
+
+    if (rc != 0 || err != 0 || progress_n != n) {
+        printf("FAIL %s progress rc=%d err=%d n=%d\n", what, rc, err, progress_n);
+        failed = 1;
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        if (progress_rows[i] != rows[i] ||
+            progress_labels[i] == 0 ||
+            strcmp(progress_labels[i], want[i]) != 0) {
+            printf("FAIL %s progress %d got %s %u\n", what, i,
+                   progress_labels[i] ? progress_labels[i] : "(null)",
+                   progress_rows[i]);
+            failed = 1;
+        }
+    }
 }
 
 static void expect_store_progress(void) {
@@ -156,8 +181,12 @@ static void expect_store_progress(void) {
     int err = 99;
     int row = 77;
     int rc;
-    int i;
-    static const unsigned int want[] = { 1, 2, 1, 2, 1, 2 };
+    static const char *want[] = {
+        "PASS 1 LINE: ", "PASS 1 LINE: ",
+        "PASS 2 LINE: ", "PASS 2 LINE: ",
+        "NUMBERING LABELED LINES: ", "NUMBERING LABELED LINES: "
+    };
+    static const unsigned int rows[] = { 1, 2, 1, 2, 1, 2 };
 
     memset(reu_mem, 0, sizeof reu_mem);
     memcpy(reu_mem, in, strlen(in));
@@ -166,17 +195,52 @@ static void expect_store_progress(void) {
     rc = labels_to_numbered_store(strlen(in), sizeof reu_mem, 1,
                                   &out_at, &out_len, &err, &row, &ceiling);
     conv_set_progress(0);
-    if (rc != 0 || err != 0 || progress_n != 6) {
-        printf("FAIL store progress rc=%d n=%d\n", rc, progress_n);
-        failed = 1;
-        return;
-    }
-    for (i = 0; i < 6; i++) {
-        if (progress_rows[i] != want[i]) {
-            printf("FAIL store progress row %d got %u\n", i, progress_rows[i]);
-            failed = 1;
-        }
-    }
+    expect_progress("label", rc, err, 6, want, rows);
+}
+
+static void expect_renumber_progress(void) {
+    const char *in = "10 END\r20 END";
+    unsigned long out_at = 0;
+    unsigned long out_len = 0;
+    int err = 99;
+    int row = 77;
+    int rc;
+    static const char *want[] = {
+        "PASS 1 LINE: ", "PASS 1 LINE: ",
+        "PASS 2 LINE: ", "PASS 2 LINE: ",
+        "RENUMBERING LINE: ", "RENUMBERING LINE: "
+    };
+    static const unsigned int rows[] = { 1, 2, 1, 2, 1, 2 };
+
+    memset(reu_mem, 0, sizeof reu_mem);
+    memcpy(reu_mem, in, strlen(in));
+    progress_n = 0;
+    conv_set_progress(grab_progress);
+    rc = renumber_seq_store(strlen(in), sizeof reu_mem, 10,
+                            &out_at, &out_len, &err, &row);
+    conv_set_progress(0);
+    expect_progress("renumber", rc, err, 6, want, rows);
+}
+
+static void expect_tokenize_progress(void) {
+    const char *in = "10 END\r20 END";
+    unsigned long out_at = 0;
+    unsigned long out_len = 0;
+    int wrote = 0;
+    int err = 99;
+    int row = 77;
+    int rc;
+    static const char *want[] = { "TOKENIZING LINE: ", "TOKENIZING LINE: " };
+    static const unsigned int rows[] = { 1, 2 };
+
+    memset(reu_mem, 0, sizeof reu_mem);
+    memcpy(reu_mem, in, strlen(in));
+    progress_n = 0;
+    conv_set_progress(grab_progress);
+    rc = tokenize_store(0, strlen(in), sizeof reu_mem,
+                        &out_at, &out_len, &wrote, &err, &row);
+    conv_set_progress(0);
+    expect_progress("tokenize", rc, err, 2, want, rows);
 }
 
 static void expect_seq_byte(void) {
@@ -221,6 +285,8 @@ int main(void) {
     expect_seq_byte();
     expect_lf_label();
     expect_store_progress();
+    expect_renumber_progress();
+    expect_tokenize_progress();
     expect_text("goto self", "5 GOTO 5\r20 END", "10 GOTO 10\r20 END", 10);
     expect_text("on goto list", "10 ON A GOTO 10, 30\r30 END",
                 "10 ON A GOTO 10, 20\r20 END", 10);

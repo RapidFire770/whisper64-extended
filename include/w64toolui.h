@@ -45,7 +45,7 @@ int tool_ask_yn(unsigned char row, const char *label);
 int tool_read_seq_line(unsigned char *eof, char *line, int *err);
 void tool_note_progress(unsigned char row, const char *label, unsigned int n);
 void tool_set_progress_row(unsigned char row);
-void tool_progress_line(unsigned int n);
+void tool_progress_line(const char *label, unsigned int n);
 int tool_flush_at(const char *spec, unsigned long start, unsigned long nbytes);
 void tool_stash_reset(void);
 int tool_stash_byte(unsigned char b);

@@ -53,7 +53,7 @@ static int seq_store(unsigned int *wrote_out, int strip) {
             break;
         if (seen < 65535u)
             seen++;
-        tool_progress_line(seen);
+        tool_progress_line("TOKENIZING LINE: ", seen);
         cbm_k_chkin(2);
         if (strip)
             conv_strip_rem(line);
@@ -200,7 +200,7 @@ static int prg_store(unsigned int *wrote_out) {
         }
         addr = link;
         wrote++;
-        tool_progress_line(line_no);
+        tool_progress_line("PRG LINE: ", line_no);
         cbm_k_chkin(2);
     }
 
@@ -262,7 +262,10 @@ static int stash_seq_lines(int strip) {
             break;
         if (seen < 65535u)
             seen++;
-        tool_progress_line(seen);
+        if (strip)
+            tool_progress_line("STRIPPING LINE: ", seen);
+        else
+            tool_progress_line("READING LINE: ", seen);
         if (strip)
             conv_strip_rem(line);
         for (i = 0; line[i]; i++) {
