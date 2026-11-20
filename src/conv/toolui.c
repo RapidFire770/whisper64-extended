@@ -823,6 +823,8 @@ static void paint_drive(unsigned char row, const char *label, unsigned char driv
     tool_put_row(row, msg);
 }
 
+/* inlining draw_title into tool_prepare crashes ld.lld in the register allocator while linking w64renum */
+__attribute__((noinline))
 int tool_prepare(char want) {
     char msg[40];
 
