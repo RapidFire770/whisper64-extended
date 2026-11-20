@@ -73,7 +73,6 @@ int main(void) {
             show_directory();
         } else if (c == KEY_F2) {
             save_file();
-            update_cursor();
         } else if (c == KEY_F3) {
             select_drive();
         } else if (c == KEY_F4) {

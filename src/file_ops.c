@@ -633,13 +633,16 @@ void save_file() {
         if (status[0] == '0' && (status[1] == '0' || status[1] == '1')) {
             strcpy(current_filename, filename);
             page_modified = 0;
+            update_cursor();
             show_message("SAVED!", COL_GREEN);
         } else {
+            update_cursor();
             show_message(status, COL_RED);
         }
     } else {
         strcpy(current_filename, filename);
         page_modified = 0;
+        update_cursor();
         show_message("SAVED!", COL_GREEN);
     }
 }
