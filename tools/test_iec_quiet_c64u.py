@@ -34,32 +34,32 @@ def restore_machine():
         return
     RESTORING = True
     print("restoring machine", flush=True)
+    failed = []
     try:
         drv.reset()
     except Exception as exc:
-        print("restore failed", exc, flush=True)
-        sys.exit(1)
+        failed.append("reset: %s" % exc)
     if ORIG.get("remote") and ORIG.get("letter"):
         rc = subprocess.call([
             "c64u", "drives", "mount", ORIG["letter"], ORIG["remote"],
             "--mode", "readwrite"])
         if rc != 0:
-            print("restore failed", flush=True)
-            sys.exit(1)
+            failed.append("mount")
     if ORIG.get("speed"):
         rc = subprocess.call([
             "c64u", "config", "set", "U64 Specific Settings",
             "CPU Speed", ORIG["speed"]])
         if rc != 0:
-            print("restore failed", flush=True)
-            sys.exit(1)
+            failed.append("CPU Speed")
     if ORIG.get("turbo"):
         rc = subprocess.call([
             "c64u", "config", "set", "U64 Specific Settings",
             "Turbo Control", ORIG["turbo"]])
         if rc != 0:
-            print("restore failed", flush=True)
-            sys.exit(1)
+            failed.append("Turbo Control")
+    if failed:
+        print("restore failed", " ".join(failed), flush=True)
+        sys.exit(1)
 
 
 def sectors_on(track):
@@ -311,6 +311,18 @@ def turbo_bytes():
     return open(path, "rb").read()
 
 
+def wait_turbo_index(want, seconds=5):
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        tb = turbo_bytes()
+        if len(tb) >= 2 and (tb[1] & 0x0F) == want:
+            return
+        time.sleep(0.3)
+    tb = turbo_bytes()
+    got = tb[1] & 0x0F if len(tb) >= 2 else -1
+    fail("turbo index want %d got %d (%s)" % (want, got, tb.hex()))
+
+
 def row_bytes(scr, row):
     return bytes(scr[row * 40:(row + 1) * 40])
 
@@ -550,10 +562,13 @@ def memory_matches(addr, want_lines):
     fail("memory count %d" % len(got))
 
 
-def load_three(addr, name, want_lines):
+def load_three(addr, name, want_lines, speed):
     n = 0
     while n < 3:
         boot()
+        set_speed(speed)
+        if speed == "4":
+            wait_turbo_index(3)
         load_named(name)
         memory_matches(addr, want_lines)
         n += 1
@@ -584,7 +599,7 @@ def suite(speed, backup, first, second, addr, want_lines, payload, warm):
     time.sleep(3)
     image = download_image("/tmp/iec-after.d64")
     compare_payload(second.decode("ascii"), payload_named(image, second) or b"", payload)
-    load_three(addr, first.decode("ascii"), want_lines)
+    load_three(addr, first.decode("ascii"), want_lines, speed)
     print(speed, "MHz ok", flush=True)
 
 
