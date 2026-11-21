@@ -227,6 +227,20 @@ void load_directory() {
     cbm_k_close(2);
 }
 
+/* CLRCH finishes the open byte (UNLISTEN or UNTALK) before REU DMA.
+   $DD00 bits 6 and 7 are CLK in and DATA in. Both high means the
+   lines are released. The wrap ends the wait if a line stays low. */
+static void iec_release(void) {
+    unsigned int spins;
+
+    cbm_k_clrch();
+    spins = 0;
+    while ((*(volatile unsigned char *)0xDD00 & 0xC0) != 0xC0) {
+        if (++spins == 0)
+            break;
+    }
+}
+
 void show_directory() {
     int i, selected = 0, scroll_pos = 0;
     char c;
@@ -355,7 +369,10 @@ void show_directory() {
                             current_page = page;
                             page_modified = 1;
                             if (reu_is_available()) {
+                                iec_release();
                                 reu_save_page(page);
+                                cbm_k_chkin(2);
+                                *(volatile unsigned char *)0x90 = 0;
                             } else {
                                 save_current_page_to_temp();
                             }
@@ -534,6 +551,7 @@ void save_file() {
             // Load each page from REU/temp into lines buffer
             memset(lines, 0, sizeof(lines));
             if (reu_is_available()) {
+                iec_release();
                 page_lines = reu_load_page(p);
                 if (page_lines <= 0) page_lines = 1;
             } else {
@@ -592,6 +610,7 @@ void save_file() {
         // Restore the page the user was on
         memset(lines, 0, sizeof(lines));
         if (reu_is_available()) {
+            iec_release();
             int loaded = reu_load_page(saved_page);
             if (loaded > 0) num_lines = loaded;
         }
