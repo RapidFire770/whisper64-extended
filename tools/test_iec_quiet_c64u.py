@@ -242,18 +242,6 @@ def find_drive_8():
     fail("no drive with bus_id 8")
 
 
-def ensure_w64():
-    letter, info = find_drive_8()
-    image = " ".join(str(info.get(k) or "") for k in ("image_file", "image_path"))
-    if "W64.d64" in image:
-        return letter, info
-    subprocess.check_call([
-        "c64u", "drives", "mount", letter, "/SD/My Files/W64.d64",
-        "--mode", "readwrite"])
-    time.sleep(1)
-    return find_drive_8()
-
-
 def item_node(item):
     raw = subprocess.check_output(
         ["c64u", "config", "get", "U64 Specific Settings", item, "--json"],
