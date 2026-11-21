@@ -37,19 +37,29 @@ def restore_machine():
     try:
         drv.reset()
     except Exception as exc:
-        print("reset failed", exc, flush=True)
+        print("restore failed", exc, flush=True)
+        sys.exit(1)
     if ORIG.get("remote") and ORIG.get("letter"):
-        subprocess.call([
+        rc = subprocess.call([
             "c64u", "drives", "mount", ORIG["letter"], ORIG["remote"],
             "--mode", "readwrite"])
+        if rc != 0:
+            print("restore failed", flush=True)
+            sys.exit(1)
     if ORIG.get("speed"):
-        subprocess.call([
+        rc = subprocess.call([
             "c64u", "config", "set", "U64 Specific Settings",
             "CPU Speed", ORIG["speed"]])
+        if rc != 0:
+            print("restore failed", flush=True)
+            sys.exit(1)
     if ORIG.get("turbo"):
-        subprocess.call([
+        rc = subprocess.call([
             "c64u", "config", "set", "U64 Specific Settings",
             "Turbo Control", ORIG["turbo"]])
+        if rc != 0:
+            print("restore failed", flush=True)
+            sys.exit(1)
 
 
 def sectors_on(track):
@@ -593,38 +603,38 @@ def main():
     ORIG["turbo"] = current_of(item_node("Turbo Control"))
     ORIG["touched"] = True
     print("recorded", ORIG["speed"], ORIG["turbo"], remote, flush=True)
-    download_remote = remote
-    image = " ".join(str(info.get(k) or "") for k in ("image_file", "image_path"))
-    if "W64.d64" not in image:
+    try:
+        download_remote = remote
+        image = " ".join(str(info.get(k) or "") for k in ("image_file", "image_path"))
+        if "W64.d64" not in image:
+            subprocess.check_call([
+                "c64u", "drives", "mount", letter, "/SD/My Files/W64.d64",
+                "--mode", "readwrite"])
+            time.sleep(1)
+            _, w64_info = find_drive_8()
+            download_remote = remote_of(w64_info)
+        subprocess.check_call(["c64u", "fs", "download", download_remote, "/tmp/iec-src.d64"])
+        source = open("/tmp/iec-src.d64", "rb").read()
+        payload = payload_named(source, b"DICEROLL-BACKUP")
+        if payload is None:
+            fail("DICEROLL-BACKUP missing")
+        if b"\n" in payload or b"\x00" in payload or b"\r" not in payload:
+            fail("oracle is not CR-only text")
+        want_lines = oracle_lines(payload)
+        if len(want_lines) != 444:
+            fail("oracle lines %d" % len(want_lines))
+        image = blank_d64()
+        write_seq(image, b"DICEROLL-BACKUP", payload)
+        back = payload_named(image, b"DICEROLL-BACKUP")
+        if back != payload:
+            fail("scratch image did not round-trip")
+        open("/tmp/iec-quiet.d64", "wb").write(image)
+        print("scratch image ok", len(payload), "bytes", flush=True)
         subprocess.check_call([
-            "c64u", "drives", "mount", letter, "/SD/My Files/W64.d64",
+            "c64u", "drives", "mount-upload", letter, "/tmp/iec-quiet.d64",
             "--mode", "readwrite"])
         time.sleep(1)
-        _, w64_info = find_drive_8()
-        download_remote = remote_of(w64_info)
-    subprocess.check_call(["c64u", "fs", "download", download_remote, "/tmp/iec-src.d64"])
-    source = open("/tmp/iec-src.d64", "rb").read()
-    payload = payload_named(source, b"DICEROLL-BACKUP")
-    if payload is None:
-        fail("DICEROLL-BACKUP missing")
-    if b"\n" in payload or b"\x00" in payload or b"\r" not in payload:
-        fail("oracle is not CR-only text")
-    want_lines = oracle_lines(payload)
-    if len(want_lines) != 444:
-        fail("oracle lines %d" % len(want_lines))
-    image = blank_d64()
-    write_seq(image, b"DICEROLL-BACKUP", payload)
-    back = payload_named(image, b"DICEROLL-BACKUP")
-    if back != payload:
-        fail("scratch image did not round-trip")
-    open("/tmp/iec-quiet.d64", "wb").write(image)
-    print("scratch image ok", len(payload), "bytes", flush=True)
-    subprocess.check_call([
-        "c64u", "drives", "mount-upload", letter, "/tmp/iec-quiet.d64",
-        "--mode", "readwrite"])
-    time.sleep(1)
-    addr = lines_addr()
-    try:
+        addr = lines_addr()
         if which in ("both", "1"):
             suite("1", "DICEROLL-BACKUP", b"SLOWA", b"SLOWB",
                   addr, want_lines, payload, False)
