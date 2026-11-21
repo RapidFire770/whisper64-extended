@@ -241,6 +241,17 @@ static void iec_release(void) {
     }
 }
 
+static unsigned char turbo_byte;
+
+static void file_clock_slow(void) {
+    turbo_byte = *(volatile unsigned char *)0xD031;
+    *(volatile unsigned char *)0xD031 = (unsigned char)(turbo_byte & 0x80);
+}
+
+static void file_clock_restore(void) {
+    *(volatile unsigned char *)0xD031 = turbo_byte;
+}
+
 void show_directory() {
     int i, selected = 0, scroll_pos = 0;
     char c;
@@ -325,6 +336,7 @@ void show_directory() {
                 edit_add(load_name, ",P,R");
             }
 
+            file_clock_slow();
             cbm_k_setlfs(2, current_drive, 2);
             cbm_k_setnam(load_name);
             
@@ -388,6 +400,7 @@ void show_directory() {
 
                 cbm_k_clrch();
                 cbm_k_close(2);
+                file_clock_restore();
 
                 /* The last page was not added at a page break. */
                 num_lines = line > 0 ? line : 1;
@@ -435,6 +448,7 @@ void show_directory() {
                 show_message(lmsg, COL_GREEN);
                 return;
             } else {
+                file_clock_restore();
                 show_message("ERROR LOADING", COL_RED);
             }
         } else if (c == 3) {
@@ -502,6 +516,7 @@ void save_file() {
         strcpy(filename, current_filename);
     }
     
+    file_clock_slow();
     // Check if file exists - try to open for read
     cbm_k_setlfs(2, current_drive, 2);
     edit_set(full_filename, filename);
@@ -515,6 +530,7 @@ void save_file() {
         char response = cgetc();
 
         if (response != 'Y' && response != 'y') {
+            file_clock_restore();
             show_message("SAVE CANCELLED", COL_RED);
             return;
         }
@@ -534,6 +550,7 @@ void save_file() {
     cbm_k_setnam(full_filename);
 
     if (cbm_k_open() != 0) {
+        file_clock_restore();
         show_message("SAVE ERROR - OPEN FAIL", COL_RED);
         return;
     }
@@ -653,15 +670,18 @@ void save_file() {
             strcpy(current_filename, filename);
             page_modified = 0;
             update_cursor();
+            file_clock_restore();
             show_message("SAVED!", COL_GREEN);
         } else {
             update_cursor();
+            file_clock_restore();
             show_message(status, COL_RED);
         }
     } else {
         strcpy(current_filename, filename);
         page_modified = 0;
         update_cursor();
+        file_clock_restore();
         show_message("SAVED!", COL_GREEN);
     }
 }
