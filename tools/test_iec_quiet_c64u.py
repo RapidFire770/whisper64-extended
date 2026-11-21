@@ -25,7 +25,7 @@ def fail(msg):
     except Exception as exc:
         print("screen unread", exc, flush=True)
     restore_machine()
-    os._exit(1)
+    sys.exit(1)
 
 
 def restore_machine():
@@ -595,7 +595,7 @@ def main():
     if which not in ("both", "1", "4"):
         fail("usage: test_iec_quiet_c64u.py both|1|4")
     subprocess.check_call(["c64u", "info"])
-    letter, info = ensure_w64()
+    letter, info = find_drive_8()
     remote = remote_of(info)
     if not remote:
         fail("drive 8 has no image")
@@ -603,8 +603,18 @@ def main():
     ORIG["remote"] = remote
     ORIG["speed"] = current_of(item_node("CPU Speed"))
     ORIG["turbo"] = current_of(item_node("Turbo Control"))
+    ORIG["touched"] = True
     print("recorded", ORIG["speed"], ORIG["turbo"], remote, flush=True)
-    subprocess.check_call(["c64u", "fs", "download", remote, "/tmp/iec-src.d64"])
+    download_remote = remote
+    image = " ".join(str(info.get(k) or "") for k in ("image_file", "image_path"))
+    if "W64.d64" not in image:
+        subprocess.check_call([
+            "c64u", "drives", "mount", letter, "/SD/My Files/W64.d64",
+            "--mode", "readwrite"])
+        time.sleep(1)
+        _, w64_info = find_drive_8()
+        download_remote = remote_of(w64_info)
+    subprocess.check_call(["c64u", "fs", "download", download_remote, "/tmp/iec-src.d64"])
     source = open("/tmp/iec-src.d64", "rb").read()
     payload = payload_named(source, b"DICEROLL-BACKUP")
     if payload is None:
@@ -621,7 +631,6 @@ def main():
         fail("scratch image did not round-trip")
     open("/tmp/iec-quiet.d64", "wb").write(image)
     print("scratch image ok", len(payload), "bytes", flush=True)
-    ORIG["touched"] = True
     subprocess.check_call([
         "c64u", "drives", "mount-upload", letter, "/tmp/iec-quiet.d64",
         "--mode", "readwrite"])

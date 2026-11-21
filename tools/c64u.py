@@ -20,6 +20,7 @@ times per frame, so we sleep briefly between injections to let it drain.
 Screen-code note: UPPERCASE A-Z ($41-$5A) and space ($20) match PETSCII, but
 digits/punctuation differ. We decode leniently (see decode_row).
 """
+import shutil
 import subprocess
 import sys
 import time
@@ -60,12 +61,26 @@ def _get(path):
 
 
 def reset():
-    subprocess.check_call(["c64u", "machine", "reset"])
+    if shutil.which("c64u"):
+        subprocess.check_call(["c64u", "machine", "reset"])
+    else:
+        _put("/v1/machine:reset")
     time.sleep(2.5)
 
 
 def load_and_run(prg_path):
-    subprocess.check_call(["c64u", "runners", "run-prg-upload", prg_path])
+    if shutil.which("c64u"):
+        subprocess.check_call(["c64u", "runners", "run-prg-upload", prg_path])
+    else:
+        with open(prg_path, "rb") as handle:
+            data = handle.read()
+        req = urllib.request.Request(
+            HOST + "/v1/runners:run_prg",
+            data=data,
+            method="POST",
+            headers={"Content-Type": "application/octet-stream"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            resp.read()
     time.sleep(2.0)
 
 
