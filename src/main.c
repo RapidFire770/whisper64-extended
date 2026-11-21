@@ -24,6 +24,7 @@
 int main(void) {
     char c;
 
+    file_clock_boot();
     init_editor();
     reu_init();
     screen80_init();  // Generate 4x8 font from ROM (always, cheap to do)

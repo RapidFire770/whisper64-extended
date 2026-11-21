@@ -4,6 +4,7 @@
 #include "whisper64.h"
 
 // File operations
+void file_clock_boot(void);
 void save_file(void);
 void new_file(void);
 

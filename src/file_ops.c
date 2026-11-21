@@ -252,6 +252,18 @@ static void file_clock_restore(void) {
     *(volatile unsigned char *)0xD031 = turbo_byte;
 }
 
+/* A reset in C64U Turbo Registers leaves the speed index at 0, so the
+   menu CPU Speed never arrives and typing stays at 1 MHz. Index 3 is
+   the menu's 4 MHz step. Manual reads $D031 as $FF, so this does not run. */
+void file_clock_boot(void) {
+    unsigned char b;
+
+    b = *(volatile unsigned char *)0xD031;
+    if ((b & 0x0F) != 0)
+        return;
+    *(volatile unsigned char *)0xD031 = (unsigned char)((b & 0x80) | 3);
+}
+
 void show_directory() {
     int i, selected = 0, scroll_pos = 0;
     char c;

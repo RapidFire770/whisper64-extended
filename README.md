@@ -143,7 +143,7 @@ Page capacity depends on REU size:
 - 256KB: ~66 pages
 - 512KB: ~136 pages
 
-All pages are saved to and loaded from REU when switching pages. File save (F2) writes all pages to disk. File load (F1) reads the file and distributes content across pages as needed. On a multi-page load or save the drive finishes the open byte before a page moves through the REU. The same save matches with turbo off. In C64U Turbo Registers mode, load and save clear the $D031 speed index for the open file and write the saved byte back after close. CPU Speed 1 in Manual still round-trips; no software write makes Manual honor $D031. With turbo left off, the file still matches. `W64CONV`, `W64RENUM`, and `W64LABEL` measure this same REU and use it as a byte store.
+All pages are saved to and loaded from REU when switching pages. File save (F2) writes all pages to disk. File load (F1) reads the file and distributes content across pages as needed. On a multi-page load or save the drive finishes the open byte before a page moves through the REU. The same save matches with turbo off. In C64U Turbo Registers mode, startup writes speed index 3 when that index is 0, so typing stays at 4 MHz. Load and save clear the index for the open file and write the saved byte back after close. CPU Speed 1 in Manual still round-trips; no software write makes Manual honor $D031. With turbo left off, the file still matches. `W64CONV`, `W64RENUM`, and `W64LABEL` measure this same REU and use it as a byte store.
 
 ## BASIC Mode
 
